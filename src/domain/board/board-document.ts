@@ -3,13 +3,14 @@ export type BoardConnectionId = `connection:${string}`;
 
 export type BoardElement = {
   id: BoardElementId;
-  kind: "text" | "note" | "rectangle" | "ellipse";
+  kind: "text" | "note" | "rectangle" | "ellipse" | "draw";
   x: number;
   y: number;
   width: number;
   height: number;
   text: string;
   color?: "violet" | "yellow" | "blue" | "green" | "grey";
+  points?: number[];
 };
 
 export type BoardConnection = {

@@ -32,7 +32,7 @@ The goal is a reliable, local-only board interaction slice that proves the domai
 
 #### Milestone 2 — Canvas navigation and elements
 
-- Integrate tldraw through the adapter.
+- Integrate React Konva through the project-owned board-engine interface (Phase 1.1).
 - Implement pan/zoom and text, sticky-note, and shape creation/editing.
 - Add selection, move, resize, delete, duplicate, and copy/paste.
 

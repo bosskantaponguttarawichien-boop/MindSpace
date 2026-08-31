@@ -1,0 +1,404 @@
+"use client";
+
+import Konva from "konva";
+import type { KonvaEventObject } from "konva/lib/Node";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Arrow, Ellipse, Group, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
+import { sampleBoard } from "@/domain/board/sample-board";
+import type { BoardConnection, BoardDocument, BoardElement, BoardElementId } from "@/domain/board/board-document";
+import type { BoardEngine, BoardTool } from "@/infrastructure/board-engine/board-engine";
+import { useLocale } from "@/lib/i18n/locale-provider";
+
+type Viewport = { x: number; y: number; scale: number };
+type Size = { width: number; height: number };
+
+const COLORS = {
+  violet: { fill: "#ede9fe", stroke: "#7c3aed", text: "#3b0764" },
+  yellow: { fill: "#fef3c7", stroke: "#f59e0b", text: "#78350f" },
+  blue: { fill: "#dbeafe", stroke: "#3b82f6", text: "#1e3a8a" },
+  green: { fill: "#dcfce7", stroke: "#22c55e", text: "#14532d" },
+  grey: { fill: "#f3f4f6", stroke: "#94a3b8", text: "#334155" },
+} as const;
+
+const INITIAL_VIEWPORT: Viewport = { x: 40, y: 25, scale: 0.9 };
+
+function cloneDocument(document: BoardDocument): BoardDocument {
+  return structuredClone(document);
+}
+
+function createElementId(): BoardElementId {
+  return `element:${crypto.randomUUID()}`;
+}
+
+function elementCenter(element: BoardElement) {
+  return { x: element.x + element.width / 2, y: element.y + element.height / 2 };
+}
+
+function nextElement(tool: BoardTool, x: number, y: number): BoardElement | null {
+  const id = createElementId();
+  if (tool === "text") return { id, kind: "text", x, y, width: 220, height: 54, text: "New idea", color: "grey" };
+  if (tool === "note") return { id, kind: "note", x, y, width: 190, height: 170, text: "New note", color: "yellow" };
+  if (tool === "rectangle") return { id, kind: "rectangle", x, y, width: 220, height: 120, text: "New concept", color: "violet" };
+  if (tool === "ellipse") return { id, kind: "ellipse", x, y, width: 200, height: 120, text: "New concept", color: "blue" };
+  return null;
+}
+
+export function KonvaBoard({
+  activeTool,
+  onToolChange,
+  onReady,
+}: {
+  activeTool: BoardTool;
+  onToolChange: (tool: BoardTool) => void;
+  onReady: (engine: BoardEngine) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<Konva.Stage>(null);
+  const transformerRef = useRef<Konva.Transformer>(null);
+  const shapeRefs = useRef(new Map<BoardElementId, Konva.Node>());
+  const documentRef = useRef(cloneDocument(sampleBoard));
+  const selectionRef = useRef<BoardElementId[]>([]);
+  const pastRef = useRef<BoardDocument[]>([]);
+  const futureRef = useRef<BoardDocument[]>([]);
+  const gestureStartRef = useRef<BoardDocument | null>(null);
+  const drawStartRef = useRef<{ id: BoardElementId; document: BoardDocument } | null>(null);
+  const [document, setDocument] = useState(() => cloneDocument(sampleBoard));
+  const [selection, setSelection] = useState<BoardElementId[]>([]);
+  const [connectorStart, setConnectorStart] = useState<BoardElementId | null>(null);
+  const [editing, setEditing] = useState<{ id: BoardElementId; value: string } | null>(null);
+  const [viewport, setViewport] = useState(INITIAL_VIEWPORT);
+  const [size, setSize] = useState<Size>({ width: 900, height: 650 });
+  const { t } = useLocale();
+
+  useEffect(() => {
+    documentRef.current = document;
+  }, [document]);
+
+  useEffect(() => {
+    selectionRef.current = selection;
+    const nodes = selection.flatMap((id) => {
+      const node = shapeRefs.current.get(id);
+      return node ? [node] : [];
+    });
+    transformerRef.current?.nodes(nodes);
+    transformerRef.current?.getLayer()?.batchDraw();
+  }, [selection, document]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      setSize({ width: Math.max(1, entry.contentRect.width), height: Math.max(1, entry.contentRect.height) });
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  const replaceDocument = useCallback((next: BoardDocument) => {
+    documentRef.current = next;
+    setDocument(next);
+  }, []);
+
+  const commit = useCallback((next: BoardDocument) => {
+    pastRef.current.push(cloneDocument(documentRef.current));
+    futureRef.current = [];
+    replaceDocument(next);
+  }, [replaceDocument]);
+
+  const undo = useCallback(() => {
+    const previous = pastRef.current.pop();
+    if (!previous) return;
+    futureRef.current.push(cloneDocument(documentRef.current));
+    setSelection([]);
+    replaceDocument(previous);
+  }, [replaceDocument]);
+
+  const redo = useCallback(() => {
+    const next = futureRef.current.pop();
+    if (!next) return;
+    pastRef.current.push(cloneDocument(documentRef.current));
+    setSelection([]);
+    replaceDocument(next);
+  }, [replaceDocument]);
+
+  const deleteSelection = useCallback(() => {
+    const ids = new Set(selectionRef.current);
+    if (ids.size === 0) return;
+    commit({
+      ...documentRef.current,
+      elements: documentRef.current.elements.filter((element) => !ids.has(element.id)),
+      connections: documentRef.current.connections.filter((connection) => !ids.has(connection.fromId) && !ids.has(connection.toId)),
+    });
+    setSelection([]);
+  }, [commit]);
+
+  const duplicateSelection = useCallback(() => {
+    const selected = new Set(selectionRef.current);
+    if (selected.size === 0) return;
+    const idMap = new Map<BoardElementId, BoardElementId>();
+    const copies = documentRef.current.elements.flatMap((element) => {
+      if (!selected.has(element.id)) return [];
+      const id = createElementId();
+      idMap.set(element.id, id);
+      return [{ ...element, id, x: element.x + 32, y: element.y + 32 }];
+    });
+    const copiedConnections = documentRef.current.connections.flatMap((connection) => {
+      const fromId = idMap.get(connection.fromId);
+      const toId = idMap.get(connection.toId);
+      if (!fromId || !toId) return [];
+      return [{ id: `connection:${crypto.randomUUID()}` as const, fromId, toId }];
+    });
+    commit({
+      ...documentRef.current,
+      elements: [...documentRef.current.elements, ...copies],
+      connections: [...documentRef.current.connections, ...copiedConnections],
+    });
+    setSelection(copies.map((element) => element.id));
+  }, [commit]);
+
+  const zoomAtCenter = useCallback((factor: number) => {
+    setViewport((current) => {
+      const nextScale = Math.min(2.5, Math.max(0.25, current.scale * factor));
+      const center = { x: size.width / 2, y: size.height / 2 };
+      const world = { x: (center.x - current.x) / current.scale, y: (center.y - current.y) / current.scale };
+      return { scale: nextScale, x: center.x - world.x * nextScale, y: center.y - world.y * nextScale };
+    });
+  }, [size]);
+
+  const zoomToFit = useCallback(() => {
+    const elements = documentRef.current.elements;
+    if (elements.length === 0) return setViewport(INITIAL_VIEWPORT);
+    const minX = Math.min(...elements.map((element) => element.x));
+    const minY = Math.min(...elements.map((element) => element.y));
+    const maxX = Math.max(...elements.map((element) => element.x + element.width));
+    const maxY = Math.max(...elements.map((element) => element.y + element.height));
+    const scale = Math.min(1.4, Math.max(0.25, Math.min((size.width - 120) / (maxX - minX), (size.height - 120) / (maxY - minY))));
+    setViewport({ x: (size.width - (maxX + minX) * scale) / 2, y: (size.height - (maxY + minY) * scale) / 2, scale });
+  }, [size]);
+
+  const engine = useMemo<BoardEngine>(() => ({
+    undo,
+    redo,
+    deleteSelection,
+    duplicateSelection,
+    zoomIn: () => zoomAtCenter(1.2),
+    zoomOut: () => zoomAtCenter(1 / 1.2),
+    zoomToFit,
+  }), [deleteSelection, duplicateSelection, redo, undo, zoomAtCenter, zoomToFit]);
+
+  useEffect(() => onReady(engine), [engine, onReady]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        if (event.shiftKey) redo(); else undo();
+      } else if ((event.key === "Delete" || event.key === "Backspace") && selectionRef.current.length > 0) {
+        event.preventDefault();
+        deleteSelection();
+      } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        duplicateSelection();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [deleteSelection, duplicateSelection, redo, undo]);
+
+  function worldPointer() {
+    const pointer = stageRef.current?.getPointerPosition();
+    if (!pointer) return null;
+    return { x: (pointer.x - viewport.x) / viewport.scale, y: (pointer.y - viewport.y) / viewport.scale };
+  }
+
+  function handleStagePointerDown(event: KonvaEventObject<PointerEvent>) {
+    if (event.target !== event.target.getStage()) return;
+    if (activeTool === "select") return setSelection([]);
+    if (activeTool === "hand") return;
+    const point = worldPointer();
+    if (!point) return;
+    if (activeTool === "draw") {
+      const element: BoardElement = { id: createElementId(), kind: "draw", x: 0, y: 0, width: 1, height: 1, text: "", color: "violet", points: [point.x, point.y] };
+      drawStartRef.current = { id: element.id, document: cloneDocument(documentRef.current) };
+      replaceDocument({ ...documentRef.current, elements: [...documentRef.current.elements, element] });
+      return;
+    }
+    const element = nextElement(activeTool, point.x, point.y);
+    if (element) {
+      commit({ ...documentRef.current, elements: [...documentRef.current.elements, element] });
+      setSelection([element.id]);
+      onToolChange("select");
+    }
+  }
+
+  function handleStagePointerMove() {
+    const drawing = drawStartRef.current;
+    if (!drawing) return;
+    const point = worldPointer();
+    if (!point) return;
+    replaceDocument({
+      ...documentRef.current,
+      elements: documentRef.current.elements.map((element) => element.id === drawing.id
+        ? { ...element, points: [...(element.points ?? []), point.x, point.y] }
+        : element),
+    });
+  }
+
+  function handleStagePointerUp() {
+    const drawing = drawStartRef.current;
+    if (!drawing) return;
+    pastRef.current.push(drawing.document);
+    futureRef.current = [];
+    drawStartRef.current = null;
+    onToolChange("select");
+  }
+
+  function selectElement(id: BoardElementId, event: KonvaEventObject<MouseEvent | TouchEvent>) {
+    event.cancelBubble = true;
+    if (activeTool === "arrow") {
+      if (!connectorStart) return setConnectorStart(id);
+      if (connectorStart !== id) {
+        const connection: BoardConnection = { id: `connection:${crypto.randomUUID()}`, fromId: connectorStart, toId: id };
+        commit({ ...documentRef.current, connections: [...documentRef.current.connections, connection] });
+      }
+      setConnectorStart(null);
+      onToolChange("select");
+      return;
+    }
+    if (activeTool !== "select") return;
+    const next = event.evt.shiftKey
+      ? selection.includes(id) ? selection.filter((selectedId) => selectedId !== id) : [...selection, id]
+      : [id];
+    setSelection(next);
+  }
+
+  function updateElement(id: BoardElementId, patch: Partial<BoardElement>, historical = false) {
+    const next = { ...documentRef.current, elements: documentRef.current.elements.map((element) => element.id === id ? { ...element, ...patch } : element) };
+    if (historical && gestureStartRef.current) {
+      pastRef.current.push(gestureStartRef.current);
+      futureRef.current = [];
+      gestureStartRef.current = null;
+    }
+    replaceDocument(next);
+  }
+
+  function handleWheel(event: KonvaEventObject<WheelEvent>) {
+    event.evt.preventDefault();
+    const pointer = stageRef.current?.getPointerPosition();
+    if (!pointer) return;
+    const direction = event.evt.deltaY > 0 ? 1 / 1.08 : 1.08;
+    const scale = Math.min(2.5, Math.max(0.25, viewport.scale * direction));
+    const world = { x: (pointer.x - viewport.x) / viewport.scale, y: (pointer.y - viewport.y) / viewport.scale };
+    setViewport({ scale, x: pointer.x - world.x * scale, y: pointer.y - world.y * scale });
+  }
+
+  const elementMap = new Map(document.elements.map((element) => [element.id, element]));
+  const editingElement = editing ? elementMap.get(editing.id) : undefined;
+
+  function finishEditing() {
+    if (!editing) return;
+    const element = documentRef.current.elements.find((candidate) => candidate.id === editing.id);
+    if (element && element.text !== editing.value) {
+      commit({
+        ...documentRef.current,
+        elements: documentRef.current.elements.map((candidate) => candidate.id === editing.id ? { ...candidate, text: editing.value } : candidate),
+      });
+    }
+    setEditing(null);
+  }
+
+  return (
+    <div ref={containerRef} className="konva-board h-full w-full" data-testid="konva-board" data-element-count={document.elements.length}>
+      <Stage
+        ref={stageRef}
+        width={size.width}
+        height={size.height}
+        x={viewport.x}
+        y={viewport.y}
+        scaleX={viewport.scale}
+        scaleY={viewport.scale}
+        draggable={activeTool === "hand"}
+        onDragEnd={(event) => setViewport((current) => ({ ...current, x: event.target.x(), y: event.target.y() }))}
+        onPointerDown={handleStagePointerDown}
+        onPointerMove={handleStagePointerMove}
+        onPointerUp={handleStagePointerUp}
+        onWheel={handleWheel}
+      >
+        <Layer>
+          {document.connections.map((connection) => {
+            const from = elementMap.get(connection.fromId);
+            const to = elementMap.get(connection.toId);
+            if (!from || !to) return null;
+            const start = elementCenter(from);
+            const end = elementCenter(to);
+            return <Arrow key={connection.id} points={[start.x, start.y, end.x, end.y]} stroke="#64748b" fill="#64748b" strokeWidth={2} pointerLength={8} pointerWidth={8} />;
+          })}
+          {document.elements.map((element) => {
+            if (element.kind === "draw") {
+              return <Line key={element.id} points={element.points ?? []} stroke="#7c3aed" strokeWidth={3} lineCap="round" lineJoin="round" tension={0.25} />;
+            }
+            const colors = COLORS[element.color ?? "grey"];
+            return (
+              <Group
+                key={element.id}
+                ref={(node) => { if (node) shapeRefs.current.set(element.id, node); else shapeRefs.current.delete(element.id); }}
+                x={element.x}
+                y={element.y}
+                width={element.width}
+                height={element.height}
+                draggable={activeTool === "select"}
+                onClick={(event) => selectElement(element.id, event)}
+                onTap={(event) => selectElement(element.id, event)}
+                onDblClick={(event) => {
+                  event.cancelBubble = true;
+                  setEditing({ id: element.id, value: element.text });
+                }}
+                onDragStart={() => { gestureStartRef.current = cloneDocument(documentRef.current); }}
+                onDragMove={(event) => updateElement(element.id, { x: event.target.x(), y: event.target.y() })}
+                onDragEnd={(event) => updateElement(element.id, { x: event.target.x(), y: event.target.y() }, true)}
+                onTransformStart={() => { gestureStartRef.current = cloneDocument(documentRef.current); }}
+                onTransformEnd={(event) => {
+                  const node = event.target;
+                  const width = Math.max(48, element.width * node.scaleX());
+                  const height = Math.max(36, element.height * node.scaleY());
+                  node.scale({ x: 1, y: 1 });
+                  updateElement(element.id, { x: node.x(), y: node.y(), width, height }, true);
+                }}
+              >
+                {element.kind === "ellipse"
+                  ? <Ellipse x={element.width / 2} y={element.height / 2} radiusX={element.width / 2} radiusY={element.height / 2} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />
+                  : element.kind === "text"
+                    ? null
+                    : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} cornerRadius={element.kind === "note" ? 4 : 16} shadowColor="#475569" shadowOpacity={0.12} shadowBlur={10} shadowOffsetY={4} />}
+                <Text text={element.text} width={element.width} height={element.height} padding={element.kind === "text" ? 0 : 18} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={element.kind === "text" ? 18 : 16} fontStyle={element.kind === "text" ? "normal" : "bold"} lineHeight={1.35} verticalAlign="middle" align={element.kind === "text" ? "left" : "center"} wrap="word" />
+              </Group>
+            );
+          })}
+          <Transformer ref={transformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={(oldBox, newBox) => newBox.width < 48 || newBox.height < 36 ? oldBox : newBox} />
+        </Layer>
+      </Stage>
+      {editing && editingElement ? (
+        <textarea
+          autoFocus
+          aria-label={t("editElement")}
+          className="absolute z-20 resize-none rounded-md border-2 border-primary bg-background/95 p-3 text-sm shadow-xl outline-none"
+          style={{
+            left: viewport.x + editingElement.x * viewport.scale,
+            top: viewport.y + editingElement.y * viewport.scale,
+            width: Math.max(140, editingElement.width * viewport.scale),
+            height: Math.max(60, editingElement.height * viewport.scale),
+          }}
+          value={editing.value}
+          onChange={(event) => setEditing({ ...editing, value: event.target.value })}
+          onBlur={finishEditing}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setEditing(null);
+            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") event.currentTarget.blur();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}

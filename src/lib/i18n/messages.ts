@@ -21,6 +21,7 @@ export const messages = {
     circle: "Circle",
     connector: "Connector",
     draw: "Draw",
+    editElement: "Edit board item",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",
     fit: "Fit board",
@@ -39,7 +40,7 @@ export const messages = {
     english: "English",
     thai: "ไทย",
     syncedLater: "Cloud sync arrives with Firebase in Phase 2",
-    phaseOne: "Phase 1 · Board Core",
+    phaseOne: "Phase 1.1 · React Konva Board",
     keyboardHelp: "Use Ctrl/Cmd+Z to undo and Ctrl/Cmd+Shift+Z to redo.",
   },
   th: {
@@ -64,6 +65,7 @@ export const messages = {
     circle: "วงกลม",
     connector: "เส้นเชื่อม",
     draw: "วาด",
+    editElement: "แก้ไขรายการบนบอร์ด",
     zoomIn: "ขยาย",
     zoomOut: "ย่อ",
     fit: "พอดีกับบอร์ด",
@@ -82,7 +84,7 @@ export const messages = {
     english: "English",
     thai: "ไทย",
     syncedLater: "Cloud sync ผ่าน Firebase จะมาใน Phase 2",
-    phaseOne: "Phase 1 · Board Core",
+    phaseOne: "Phase 1.1 · React Konva Board",
     keyboardHelp: "ใช้ Ctrl/Cmd+Z เพื่อย้อนกลับ และ Ctrl/Cmd+Shift+Z เพื่อทำซ้ำ",
   },
 } as const;

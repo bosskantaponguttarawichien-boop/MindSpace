@@ -28,4 +28,4 @@ pnpm test:e2e
 pnpm build
 ```
 
-Copy `.env.example` to `.env.local` only when a phase needs those values. A tldraw production license is required before deploying without the SDK trial watermark.
+Copy `.env.example` to `.env.local` only when a phase needs those values. Phase 1.1 uses the MIT-licensed React Konva and Konva packages; it requires no canvas license key or production fee.

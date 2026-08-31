@@ -2,7 +2,7 @@
 
 ## Approved shape
 
-Start as a modular monolith using Next.js App Router and strict TypeScript, managed with pnpm and deployed to Vercel. Use tldraw behind a local adapter for the board engine. Use Firebase through project-owned adapters for persisted data and files when Phase 2 begins. External capabilities remain behind application interfaces so UI and board-domain behavior do not depend on vendor SDKs.
+Start as a modular monolith using Next.js App Router and strict TypeScript, managed with pnpm and deployed to Vercel. Use React Konva behind a project-owned board-engine interface. Use Firebase through project-owned adapters for persisted data and files when Phase 2 begins. External capabilities remain behind application interfaces so UI and board-domain behavior do not depend on vendor SDKs.
 
 ```text
 UI / routes
@@ -14,10 +14,10 @@ Application use cases + board commands
 Domain model and ports
     |
     v
-Adapters: tldraw | persistence | files | AI | auth
+Adapters: Konva | persistence | files | AI | auth
 ```
 
-Dependencies point downward. Domain code does not import React, Next.js, tldraw, database clients, auth SDKs, storage SDKs, or AI SDKs.
+Dependencies point downward. Domain code does not import React, Next.js, Konva, database clients, auth SDKs, storage SDKs, or AI SDKs.
 
 ## Target module boundaries
 
@@ -34,7 +34,7 @@ src/
   domain/
     board/             framework-neutral document and command contracts
   infrastructure/
-    board-engine/      tldraw adapter
+    board-engine/      project-owned interface and React Konva implementation
     firebase/          later: Firestore, Auth, and Storage adapters
     persistence/       repository interfaces and Firebase implementations
     auth/              later: Firebase Authentication adapter
@@ -83,7 +83,7 @@ All mutations use explicit commands such as `createElement`, `updateElement`, `m
 
 ## External boundaries
 
-- Convert domain shapes and tldraw shapes only in the board-engine adapter.
+- Convert domain elements to Konva nodes only in the board-engine implementation.
 - Validate data when it enters from URLs, APIs, storage, files, clipboard, or AI.
 - AI providers return proposals expressed as validated board commands; they do not receive direct mutation access.
 - File bytes and extracted content never live in the board document; it stores references plus safe metadata.

@@ -138,7 +138,8 @@ body {
   overflow: hidden;
 }
 
-.tl-container {
-  --color-background: oklch(0.975 0.006 282);
-  font-family: "Geist", "Noto Sans Thai", "Leelawadee UI", ui-sans-serif, system-ui, sans-serif;
+.konva-board {
+  background-color: oklch(0.975 0.006 282);
+  background-image: radial-gradient(oklch(0.72 0.02 282 / 45%) 1px, transparent 1px);
+  background-size: 24px 24px;
 }

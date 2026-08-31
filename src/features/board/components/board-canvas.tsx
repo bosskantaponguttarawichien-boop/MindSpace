@@ -1,44 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Tldraw, type Editor } from "tldraw";
-import "tldraw/tldraw.css";
+import dynamic from "next/dynamic";
+import { useCallback, useState } from "react";
 import { BoardToolbar } from "@/features/board/components/board-toolbar";
 import { ZoomControls } from "@/features/board/components/zoom-controls";
-import { sampleBoard } from "@/domain/board/sample-board";
-import { hiddenTldrawUi, mountBoardDocument, type BoardTool } from "@/infrastructure/board-engine/tldraw-adapter";
+import type { BoardEngine, BoardTool } from "@/infrastructure/board-engine/board-engine";
 
-export function BoardCanvas({ onEditorReady }: { onEditorReady: (editor: Editor) => void }) {
-  const [editor, setEditor] = useState<Editor | null>(null);
+const KonvaBoard = dynamic(
+  () => import("@/infrastructure/board-engine/konva-board").then((module) => module.KonvaBoard),
+  { ssr: false },
+);
+
+export function BoardCanvas({ onEngineReady }: { onEngineReady: (engine: BoardEngine) => void }) {
+  const [engine, setEngine] = useState<BoardEngine | null>(null);
   const [activeTool, setActiveTool] = useState<BoardTool>("select");
 
-  useEffect(() => {
-    if (!editor) return;
-    return editor.store.listen(() => {
-      const currentTool = editor.getCurrentToolId();
-      if (["select", "hand", "text", "note", "arrow", "draw"].includes(currentTool)) {
-        setActiveTool(currentTool as BoardTool);
-      } else if (currentTool === "geo") {
-        setActiveTool((previous) => (previous === "ellipse" ? "ellipse" : "rectangle"));
-      }
-    });
-  }, [editor]);
-
-  const handleMount = useCallback((mountedEditor: Editor) => {
-    setEditor(mountedEditor);
-    onEditorReady(mountedEditor);
-    try {
-      mountBoardDocument(mountedEditor, sampleBoard);
-    } catch (error) {
-      console.error("Failed to mount the Phase 1 sample board", error);
-    }
-  }, [onEditorReady]);
+  const handleReady = useCallback((readyEngine: BoardEngine) => {
+    setEngine(readyEngine);
+    onEngineReady(readyEngine);
+  }, [onEngineReady]);
 
   return (
-    <div className="relative h-full min-h-0 bg-muted/30" data-testid="board-canvas">
-      <Tldraw onMount={handleMount} components={hiddenTldrawUi} locale="en" licenseKey={process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY} autoFocus />
-      <BoardToolbar editor={editor} activeTool={activeTool} onToolChange={setActiveTool} />
-      <ZoomControls editor={editor} />
+    <div className="relative h-full min-h-0 overflow-hidden bg-muted/30" data-testid="board-canvas">
+      <KonvaBoard activeTool={activeTool} onToolChange={setActiveTool} onReady={handleReady} />
+      <BoardToolbar ready={engine !== null} activeTool={activeTool} onToolChange={setActiveTool} />
+      <ZoomControls engine={engine} />
     </div>
   );
 }

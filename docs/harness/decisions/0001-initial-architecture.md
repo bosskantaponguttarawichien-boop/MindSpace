@@ -12,7 +12,7 @@ MindSpace combines a high-interaction infinite canvas with later persistence, re
 - Begin with a Next.js App Router modular monolith in strict TypeScript.
 - Use pnpm as the package manager and Vercel as the initial deployment platform.
 - Use Tailwind CSS and shadcn/ui for application UI.
-- Use tldraw behind a project-owned board-engine adapter rather than building a canvas engine.
+- Use a canvas library behind a project-owned board-engine boundary; superseded by ADR 0003 for the selected implementation.
 - Own a versioned, framework-neutral board document and command contract.
 - Keep persistence, auth, files, realtime, and AI behind ports; introduce adapters only in the phase that needs them.
 - Use Firebase for the planned persistence platform as refined by ADR 0002.

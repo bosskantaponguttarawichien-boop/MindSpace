@@ -1,0 +1,27 @@
+{
+  "$schema": "./docs/harness/harness.schema.json",
+  "version": 1,
+  "project": "MindSpace",
+  "currentPhase": "phase-1-board-core",
+  "sources": {
+    "product": "requirement.md",
+    "visualReference": "poc.html",
+    "agentEntryPoint": "AGENTS.md"
+  },
+  "requiredDocuments": [
+    "docs/harness/README.md",
+    "docs/harness/product-scope.md",
+    "docs/harness/architecture.md",
+    "docs/harness/engineering-rules.md",
+    "docs/harness/workflow.md",
+    "docs/harness/testing.md",
+    "docs/harness/security-and-ai-safety.md",
+    "docs/harness/definition-of-done.md",
+    "docs/harness/decisions/0001-initial-architecture.md",
+    "docs/harness/decisions/0002-firebase-persistence.md"
+  ],
+  "validation": {
+    "harness": "node scripts/validate-harness.mjs",
+    "application": ["lint", "typecheck", "test", "build"]
+  }
+}

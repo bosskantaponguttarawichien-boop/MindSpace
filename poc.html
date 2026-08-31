@@ -1,0 +1,1129 @@
+<!doctype html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Knowledge Board</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #f7f7fa;
+            --panel: #ffffff;
+            --border: #e7e7ee;
+            --text: #1f2028;
+            --muted: #7d8190;
+            --primary: #665cf6;
+            --primary-soft: #efedff;
+            --green: #1fa971;
+        }
+
+        body {
+            margin: 0;
+            font-family:
+                Inter,
+                system-ui,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+
+            color: var(--text);
+            background: var(--bg);
+            overflow: hidden;
+        }
+
+        button {
+            font: inherit;
+            cursor: pointer;
+        }
+
+        .app {
+            height: 100vh;
+            display: grid;
+            grid-template-columns: 230px 1fr 320px;
+        }
+
+        /* ---------------- SIDEBAR ---------------- */
+
+        .sidebar {
+            background: white;
+            border-right: 1px solid var(--border);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 800;
+            font-size: 17px;
+        }
+
+        .logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            background:
+                linear-gradient(135deg,
+                    #887cff,
+                    #6154ee);
+        }
+
+        .new-board {
+            border: 0;
+            background: var(--primary);
+            color: white;
+            padding: 11px 14px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .section-title {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            margin-bottom: 7px;
+        }
+
+        .board-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .board-item {
+            padding: 9px 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #555966;
+            cursor: pointer;
+        }
+
+        .board-item.active {
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-weight: 650;
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            font-size: 12px;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .online-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+        }
+
+        /* ---------------- WORKSPACE ---------------- */
+
+        .workspace {
+            position: relative;
+            overflow: hidden;
+            background: #fcfcfe;
+        }
+
+        .topbar {
+            position: absolute;
+            top: 14px;
+            left: 16px;
+            right: 16px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+
+            z-index: 20;
+        }
+
+        .board-name {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 14px;
+
+            box-shadow:
+                0 6px 20px rgba(33, 36, 50, .06);
+        }
+
+        .board-name strong {
+            font-size: 14px;
+        }
+
+        .board-name small {
+            color: var(--muted);
+            margin-left: 8px;
+        }
+
+        .top-actions {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .icon-button,
+        .action-button {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            height: 38px;
+            padding: 0 11px;
+
+            box-shadow:
+                0 4px 12px rgba(30, 34, 50, .04);
+        }
+
+        .save-state {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #637062;
+            font-size: 12px;
+
+            background: white;
+            padding: 8px 11px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+
+        .save-dot {
+            background: var(--green);
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+
+        /* ---------------- TOOLBAR ---------------- */
+
+        .toolbar {
+            position: absolute;
+            top: 72px;
+            left: 50%;
+
+            transform: translateX(-50%);
+
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 13px;
+
+            padding: 6px;
+
+            display: flex;
+            align-items: center;
+            gap: 5px;
+
+            z-index: 20;
+
+            box-shadow:
+                0 8px 24px rgba(34, 36, 52, .08);
+        }
+
+        .tool {
+            border: 0;
+            background: transparent;
+
+            min-width: 36px;
+            height: 36px;
+
+            border-radius: 8px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            color: #545866;
+        }
+
+        .tool.active {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+
+        .divider {
+            height: 24px;
+            width: 1px;
+            background: var(--border);
+            margin: 0 3px;
+        }
+
+        /* ---------------- CANVAS ---------------- */
+
+        .canvas {
+            width: 4000px;
+            height: 2600px;
+
+            position: absolute;
+
+            left: -700px;
+            top: -450px;
+
+            background-image:
+                radial-gradient(#d8dae4 1px,
+                    transparent 1px);
+
+            background-size: 24px 24px;
+        }
+
+        .card {
+            position: absolute;
+            background: white;
+
+            border: 1px solid #e0e1e8;
+            border-radius: 13px;
+
+            padding: 15px;
+
+            min-width: 190px;
+
+            box-shadow:
+                0 12px 30px rgba(30, 32, 48, .08);
+        }
+
+        .card-title {
+            font-weight: 750;
+            margin-bottom: 8px;
+        }
+
+        .card p {
+            margin: 0;
+            color: #575c68;
+
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .root-node {
+            left: 1050px;
+            top: 770px;
+
+            width: 270px;
+
+            border: 2px solid #7569ff;
+        }
+
+        .frontend {
+            left: 1450px;
+            top: 620px;
+        }
+
+        .backend {
+            left: 1450px;
+            top: 900px;
+        }
+
+        .database {
+            left: 1830px;
+            top: 900px;
+        }
+
+        .sticky {
+            left: 950px;
+            top: 1120px;
+
+            width: 210px;
+            min-height: 140px;
+
+            background: #fff3ae;
+            border: none;
+
+            transform: rotate(-2deg);
+        }
+
+        .pdf {
+            left: 1780px;
+            top: 560px;
+
+            width: 250px;
+            height: 280px;
+
+            padding: 10px;
+        }
+
+        .pdf-preview {
+            background:
+                linear-gradient(180deg,
+                    #f5f5f5,
+                    #eee);
+
+            height: 190px;
+            border-radius: 8px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            color: #999;
+
+            font-weight: 700;
+        }
+
+        .pdf-info {
+            margin-top: 9px;
+        }
+
+        .pdf-info strong {
+            display: block;
+            font-size: 13px;
+        }
+
+        .pdf-info small {
+            color: var(--muted);
+        }
+
+        /* ---------------- CONNECTORS ---------------- */
+
+        svg.connections {
+            position: absolute;
+
+            left: 0;
+            top: 0;
+
+            width: 4000px;
+            height: 2600px;
+
+            pointer-events: none;
+        }
+
+        path {
+            stroke: #626676;
+            stroke-width: 2;
+
+            fill: none;
+        }
+
+        /* ---------------- ZOOM ---------------- */
+
+        .zoom {
+            position: absolute;
+
+            bottom: 18px;
+            left: 18px;
+
+            display: flex;
+            gap: 5px;
+            align-items: center;
+
+            background: white;
+
+            padding: 5px;
+
+            border: 1px solid var(--border);
+            border-radius: 11px;
+
+            z-index: 20;
+        }
+
+        .zoom button {
+            border: 0;
+            background: transparent;
+            width: 32px;
+            height: 32px;
+        }
+
+        .zoom span {
+            width: 50px;
+            text-align: center;
+
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        /* ---------------- AI PANEL ---------------- */
+
+        .ai-panel {
+            background: white;
+            border-left: 1px solid var(--border);
+
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ai-header {
+            padding: 18px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .ai-header-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+
+            font-weight: 800;
+        }
+
+        .ai-header p {
+            margin: 7px 0 0;
+            color: var(--muted);
+
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .ai-actions {
+            padding: 14px;
+
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
+        }
+
+        .ai-action {
+            border: 1px solid var(--border);
+            background: white;
+
+            border-radius: 10px;
+
+            padding: 10px;
+
+            text-align: left;
+
+            font-size: 12px;
+        }
+
+        .ai-action:hover {
+            border-color: #bdb8ff;
+            background: #faf9ff;
+        }
+
+        .chat {
+            flex: 1;
+            padding: 16px;
+
+            overflow-y: auto;
+        }
+
+        .chat-message {
+            margin-bottom: 14px;
+        }
+
+        .chat-message.ai {
+            background: #f5f4ff;
+
+            border-radius: 12px;
+
+            padding: 12px;
+
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .chat-message.user {
+            margin-left: 30px;
+
+            background: #f5f6f8;
+
+            border-radius: 12px;
+
+            padding: 11px;
+
+            font-size: 13px;
+        }
+
+        .ai-input {
+            padding: 14px;
+            border-top: 1px solid var(--border);
+        }
+
+        .input-box {
+            border: 1px solid var(--border);
+
+            border-radius: 12px;
+
+            padding: 10px;
+
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        textarea {
+            width: 100%;
+
+            resize: none;
+            border: 0;
+            outline: 0;
+
+            min-height: 65px;
+
+            font: inherit;
+        }
+
+        .send-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .context {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .send {
+            border: 0;
+
+            width: 32px;
+            height: 32px;
+
+            color: white;
+
+            background: var(--primary);
+
+            border-radius: 8px;
+        }
+
+        /* ---------------- IMPORT MENU ---------------- */
+
+        .import-menu {
+            position: absolute;
+
+            top: 65px;
+            right: 15px;
+
+            width: 210px;
+
+            background: white;
+
+            border: 1px solid var(--border);
+
+            padding: 7px;
+
+            border-radius: 12px;
+
+            z-index: 40;
+
+            display: none;
+
+            box-shadow:
+                0 12px 35px rgba(30, 32, 48, .12);
+        }
+
+        .import-menu.active {
+            display: block;
+        }
+
+        .menu-item {
+            padding: 10px;
+
+            border-radius: 8px;
+
+            font-size: 13px;
+
+            cursor: pointer;
+        }
+
+        .menu-item:hover {
+            background: #f5f5f8;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app">
+
+        <!-- SIDEBAR -->
+
+        <aside class="sidebar">
+
+            <div class="brand">
+                <div class="logo"></div>
+                MindSpace
+            </div>
+
+            <button class="new-board">
+                + New board
+            </button>
+
+            <div>
+
+                <div class="section-title">
+                    Boards
+                </div>
+
+                <div class="board-list">
+
+                    <div class="board-item active">
+                        Backend Learning
+                    </div>
+
+                    <div class="board-item">
+                        AI Agent
+                    </div>
+
+                    <div class="board-item">
+                        English
+                    </div>
+
+                    <div class="board-item">
+                        Random Ideas
+                    </div>
+
+                    <div class="board-item">
+                        System Design
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="online-dot"></div>
+                Synced across devices
+            </div>
+
+        </aside>
+
+
+        <!-- WORKSPACE -->
+
+        <main class="workspace">
+
+            <div class="topbar">
+
+                <div class="board-name">
+
+                    <strong>
+                        Backend Learning
+                    </strong>
+
+                    <small>
+                        Personal board
+                    </small>
+
+                </div>
+
+
+                <div class="top-actions">
+
+                    <div class="save-state">
+
+                        <div class="save-dot"></div>
+
+                        Saved
+
+                    </div>
+
+                    <button class="icon-button" title="Undo" onclick="fakeUndo()">
+                        ↶
+                    </button>
+
+                    <button class="icon-button" title="Redo">
+                        ↷
+                    </button>
+
+                    <button class="action-button" onclick="toggleImport()">
+                        Import ▾
+                    </button>
+
+                    <button class="action-button" onclick="exportPDF()">
+                        Export PDF
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- IMPORT -->
+
+            <div id="importMenu" class="import-menu">
+
+                <div class="menu-item">
+                    🖼 Import image
+                </div>
+
+                <div class="menu-item">
+                    📄 Import PDF
+                </div>
+
+                <div class="menu-item">
+                    🔗 Embed link
+                </div>
+
+            </div>
+
+
+            <!-- TOOLBAR -->
+
+            <div class="toolbar">
+
+                <button class="tool active">
+                    ↖
+                </button>
+
+                <button class="tool">
+                    T
+                </button>
+
+                <button class="tool">
+                    ▤
+                </button>
+
+                <button class="tool">
+                    □
+                </button>
+
+                <button class="tool">
+                    ○
+                </button>
+
+                <button class="tool">
+                    ↗
+                </button>
+
+                <div class="divider"></div>
+
+                <button class="tool">
+                    ✎
+                </button>
+
+                <button class="tool">
+                    🖼
+                </button>
+
+                <button class="tool">
+                    📄
+                </button>
+
+            </div>
+
+
+            <!-- BOARD -->
+
+            <div class="canvas">
+
+                <svg class="connections">
+
+                    <defs>
+
+                        <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                            <path d="M0,0 L0,6 L9,3 z" fill="#626676" />
+                        </marker>
+
+                    </defs>
+
+                    <path d="
+            M1320 835
+            C1380 835
+            1380 690
+            1450 690
+          " marker-end="url(#arrow)" />
+
+                    <path d="
+            M1320 850
+            C1380 850
+            1380 960
+            1450 960
+          " marker-end="url(#arrow)" />
+
+                    <path d="
+            M1640 960
+            C1720 960
+            1740 960
+            1830 960
+          " marker-end="url(#arrow)" />
+
+                </svg>
+
+
+                <!-- ROOT -->
+
+                <div class="card root-node">
+
+                    <div class="card-title">
+                        Backend
+                    </div>
+
+                    <p>
+                        Backend คือระบบที่รับ request
+                        ประมวลผล business logic
+                        และติดต่อกับ database
+                    </p>
+
+                </div>
+
+
+                <!-- FRONTEND -->
+
+                <div class="card frontend">
+
+                    <div class="card-title">
+                        Frontend
+                    </div>
+
+                    <p>
+                        React / Next.js
+                    </p>
+
+                </div>
+
+
+                <!-- API -->
+
+                <div class="card backend">
+
+                    <div class="card-title">
+                        API Server
+                    </div>
+
+                    <p>
+                        Node.js / Go / Spring Boot
+                    </p>
+
+                </div>
+
+
+                <!-- DB -->
+
+                <div class="card database">
+
+                    <div class="card-title">
+                        Database
+                    </div>
+
+                    <p>
+                        PostgreSQL
+                    </p>
+
+                </div>
+
+
+                <!-- STICKY -->
+
+                <div class="card sticky">
+
+                    <div class="card-title">
+                        Question
+                    </div>
+
+                    <p>
+                        API ต่างจาก Backend ยังไง?
+                    </p>
+
+                </div>
+
+
+                <!-- PDF -->
+
+                <div class="card pdf">
+
+                    <div class="pdf-preview">
+                        PDF PAGE
+                    </div>
+
+                    <div class="pdf-info">
+
+                        <strong>
+                            Designing Data-Intensive Applications
+                        </strong>
+
+                        <small>
+                            Page 42
+                        </small>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- ZOOM -->
+
+            <div class="zoom">
+
+                <button>
+                    −
+                </button>
+
+                <span>
+                    85%
+                </span>
+
+                <button>
+                    +
+                </button>
+
+            </div>
+
+        </main>
+
+
+        <!-- AI -->
+
+        <aside class="ai-panel">
+
+            <div class="ai-header">
+
+                <div class="ai-header-title">
+                    ✦ Board AI
+                </div>
+
+                <p>
+                    AI สามารถอ่านและทำงานกับ
+                    content ภายใน board นี้
+                </p>
+
+            </div>
+
+
+            <div class="ai-actions">
+
+                <button class="ai-action">
+                    ✦ Summarize
+                </button>
+
+                <button class="ai-action">
+                    ＋ Expand
+                </button>
+
+                <button class="ai-action">
+                    ✓ Check facts
+                </button>
+
+                <button class="ai-action">
+                    ⑂ Mind map
+                </button>
+
+                <button class="ai-action">
+                    ? Explain
+                </button>
+
+                <button class="ai-action">
+                    ✎ Improve
+                </button>
+
+            </div>
+
+
+            <div class="chat">
+
+                <div class="chat-message ai">
+
+                    ผมอ่าน board นี้แล้ว
+
+                    <br><br>
+
+                    ตอนนี้เนื้อหาครอบคลุม
+                    Frontend → API → Database
+
+                    แต่ยังขาด concept สำคัญ เช่น
+
+                    <br><br>
+
+                    • Authentication<br>
+                    • Validation<br>
+                    • Caching<br>
+                    • Error handling
+
+                </div>
+
+
+                <div class="chat-message user">
+
+                    เพิ่มหัวข้อที่ขาดให้หน่อย
+
+                </div>
+
+
+                <div class="chat-message ai">
+
+                    ได้ ผมสามารถสร้าง node ใหม่
+                    และเชื่อมเข้ากับ Backend
+                    ให้โดยอัตโนมัติ
+
+                    <br><br>
+
+                    <button style="
+            border:0;
+            padding:8px 10px;
+            background:#665cf6;
+            color:white;
+            border-radius:8px;
+          ">
+                        Apply to board
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <div class="ai-input">
+
+                <div class="input-box">
+
+                    <textarea placeholder="Ask about this board..."></textarea>
+
+                    <div class="send-row">
+
+                        <div class="context">
+                            Context: Entire board
+                        </div>
+
+                        <button class="send">
+                            ↑
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </aside>
+
+    </div>
+
+
+    <script>
+
+        function toggleImport() {
+
+            document
+                .getElementById("importMenu")
+                .classList
+                .toggle("active");
+
+        }
+
+
+        function exportPDF() {
+
+            alert(
+                "Mock: Export board เป็น PDF"
+            );
+
+        }
+
+
+        function fakeUndo() {
+
+            alert(
+                "Mock Undo: ย้อน action ล่าสุด"
+            );
+
+        }
+
+    </script>
+
+</body>
+
+</html>

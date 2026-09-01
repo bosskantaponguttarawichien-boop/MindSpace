@@ -31,8 +31,8 @@ export function WorkspaceSidebar({ boards, activeBoardId, onCreateBoard, onSelec
         </nav>
       </ScrollArea>
       <div className="m-4 rounded-xl border border-border bg-background/60 p-3">
-        <div className="flex items-center gap-2 text-xs font-medium"><Cloud className="size-4 text-muted-foreground" />{t("phaseOne")}</div>
-        <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{t("syncedLater")}</p>
+        <div className="flex items-center gap-2 text-xs font-medium"><Cloud className="size-4 text-muted-foreground" />{t("phaseTwo")}</div>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{t("syncDescription")}</p>
       </div>
     </aside>
   );

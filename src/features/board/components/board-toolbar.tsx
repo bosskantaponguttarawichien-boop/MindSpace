@@ -92,30 +92,30 @@ export function BoardToolbar({
 
   return (
     <div ref={toolbarRef} className="pointer-events-none absolute inset-x-3 top-3 z-30 flex flex-col items-center gap-2" onKeyDown={(event) => { if (event.key === "Escape") setOpenCard(null); }}>
-      <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-0.5 rounded-xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur" role="toolbar" aria-label="Board tools">
-        <div className="flex items-center gap-0.5">
+      <div className="pointer-events-auto flex max-w-full flex-nowrap items-center justify-start gap-0.5 overflow-x-auto rounded-xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur scrollbar-none" role="toolbar" aria-label="Board tools">
+        <div className="flex shrink-0 items-center gap-0.5">
           {pointerTools.map((tool) => (
             <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id} disabled={!ready} onClick={() => onToolChange(tool.id)} />
           ))}
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-1 h-6" />
           {contentTools.map((tool) => (
             <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id} disabled={!ready} onClick={() => onToolChange(tool.id)} />
           ))}
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-1 h-6" />
           <IconAction label={t("shapes")} icon={shapeIcon} active={shapeActive} expandable expanded={openCard === "shape"} disabled={!ready} onClick={() => { if (!hasSelection && openCard !== "shape") { pickShapeTool(shapeTool); } toggleCard("shape"); }} />
           <IconAction label={t("connector")} icon={Waypoints} shortcut="A" active={activeTool === "arrow"} expandable expanded={openCard === "connector"} disabled={!ready} onClick={() => { onToolChange("arrow"); toggleCard("connector"); }} />
           <IconAction label={t("drawTools")} icon={inkIcon} active={inkActive} expandable expanded={openCard === "ink"} disabled={!ready} onClick={() => { pickInkTool(inkTool); toggleCard("ink"); }} />
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-1 h-6" />
           <IconAction label={t("importImage")} icon={ImagePlus} disabled={!ready || uploadingImage} onClick={onImportImage} />
           <IconAction label={t("importPdf")} icon={FileText} disabled={!ready} onClick={onImportPdf} />
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-1 h-6" />
           <IconAction label={t("addChildNode")} icon={GitBranchPlus} disabled={!ready} onClick={onAddChildNode} />
           <IconAction label={t("changeColor")} icon={Palette} expandable expanded={openCard === "color"} disabled={!ready} onClick={() => toggleCard("color")} />

@@ -14,6 +14,7 @@ export function MindSpaceApp() {
   const [engine, setEngine] = useState<BoardEngine | null>(null);
   const [boards, setBoards] = useState<BoardSummary[]>([{ id: "board:untitled", name: "Untitled board" }]);
   const [activeBoardId, setActiveBoardId] = useState("board:untitled");
+  const [aiOpen, setAiOpen] = useState(false);
   const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
   const handleEngineReady = useCallback((readyEngine: BoardEngine) => setEngine(readyEngine), []);
   const createBoard = () => {
@@ -23,5 +24,8 @@ export function MindSpaceApp() {
     setActiveBoardId(board.id);
     setEngine(null);
   };
-  return <AppShell sidebar={<WorkspaceSidebar boards={boards} activeBoardId={activeBoardId} onCreateBoard={createBoard} onSelectBoard={(id) => { setActiveBoardId(id); setEngine(null); }} />} topbar={<WorkspaceTopbar engine={engine} boardName={activeBoard.name} />} board={<BoardCanvas key={activeBoardId} onEngineReady={handleEngineReady} />} rightPanel={<AiPanel />} />;
+  return <>
+    <AppShell sidebar={<WorkspaceSidebar boards={boards} activeBoardId={activeBoardId} onCreateBoard={createBoard} onSelectBoard={(id) => { setActiveBoardId(id); setEngine(null); }} />} topbar={<WorkspaceTopbar engine={engine} boardName={activeBoard.name} onOpenAi={() => setAiOpen(true)} />} board={<BoardCanvas key={activeBoardId} onEngineReady={handleEngineReady} />} rightPanel={<AiPanel />} />}
+    {aiOpen ? <div className="fixed inset-0 z-50 bg-background lg:hidden"><button type="button" className="absolute end-4 top-4 z-10 rounded-md border border-border px-3 py-1 text-sm" onClick={() => setAiOpen(false)}>Close</button><AiPanel /></div> : null}
+  </>;
 }

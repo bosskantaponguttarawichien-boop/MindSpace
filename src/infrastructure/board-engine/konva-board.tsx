@@ -46,10 +46,14 @@ function nextElement(tool: BoardTool, x: number, y: number): BoardElement | null
 }
 
 export function KonvaBoard({
+  initialDocument,
+  onDocumentChange,
   activeTool,
   onToolChange,
   onReady,
 }: {
+  initialDocument: BoardDocument;
+  onDocumentChange: (document: BoardDocument) => void;
   activeTool: BoardTool;
   onToolChange: (tool: BoardTool) => void;
   onReady: (engine: BoardEngine) => void;
@@ -62,6 +66,7 @@ export function KonvaBoard({
   const selectionRef = useRef<BoardElementId[]>([]);
   const pastRef = useRef<BoardDocument[]>([]);
   const futureRef = useRef<BoardDocument[]>([]);
+  const clipboardRef = useRef<BoardDocument | null>(null);
   const gestureStartRef = useRef<BoardDocument | null>(null);
   const elementGestureActiveRef = useRef(false);
   const dragPreviewRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
@@ -77,9 +82,10 @@ export function KonvaBoard({
   const viewportRef = useRef<Viewport>(INITIAL_VIEWPORT);
   const touchGestureRef = useRef<TouchGesture | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
-  const [document, setDocument] = useState(() => cloneDocument(sampleBoard));
+  const [document, setDocument] = useState(() => cloneDocument(initialDocument));
   const [selection, setSelection] = useState<BoardElementId[]>([]);
   const [connectorStart, setConnectorStart] = useState<BoardElementId | null>(null);
+  const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: BoardElementId; value: string } | null>(null);
   const [viewport, setViewport] = useState(INITIAL_VIEWPORT);
   const [isCoarsePointer, setIsCoarsePointer] = useState(() => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches);
@@ -136,7 +142,8 @@ export function KonvaBoard({
   const replaceDocument = useCallback((next: BoardDocument) => {
     documentRef.current = next;
     setDocument(next);
-  }, []);
+    onDocumentChange(next);
+  }, [onDocumentChange]);
 
   const updateElement = useCallback((id: BoardElementId, patch: Partial<BoardElement>, historical = false) => {
     const next = { ...documentRef.current, elements: documentRef.current.elements.map((element) => element.id === id ? { ...element, ...patch } : element) };
@@ -253,6 +260,11 @@ export function KonvaBoard({
   }, [replaceDocument]);
 
   const deleteSelection = useCallback(() => {
+    if (selectedConnection) {
+      commit({ ...documentRef.current, connections: documentRef.current.connections.filter((connection) => connection.id !== selectedConnection) });
+      setSelectedConnection(null);
+      return;
+    }
     const ids = new Set(selectionRef.current);
     if (ids.size === 0) return;
     commit({
@@ -261,7 +273,7 @@ export function KonvaBoard({
       connections: documentRef.current.connections.filter((connection) => !ids.has(connection.fromId) && !ids.has(connection.toId)),
     });
     setSelection([]);
-  }, [commit]);
+  }, [commit, selectedConnection]);
 
   const duplicateSelection = useCallback(() => {
     const selected = new Set(selectionRef.current);
@@ -284,6 +296,34 @@ export function KonvaBoard({
       elements: [...documentRef.current.elements, ...copies],
       connections: [...documentRef.current.connections, ...copiedConnections],
     });
+    setSelection(copies.map((element) => element.id));
+  }, [commit]);
+
+  const copySelection = useCallback(() => {
+    const selected = new Set(selectionRef.current);
+    if (selected.size === 0) return;
+    clipboardRef.current = {
+      ...documentRef.current,
+      elements: documentRef.current.elements.filter((element) => selected.has(element.id)),
+      connections: documentRef.current.connections.filter((connection) => selected.has(connection.fromId) && selected.has(connection.toId)),
+    };
+  }, []);
+
+  const pasteClipboard = useCallback(() => {
+    const clipboard = clipboardRef.current;
+    if (!clipboard || clipboard.elements.length === 0) return;
+    const idMap = new Map<BoardElementId, BoardElementId>();
+    const copies = clipboard.elements.map((element) => {
+      const id = createElementId();
+      idMap.set(element.id, id);
+      return { ...element, id, x: element.x + 32, y: element.y + 32 };
+    });
+    const connections = clipboard.connections.flatMap((connection) => {
+      const fromId = idMap.get(connection.fromId);
+      const toId = idMap.get(connection.toId);
+      return fromId && toId ? [{ ...connection, id: `connection:${crypto.randomUUID()}` as const, fromId, toId }] : [];
+    });
+    commit({ ...documentRef.current, elements: [...documentRef.current.elements, ...copies], connections: [...documentRef.current.connections, ...connections] });
     setSelection(copies.map((element) => element.id));
   }, [commit]);
 
@@ -312,10 +352,12 @@ export function KonvaBoard({
     redo,
     deleteSelection,
     duplicateSelection,
+    copySelection,
+    pasteClipboard,
     zoomIn: () => zoomAtCenter(1.2),
     zoomOut: () => zoomAtCenter(1 / 1.2),
     zoomToFit,
-  }), [deleteSelection, duplicateSelection, redo, undo, zoomAtCenter, zoomToFit]);
+  }), [copySelection, deleteSelection, duplicateSelection, pasteClipboard, redo, undo, zoomAtCenter, zoomToFit]);
 
   useEffect(() => onReady(engine), [engine, onReady]);
 
@@ -331,11 +373,17 @@ export function KonvaBoard({
       } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
         event.preventDefault();
         duplicateSelection();
+      } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        copySelection();
+      } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        pasteClipboard();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [deleteSelection, duplicateSelection, redo, undo]);
+  }, [copySelection, deleteSelection, duplicateSelection, pasteClipboard, redo, undo]);
 
   function applyViewport(next: Viewport) {
     viewportRef.current = next;
@@ -370,7 +418,7 @@ export function KonvaBoard({
   function selectByLongPress(id: BoardElementId) {
     clearLongPress();
     longPressTimerRef.current = window.setTimeout(() => {
-      setSelection([id]);
+      setSelection((current) => current.includes(id) ? current.filter((selectedId) => selectedId !== id) : [...current, id]);
       onToolChange("select");
       longPressTimerRef.current = null;
     }, 450);
@@ -483,6 +531,7 @@ export function KonvaBoard({
       return;
     }
     if (activeTool !== "select") return;
+    setSelectedConnection(null);
     const next = event.evt.shiftKey
       ? selection.includes(id) ? selection.filter((selectedId) => selectedId !== id) : [...selection, id]
       : [id];
@@ -567,7 +616,7 @@ export function KonvaBoard({
             if (!from || !to) return null;
             const start = elementCenter(from);
             const end = elementCenter(to);
-            return <Arrow key={connection.id} ref={(node) => { if (node) arrowRefs.current.set(connection.id, node); else arrowRefs.current.delete(connection.id); }} points={[start.x, start.y, end.x, end.y]} stroke="#64748b" fill="#64748b" strokeWidth={2} pointerLength={8} pointerWidth={8} perfectDrawEnabled={false} />;
+            return <Arrow key={connection.id} ref={(node) => { if (node) arrowRefs.current.set(connection.id, node); else arrowRefs.current.delete(connection.id); }} points={[start.x, start.y, end.x, end.y]} stroke={selectedConnection === connection.id ? "#7c3aed" : "#64748b"} fill={selectedConnection === connection.id ? "#7c3aed" : "#64748b"} strokeWidth={selectedConnection === connection.id ? 4 : 2} pointerLength={8} pointerWidth={8} perfectDrawEnabled={false} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} />;
           })}
           {document.elements.map((element) => {
             if (element.kind === "draw") {

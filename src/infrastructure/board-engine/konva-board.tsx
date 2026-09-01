@@ -76,12 +76,31 @@ export function KonvaBoard({
   const [connectorStart, setConnectorStart] = useState<BoardElementId | null>(null);
   const [editing, setEditing] = useState<{ id: BoardElementId; value: string } | null>(null);
   const [viewport, setViewport] = useState(INITIAL_VIEWPORT);
+  const [isCoarsePointer, setIsCoarsePointer] = useState(() => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches);
   const [size, setSize] = useState<Size>({ width: 900, height: 650 });
   const { t } = useLocale();
 
   useEffect(() => {
     documentRef.current = document;
   }, [document]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(pointer: coarse)");
+    const update = () => setIsCoarsePointer(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!isCoarsePointer) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    for (const layer of stage.getLayers()) {
+      layer.getCanvas().setPixelRatio(1);
+      layer.getHitCanvas().setPixelRatio(1);
+    }
+    stage.batchDraw();
+  }, [isCoarsePointer, size]);
 
   useEffect(() => {
     selectionRef.current = selection;
@@ -491,7 +510,7 @@ export function KonvaBoard({
                   ? <Ellipse x={element.width / 2} y={element.height / 2} radiusX={element.width / 2} radiusY={element.height / 2} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />
                   : element.kind === "text"
                     ? null
-                    : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} cornerRadius={element.kind === "note" ? 4 : 16} shadowColor="#475569" shadowOpacity={0.12} shadowBlur={10} shadowOffsetY={4} />}
+                    : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} cornerRadius={element.kind === "note" ? 4 : 16} shadowColor="#475569" shadowOpacity={isCoarsePointer ? 0 : 0.12} shadowBlur={isCoarsePointer ? 0 : 10} shadowOffsetY={4} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
                 <Text text={element.text} width={element.width} height={element.height} padding={element.kind === "text" ? 0 : 18} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={element.kind === "text" ? 18 : 16} fontStyle={element.kind === "text" ? "normal" : "bold"} lineHeight={1.35} verticalAlign="middle" align={element.kind === "text" ? "left" : "center"} wrap="word" />
               </Group>
             );

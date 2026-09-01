@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, FileDown, FolderInput, MoreHorizontal, Redo2, Trash2, Undo2 } from "lucide-react";
+import { Bot, Check, Copy, FileDown, FolderInput, MoreHorizontal, Redo2, Trash2, Undo2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconAction } from "@/components/ui/icon-action";
@@ -9,7 +9,7 @@ import { useLocale } from "@/lib/i18n/locale-provider";
 import type { BoardEngine } from "@/infrastructure/board-engine/board-engine";
 import { LanguageSwitcher } from "@/features/workspace/components/language-switcher";
 
-export function WorkspaceTopbar({ engine, boardName }: { engine: BoardEngine | null; boardName: string }) {
+export function WorkspaceTopbar({ engine, boardName, onOpenAi }: { engine: BoardEngine | null; boardName: string; onOpenAi: () => void }) {
   const { t, locale, setLocale } = useLocale();
   return (
     <header className="flex h-full min-w-0 items-center justify-between gap-3 bg-background px-4 sm:px-5">
@@ -29,6 +29,8 @@ export function WorkspaceTopbar({ engine, boardName }: { engine: BoardEngine | n
               <Button variant="ghost" size="icon" aria-label="More board actions" disabled={!engine}><MoreHorizontal className="size-5" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48">
+              <DropdownMenuItem onSelect={onOpenAi}><Bot />{t("boardAi")}</DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => engine?.duplicateSelection()}><Copy />{t("duplicate")}</DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onSelect={() => engine?.deleteSelection()}><Trash2 />{t("delete")}</DropdownMenuItem>
               <DropdownMenuSeparator />

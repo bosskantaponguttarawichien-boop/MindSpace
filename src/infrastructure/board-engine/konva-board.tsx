@@ -367,14 +367,23 @@ export function KonvaBoard({
     longPressTimerRef.current = null;
   }
 
-  function startLongPress(id: BoardElementId, event: KonvaEventObject<TouchEvent>) {
-    if (!isCoarsePointer || event.evt.touches.length !== 1) return;
+  function selectByLongPress(id: BoardElementId) {
     clearLongPress();
     longPressTimerRef.current = window.setTimeout(() => {
       setSelection([id]);
       onToolChange("select");
       longPressTimerRef.current = null;
     }, 450);
+  }
+
+  function startLongPress(id: BoardElementId, event: KonvaEventObject<TouchEvent>) {
+    if (!isCoarsePointer || event.evt.touches.length !== 1) return;
+    selectByLongPress(id);
+  }
+
+  function startMouseLongPress(id: BoardElementId) {
+    if (isCoarsePointer) return;
+    selectByLongPress(id);
   }
 
   function handleTouchStart(event: KonvaEventObject<TouchEvent>) {
@@ -538,7 +547,7 @@ export function KonvaBoard({
         y={viewport.y}
         scaleX={viewport.scale}
         scaleY={viewport.scale}
-        draggable={activeTool === "hand" && !isCoarsePointer}
+        draggable={activeTool === "hand"}
         onDragEnd={(event) => {
           if (event.target !== event.target.getStage()) return;
           setViewport((current) => ({ ...current, x: event.target.x(), y: event.target.y() }));
@@ -579,6 +588,9 @@ export function KonvaBoard({
                 onTouchStart={(event) => startLongPress(element.id, event)}
                 onTouchMove={clearLongPress}
                 onTouchEnd={clearLongPress}
+                onMouseDown={() => startMouseLongPress(element.id)}
+                onMouseMove={clearLongPress}
+                onMouseUp={clearLongPress}
                 onDblClick={(event) => {
                   event.cancelBubble = true;
                   setEditing({ id: element.id, value: element.text });

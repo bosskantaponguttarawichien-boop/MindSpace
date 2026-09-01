@@ -1,19 +1,24 @@
 "use client";
 
-import { AlertCircle, Bot, Check, Cloud, Copy, FileDown, FolderInput, Link, MoreHorizontal, Redo2, Trash2, Undo2 } from "lucide-react";
+import { AlertCircle, Bot, Check, Cloud, Copy, FileDown, FolderInput, Link, MoreHorizontal, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconAction } from "@/components/ui/icon-action";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useLocale } from "@/lib/i18n/locale-provider";
 import { useState } from "react";
 import type { BoardEngine } from "@/infrastructure/board-engine/board-engine";
 import { LanguageSwitcher } from "@/features/workspace/components/language-switcher";
 import type { BoardSyncStatus } from "@/features/workspace/hooks/use-persisted-boards";
 
-export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCopySyncLink, onExportPdf, onOpenAi }: { engine: BoardEngine | null; boardName: string; syncStatus: BoardSyncStatus; syncError: string | null; onCopySyncLink: () => Promise<boolean>; onExportPdf: () => void; onOpenAi: () => void }) {
+type BoardSummary = { id: string; name: string };
+
+export function WorkspaceTopbar({ engine, boardName, boards, activeBoardId, nextBoardName, syncStatus, syncError, onCreateBoard, onSelectBoard, onCopySyncLink, onExportPdf, onOpenAi }: { engine: BoardEngine | null; boardName: string; boards: BoardSummary[]; activeBoardId: string; nextBoardName: string; syncStatus: BoardSyncStatus; syncError: string | null; onCreateBoard: (name: string) => void; onSelectBoard: (id: string) => void; onCopySyncLink: () => Promise<boolean>; onExportPdf: () => void; onOpenAi: () => void }) {
   const { t, locale, setLocale } = useLocale();
   const [copied, setCopied] = useState(false);
+  const [newBoardName, setNewBoardName] = useState<string | null>(null);
   const syncLabel = {
     connecting: t("syncConnecting"),
     saving: t("syncSaving"),
@@ -24,6 +29,10 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCo
     if (!await onCopySyncLink()) return;
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
+  };
+  const createBoard = () => {
+    onCreateBoard(newBoardName?.trim() || nextBoardName);
+    setNewBoardName(null);
   };
   return (
     <header className="flex h-full min-w-0 items-center justify-between gap-3 bg-background px-4 sm:px-5">
@@ -40,9 +49,17 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCo
         <div className="lg:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="More board actions" disabled={!engine}><MoreHorizontal className="size-5" /></Button>
+              <Button variant="ghost" size="icon" aria-label={t("boardActions")}><MoreHorizontal className="size-5" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48">
+              <DropdownMenuLabel>{t("switchBoard")}</DropdownMenuLabel>
+              {boards.map((board) => (
+                <DropdownMenuItem key={board.id} aria-label={`${t("switchBoard")}: ${board.name}`} disabled={board.id === activeBoardId} onSelect={() => onSelectBoard(board.id)}>
+                  <span className="min-w-0 flex-1 truncate">{board.name}</span>{board.id === activeBoardId ? <Check /> : null}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem onSelect={() => setNewBoardName(nextBoardName)}><Plus />{t("newBoard")}</DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={onOpenAi}><Bot />{t("boardAi")}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void copyLink()}>{copied ? <Check /> : <Link />}{copied ? t("syncLinkCopied") : t("copySyncLink")}</DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -65,6 +82,21 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCo
         <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled={!engine} onClick={onExportPdf}><FileDown className="size-4" />{t("exportPdf")}</Button>
         <div className="hidden sm:block"><LanguageSwitcher /></div>
       </div>
+      <Dialog open={newBoardName !== null} onOpenChange={(open) => { if (!open) setNewBoardName(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("newBoard")}</DialogTitle>
+            <DialogDescription>{t("boardName")}</DialogDescription>
+          </DialogHeader>
+          <form className="grid gap-4" onSubmit={(event) => { event.preventDefault(); createBoard(); }}>
+            <Input aria-label={t("boardName")} autoFocus value={newBoardName ?? ""} placeholder={nextBoardName} maxLength={80} onChange={(event) => setNewBoardName(event.target.value)} />
+            <DialogFooter>
+              <Button type="button" variant="outline" size="lg" onClick={() => setNewBoardName(null)}>{t("cancel")}</Button>
+              <Button type="submit" size="lg">{t("create")}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }

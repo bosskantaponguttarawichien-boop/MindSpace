@@ -2,7 +2,7 @@
   "$schema": "./docs/harness/harness.schema.json",
   "version": 1,
   "project": "MindSpace",
-  "currentPhase": "phase-2-personal-persistence",
+  "currentPhase": "phase-3-private-sync-links",
   "sources": {
     "product": "requirement.md",
     "visualReference": "poc.html",
@@ -19,7 +19,8 @@
     "docs/harness/definition-of-done.md",
     "docs/harness/decisions/0001-initial-architecture.md",
     "docs/harness/decisions/0002-firebase-persistence.md",
-    "docs/harness/decisions/0004-firestore-board-schema.md"
+    "docs/harness/decisions/0004-firestore-board-schema.md",
+    "docs/harness/decisions/0005-private-sync-links.md"
   ],
   "validation": {
     "harness": "node scripts/validate-harness.mjs",

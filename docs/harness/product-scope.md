@@ -4,9 +4,9 @@
 
 MindSpace is an AI-powered personal knowledge workspace built around an infinite board. The full vision remains in `requirement.md`; delivery is phased to avoid coupling the board engine to persistence, files, realtime, and AI too early.
 
-## Current phase: Phase 2 — Personal board persistence
+## Current phase: Phase 3 — Private sync links
 
-The goal is to persist a private user's versioned board documents without adding a visible login flow, files, collaboration, or AI execution.
+The goal is to let a single user open the same private workspace on multiple devices without a login screen.
 
 ### In scope
 
@@ -17,14 +17,14 @@ The goal is to persist a private user's versioned board documents without adding
 - Create/delete node-to-node connectors that follow moved nodes.
 - Undo and redo for every board mutation in this phase.
 - Keyboard access for primary actions and clear focus states.
-- Firebase Anonymous Authentication with no login UI.
-- Firestore board list/load/create and debounced auto-save with clear connecting, saving, saved, and error states.
-- Firestore Security Rules that isolate documents by authenticated Firebase UID.
-- Validating persisted board documents before the editor uses them.
+- Generate and copy a private workspace sync link.
+- Copy existing personal boards into the linked workspace without deleting the original copy.
+- Load, save, and receive realtime Firestore updates for boards opened through that link.
+- Clearly communicate that the link grants edit access to its holder.
 
 ### Explicitly out of scope
 
-- Account linking, cross-device sync, collaboration, and conflict resolution beyond last-write-wins within one anonymous browser identity.
+- Accounts, granular permissions, link revocation, and collaboration beyond one trusted user.
 - Image/PDF upload or processing and PDF export.
 - Live AI calls, AI context collection, and applying AI-generated operations.
 - Sharing, permissions, billing, analytics, and production deployment.
@@ -32,15 +32,14 @@ The goal is to persist a private user's versioned board documents without adding
 
 Out-of-scope UI may appear as disabled or clearly labelled preview; it must not pretend that data was saved, synced, exported, or processed.
 
-## Phase 2 acceptance criteria
+## Phase 3 acceptance criteria
 
-1. The app silently obtains an anonymous Firebase identity and does not show a login UI.
-2. A new browser profile receives one empty board, and it can create more boards.
-3. Board edits save after a short debounce and survive a page reload in the same browser profile.
-4. The UI reports connecting, saving, saved, and save-error states honestly.
-5. Firestore records are validated before entering the board editor and Security Rules isolate records by Firebase UID.
-6. `lint`, `typecheck`, `test`, and `build` pass.
+1. A user can copy one private sync link without creating an account.
+2. Opening that link on another device loads the same boards.
+3. A board change becomes visible on the other open device through Firestore snapshots.
+4. A private link is presented as edit-capable and must be treated like a password.
+5. `lint`, `typecheck`, `test`, and `build` pass.
 
-## Promotion gate to account-backed sync
+## Promotion gate to account-backed sharing
 
 Before cross-device access, choose an account-linking experience, migrate anonymous data safely, add rules/emulator tests for migration, and define conflict behavior across devices.

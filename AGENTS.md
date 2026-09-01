@@ -19,7 +19,7 @@ If documents conflict, the narrower current-phase rule wins. Product intent in `
 
 ## Current delivery boundary
 
-The current phase is **Phase 2 — Personal board persistence**. Build only the persistence slice defined in `docs/harness/product-scope.md`. Account linking, cross-device sync, collaboration, file processing, PDF export, and AI are later phases unless a task explicitly promotes them.
+The current phase is **Phase 3 — Private sync links**. Build only the single-user cross-device sync slice defined in `docs/harness/product-scope.md`. Account-based sharing, collaboration, file processing, PDF export, and AI are later phases unless a task explicitly promotes them.
 
 ## Mandatory workflow
 

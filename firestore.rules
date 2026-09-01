@@ -5,5 +5,11 @@ service cloud.firestore {
     match /users/{userId}/boards/{boardId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+
+    // The high-entropy workspace ID in a private sync URL is the access capability.
+    // Do not share this URL with anyone you do not trust to edit every board in it.
+    match /workspaces/{workspaceId}/boards/{boardId} {
+      allow read, write: if workspaceId.matches('^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$');
+    }
   }
 }

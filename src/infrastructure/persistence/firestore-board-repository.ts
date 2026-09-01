@@ -8,6 +8,10 @@ export type StoredBoard = {
   document: BoardDocument;
 };
 
+export type BoardScope =
+  | { kind: "personal"; uid: string }
+  | { kind: "shared"; workspaceId: string };
+
 const colors = new Set(["violet", "yellow", "blue", "green", "grey"]);
 const kinds = new Set(["text", "note", "rectangle", "ellipse", "draw"]);
 
@@ -47,8 +51,11 @@ export function parseBoardDocument(value: unknown): BoardDocument | null {
   return candidate as BoardDocument;
 }
 
-function userBoardsPath(uid: string) {
-  return collection(getFirebaseServices().firestore, "users", uid, "boards");
+function boardCollection(scope: BoardScope) {
+  const firestore = getFirebaseServices().firestore;
+  return scope.kind === "personal"
+    ? collection(firestore, "users", scope.uid, "boards")
+    : collection(firestore, "workspaces", scope.workspaceId, "boards");
 }
 
 function toStoredBoard(id: string, value: unknown): StoredBoard | null {
@@ -60,12 +67,12 @@ function toStoredBoard(id: string, value: unknown): StoredBoard | null {
 }
 
 export function subscribeToBoards(
-  uid: string,
+  scope: BoardScope,
   onBoards: (boards: StoredBoard[]) => void,
   onError: (error: FirestoreError) => void,
 ) {
   return onSnapshot(
-    query(userBoardsPath(uid), orderBy("updatedAt", "desc")),
+    query(boardCollection(scope), orderBy("updatedAt", "desc")),
     (snapshot) => onBoards(snapshot.docs.flatMap((snapshotDocument) => {
       const board = toStoredBoard(snapshotDocument.id, snapshotDocument.data());
       return board ? [board] : [];
@@ -74,9 +81,12 @@ export function subscribeToBoards(
   );
 }
 
-export async function saveBoard(uid: string, board: StoredBoard) {
+export async function saveBoard(scope: BoardScope, board: StoredBoard) {
   const firestore = getFirebaseServices().firestore;
-  await setDoc(doc(firestore, "users", uid, "boards", board.id), {
+  const reference = scope.kind === "personal"
+    ? doc(firestore, "users", scope.uid, "boards", board.id)
+    : doc(firestore, "workspaces", scope.workspaceId, "boards", board.id);
+  await setDoc(reference, {
     name: board.name,
     document: board.document,
     schemaVersion: 1,

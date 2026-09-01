@@ -47,6 +47,8 @@ export const messages = {
     syncSaving: "Saving…",
     syncSaved: "Saved",
     syncError: "Save failed",
+    copySyncLink: "Copy sync link",
+    syncLinkCopied: "Sync link copied",
     keyboardHelp: "Use Ctrl/Cmd+Z to undo and Ctrl/Cmd+Shift+Z to redo.",
   },
   th: {
@@ -97,6 +99,8 @@ export const messages = {
     syncSaving: "กำลังบันทึก…",
     syncSaved: "บันทึกแล้ว",
     syncError: "บันทึกไม่สำเร็จ",
+    copySyncLink: "คัดลอกลิงก์ซิงก์",
+    syncLinkCopied: "คัดลอกลิงก์แล้ว",
     keyboardHelp: "ใช้ Ctrl/Cmd+Z เพื่อย้อนกลับ และ Ctrl/Cmd+Shift+Z เพื่อทำซ้ำ",
   },
 } as const;

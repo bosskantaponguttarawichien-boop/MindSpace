@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createEmptyBoard } from "@/domain/board/sample-board";
 import type { BoardDocument } from "@/domain/board/board-document";
 import { getAnonymousUser } from "@/infrastructure/auth/firebase-anonymous-auth";
-import { saveBoard, subscribeToBoards, type StoredBoard } from "@/infrastructure/persistence/firestore-board-repository";
+import { saveBoard, subscribeToBoards, type BoardScope, type StoredBoard } from "@/infrastructure/persistence/firestore-board-repository";
 
 export type BoardSyncStatus = "connecting" | "saved" | "saving" | "error";
 
@@ -17,21 +17,36 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to save this board.";
 }
 
+function readWorkspaceId() {
+  if (typeof window === "undefined") return null;
+  const workspaceId = new URLSearchParams(window.location.search).get("workspace");
+  return workspaceId && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(workspaceId) ? workspaceId : null;
+}
+
+async function copyToClipboard(value: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    window.prompt("Copy this private sync link", value);
+  }
+}
+
 export function usePersistedBoards() {
   const [boards, setBoards] = useState<StoredBoard[]>([]);
   const [activeBoardId, setActiveBoardId] = useState("");
   const [syncStatus, setSyncStatus] = useState<BoardSyncStatus>("connecting");
   const [syncError, setSyncError] = useState<string | null>(null);
-  const uidRef = useRef<string | null>(null);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(readWorkspaceId);
+  const scopeRef = useRef<BoardScope | null>(null);
   const initialSnapshotRef = useRef(false);
   const saveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const persist = useCallback(async (board: StoredBoard) => {
-    const uid = uidRef.current;
-    if (!uid) return;
+    const scope = scopeRef.current;
+    if (!scope) return;
     setSyncStatus("saving");
     try {
-      await saveBoard(uid, board);
+      await saveBoard(scope, board);
       setSyncError(null);
       setSyncStatus("saved");
     } catch (error: unknown) {
@@ -49,8 +64,10 @@ export function usePersistedBoards() {
       try {
         const user = await getAnonymousUser();
         if (cancelled) return;
-        uidRef.current = user.uid;
-        unsubscribe = subscribeToBoards(user.uid, (remoteBoards) => {
+        const scope: BoardScope = workspaceId ? { kind: "shared", workspaceId } : { kind: "personal", uid: user.uid };
+        scopeRef.current = scope;
+        initialSnapshotRef.current = false;
+        unsubscribe = subscribeToBoards(scope, (remoteBoards) => {
           if (cancelled) return;
           if (!initialSnapshotRef.current) {
             initialSnapshotRef.current = true;
@@ -81,11 +98,12 @@ export function usePersistedBoards() {
     void connect();
     return () => {
       cancelled = true;
+      scopeRef.current = null;
       unsubscribe?.();
       saveTimers.forEach((timer) => clearTimeout(timer));
       saveTimers.clear();
     };
-  }, [persist]);
+  }, [persist, workspaceId]);
 
   const createBoard = useCallback(() => {
     const board = newBoard(`Untitled board ${boards.length + 1}`);
@@ -110,5 +128,27 @@ export function usePersistedBoards() {
     });
   }, [persist]);
 
-  return { boards, activeBoardId, setActiveBoardId, createBoard, updateBoardDocument, syncStatus, syncError };
+  const copySyncLink = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    let nextWorkspaceId = workspaceId;
+    if (!nextWorkspaceId) {
+      nextWorkspaceId = crypto.randomUUID();
+      const sharedScope: BoardScope = { kind: "shared", workspaceId: nextWorkspaceId };
+      setSyncStatus("saving");
+      try {
+        await Promise.all(boards.map((board) => saveBoard(sharedScope, board)));
+        setWorkspaceId(nextWorkspaceId);
+        window.history.replaceState(null, "", `?workspace=${nextWorkspaceId}`);
+      } catch (error: unknown) {
+        setSyncError(errorMessage(error));
+        setSyncStatus("error");
+        return;
+      }
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set("workspace", nextWorkspaceId);
+    await copyToClipboard(url.toString());
+  }, [boards, workspaceId]);
+
+  return { boards, activeBoardId, setActiveBoardId, createBoard, updateBoardDocument, copySyncLink, syncStatus, syncError };
 }

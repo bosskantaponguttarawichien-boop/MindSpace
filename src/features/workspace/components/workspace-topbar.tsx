@@ -1,23 +1,30 @@
 "use client";
 
-import { AlertCircle, Bot, Check, Cloud, Copy, FileDown, FolderInput, MoreHorizontal, Redo2, Trash2, Undo2 } from "lucide-react";
+import { AlertCircle, Bot, Check, Cloud, Copy, FileDown, FolderInput, Link, MoreHorizontal, Redo2, Trash2, Undo2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconAction } from "@/components/ui/icon-action";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useLocale } from "@/lib/i18n/locale-provider";
+import { useState } from "react";
 import type { BoardEngine } from "@/infrastructure/board-engine/board-engine";
 import { LanguageSwitcher } from "@/features/workspace/components/language-switcher";
 import type { BoardSyncStatus } from "@/features/workspace/hooks/use-persisted-boards";
 
-export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onOpenAi }: { engine: BoardEngine | null; boardName: string; syncStatus: BoardSyncStatus; syncError: string | null; onOpenAi: () => void }) {
+export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCopySyncLink, onOpenAi }: { engine: BoardEngine | null; boardName: string; syncStatus: BoardSyncStatus; syncError: string | null; onCopySyncLink: () => Promise<void>; onOpenAi: () => void }) {
   const { t, locale, setLocale } = useLocale();
+  const [copied, setCopied] = useState(false);
   const syncLabel = {
     connecting: t("syncConnecting"),
     saving: t("syncSaving"),
     saved: t("syncSaved"),
     error: t("syncError"),
   }[syncStatus];
+  const copyLink = async () => {
+    await onCopySyncLink();
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
   return (
     <header className="flex h-full min-w-0 items-center justify-between gap-3 bg-background px-4 sm:px-5">
       <div className="min-w-0">
@@ -37,6 +44,7 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onOp
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48">
               <DropdownMenuItem onSelect={onOpenAi}><Bot />{t("boardAi")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void copyLink()}>{copied ? <Check /> : <Link />}{copied ? t("syncLinkCopied") : t("copySyncLink")}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => engine?.duplicateSelection()}><Copy />{t("duplicate")}</DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onSelect={() => engine?.deleteSelection()}><Trash2 />{t("delete")}</DropdownMenuItem>
@@ -51,6 +59,7 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onOp
           </DropdownMenu>
         </div>
         <IconAction label={t("duplicate")} icon={Copy} disabled={!engine} onClick={() => engine?.duplicateSelection()} className="hidden sm:inline-flex" />
+        <IconAction label={copied ? t("syncLinkCopied") : t("copySyncLink")} icon={copied ? Check : Link} onClick={() => void copyLink()} className="hidden sm:inline-flex" />
         <IconAction label={t("delete")} icon={Trash2} disabled={!engine} onClick={() => engine?.deleteSelection()} className="hidden sm:inline-flex" />
         <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled title={t("futureFeature")}><FolderInput className="size-4" />{t("import")}</Button>
         <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled title={t("futureFeature")}><FileDown className="size-4" />{t("exportPdf")}</Button>

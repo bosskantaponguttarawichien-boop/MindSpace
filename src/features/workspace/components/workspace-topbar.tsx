@@ -9,12 +9,12 @@ import { useLocale } from "@/lib/i18n/locale-provider";
 import type { BoardEngine } from "@/infrastructure/board-engine/board-engine";
 import { LanguageSwitcher } from "@/features/workspace/components/language-switcher";
 
-export function WorkspaceTopbar({ engine }: { engine: BoardEngine | null }) {
+export function WorkspaceTopbar({ engine, boardName }: { engine: BoardEngine | null; boardName: string }) {
   const { t, locale, setLocale } = useLocale();
   return (
     <header className="flex h-full min-w-0 items-center justify-between gap-3 bg-background px-4 sm:px-5">
       <div className="min-w-0">
-        <h1 className="truncate text-sm font-bold">Backend Learning</h1>
+        <h1 className="truncate text-sm font-bold">{boardName}</h1>
         <p className="truncate text-[11px] text-muted-foreground">{t("boardSubtitle")}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1">

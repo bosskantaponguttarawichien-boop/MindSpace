@@ -61,6 +61,8 @@ export function KonvaBoard({
   const pastRef = useRef<BoardDocument[]>([]);
   const futureRef = useRef<BoardDocument[]>([]);
   const gestureStartRef = useRef<BoardDocument | null>(null);
+  const elementGestureActiveRef = useRef(false);
+  const dragPreviewRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
   const drawStartRef = useRef<{ id: BoardElementId; document: BoardDocument } | null>(null);
   const moveFrameRef = useRef<number | null>(null);
   const pendingMoveRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
@@ -72,6 +74,7 @@ export function KonvaBoard({
   const [selection, setSelection] = useState<BoardElementId[]>([]);
   const [connectorStart, setConnectorStart] = useState<BoardElementId | null>(null);
   const [editing, setEditing] = useState<{ id: BoardElementId; value: string } | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ id: BoardElementId; x: number; y: number } | null>(null);
   const [viewport, setViewport] = useState(INITIAL_VIEWPORT);
   const [size, setSize] = useState<Size>({ width: 900, height: 650 });
   const { t } = useLocale();
@@ -79,6 +82,10 @@ export function KonvaBoard({
   useEffect(() => {
     documentRef.current = document;
   }, [document]);
+
+  useEffect(() => {
+    dragPreviewRef.current = dragPreview;
+  }, [dragPreview]);
 
   useEffect(() => {
     selectionRef.current = selection;
@@ -106,28 +113,50 @@ export function KonvaBoard({
     setDocument(next);
   }, []);
 
-  const flushPendingMove = useCallback(() => {
+  const updateElement = useCallback((id: BoardElementId, patch: Partial<BoardElement>, historical = false) => {
+    const next = { ...documentRef.current, elements: documentRef.current.elements.map((element) => element.id === id ? { ...element, ...patch } : element) };
+    if (historical && gestureStartRef.current) {
+      pastRef.current.push(gestureStartRef.current);
+      futureRef.current = [];
+      gestureStartRef.current = null;
+    }
+    replaceDocument(next);
+  }, [replaceDocument]);
+
+  const cancelPendingMove = useCallback(() => {
     if (moveFrameRef.current !== null) {
       window.cancelAnimationFrame(moveFrameRef.current);
       moveFrameRef.current = null;
     }
-    const pending = pendingMoveRef.current;
     pendingMoveRef.current = null;
-    if (!pending) return;
-    replaceDocument({
-      ...documentRef.current,
-      elements: documentRef.current.elements.map((element) => element.id === pending.id ? { ...element, x: pending.x, y: pending.y } : element),
-    });
-  }, [replaceDocument]);
+  }, []);
+
+  useEffect(() => {
+    function finishInterruptedGesture() {
+      if (!elementGestureActiveRef.current) return;
+      elementGestureActiveRef.current = false;
+      cancelPendingMove();
+      const preview = dragPreviewRef.current;
+      setDragPreview(null);
+      if (!preview) return;
+      shapeRefs.current.get(preview.id)?.clearCache();
+      updateElement(preview.id, { x: preview.x, y: preview.y }, true);
+    }
+    window.addEventListener("blur", finishInterruptedGesture);
+    return () => window.removeEventListener("blur", finishInterruptedGesture);
+  }, [cancelPendingMove, updateElement]);
 
   const scheduleMove = useCallback((id: BoardElementId, x: number, y: number) => {
     pendingMoveRef.current = { id, x, y };
     if (moveFrameRef.current !== null) return;
     moveFrameRef.current = window.requestAnimationFrame(() => {
       moveFrameRef.current = null;
-      flushPendingMove();
+      const pending = pendingMoveRef.current;
+      pendingMoveRef.current = null;
+      if (!pending) return;
+      setDragPreview({ id: pending.id, x: pending.x, y: pending.y });
     });
-  }, [flushPendingMove]);
+  }, []);
 
   const flushPendingDrawPoint = useCallback(() => {
     if (drawFrameRef.current !== null) {
@@ -330,18 +359,9 @@ export function KonvaBoard({
     setSelection(next);
   }
 
-  function updateElement(id: BoardElementId, patch: Partial<BoardElement>, historical = false) {
-    const next = { ...documentRef.current, elements: documentRef.current.elements.map((element) => element.id === id ? { ...element, ...patch } : element) };
-    if (historical && gestureStartRef.current) {
-      pastRef.current.push(gestureStartRef.current);
-      futureRef.current = [];
-      gestureStartRef.current = null;
-    }
-    replaceDocument(next);
-  }
-
   function handleWheel(event: KonvaEventObject<WheelEvent>) {
     event.evt.preventDefault();
+    if (elementGestureActiveRef.current) return;
     const pointer = stageRef.current?.getPointerPosition();
     if (!pointer) return;
     const pending = pendingWheelRef.current;
@@ -355,7 +375,7 @@ export function KonvaBoard({
       wheelFrameRef.current = null;
       const nextWheel = pendingWheelRef.current;
       pendingWheelRef.current = null;
-      if (!nextWheel) return;
+      if (!nextWheel || elementGestureActiveRef.current) return;
       setViewport((current) => {
         const direction = nextWheel.deltaY > 0 ? 1 / 1.08 : 1.08;
         const scale = Math.min(2.5, Math.max(0.25, current.scale * direction));
@@ -391,7 +411,10 @@ export function KonvaBoard({
         scaleX={viewport.scale}
         scaleY={viewport.scale}
         draggable={activeTool === "hand"}
-        onDragEnd={(event) => setViewport((current) => ({ ...current, x: event.target.x(), y: event.target.y() }))}
+        onDragEnd={(event) => {
+          if (event.target !== event.target.getStage()) return;
+          setViewport((current) => ({ ...current, x: event.target.x(), y: event.target.y() }));
+        }}
         onPointerDown={handleStagePointerDown}
         onPointerMove={handleStagePointerMove}
         onPointerUp={handleStagePointerUp}
@@ -402,8 +425,8 @@ export function KonvaBoard({
             const from = elementMap.get(connection.fromId);
             const to = elementMap.get(connection.toId);
             if (!from || !to) return null;
-            const start = elementCenter(from);
-            const end = elementCenter(to);
+            const start = elementCenter(dragPreview?.id === from.id ? { ...from, x: dragPreview.x, y: dragPreview.y } : from);
+            const end = elementCenter(dragPreview?.id === to.id ? { ...to, x: dragPreview.x, y: dragPreview.y } : to);
             return <Arrow key={connection.id} points={[start.x, start.y, end.x, end.y]} stroke="#64748b" fill="#64748b" strokeWidth={2} pointerLength={8} pointerWidth={8} />;
           })}
           {document.elements.map((element) => {
@@ -426,18 +449,31 @@ export function KonvaBoard({
                   event.cancelBubble = true;
                   setEditing({ id: element.id, value: element.text });
                 }}
-                onDragStart={() => { gestureStartRef.current = cloneDocument(documentRef.current); }}
+                onDragStart={(event) => {
+                  gestureStartRef.current = cloneDocument(documentRef.current);
+                  elementGestureActiveRef.current = true;
+                  event.target.cache();
+                }}
                 onDragMove={(event) => scheduleMove(element.id, event.target.x(), event.target.y())}
                 onDragEnd={(event) => {
-                  flushPendingMove();
+                  cancelPendingMove();
+                  setDragPreview(null);
+                  elementGestureActiveRef.current = false;
+                  event.target.clearCache();
                   updateElement(element.id, { x: event.target.x(), y: event.target.y() }, true);
                 }}
-                onTransformStart={() => { gestureStartRef.current = cloneDocument(documentRef.current); }}
+                onTransformStart={(event) => {
+                  gestureStartRef.current = cloneDocument(documentRef.current);
+                  elementGestureActiveRef.current = true;
+                  event.target.cache();
+                }}
                 onTransformEnd={(event) => {
                   const node = event.target;
                   const width = Math.max(48, element.width * node.scaleX());
                   const height = Math.max(36, element.height * node.scaleY());
                   node.scale({ x: 1, y: 1 });
+                  elementGestureActiveRef.current = false;
+                  node.clearCache();
                   updateElement(element.id, { x: node.x(), y: node.y(), width, height }, true);
                 }}
               >

@@ -11,6 +11,8 @@ import { useLocale } from "@/lib/i18n/locale-provider";
 
 type Viewport = { x: number; y: number; scale: number };
 type Size = { width: number; height: number };
+type ScreenPoint = { x: number; y: number };
+type TouchGesture = { distance: number; midpoint: ScreenPoint; viewport: Viewport };
 
 const COLORS = {
   violet: { fill: "#ede9fe", stroke: "#7c3aed", text: "#3b0764" },
@@ -70,7 +72,11 @@ export function KonvaBoard({
   const drawFrameRef = useRef<number | null>(null);
   const pendingDrawPointRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
   const wheelFrameRef = useRef<number | null>(null);
-  const pendingWheelRef = useRef<{ x: number; y: number; deltaY: number } | null>(null);
+  const wheelCommitTimerRef = useRef<number | null>(null);
+  const pendingWheelRef = useRef<{ x: number; y: number; deltaX: number; deltaY: number; zoom: boolean } | null>(null);
+  const viewportRef = useRef<Viewport>(INITIAL_VIEWPORT);
+  const touchGestureRef = useRef<TouchGesture | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
   const [document, setDocument] = useState(() => cloneDocument(sampleBoard));
   const [selection, setSelection] = useState<BoardElementId[]>([]);
   const [connectorStart, setConnectorStart] = useState<BoardElementId | null>(null);
@@ -83,6 +89,10 @@ export function KonvaBoard({
   useEffect(() => {
     documentRef.current = document;
   }, [document]);
+
+  useEffect(() => {
+    viewportRef.current = viewport;
+  }, [viewport]);
 
   useEffect(() => {
     const media = window.matchMedia("(pointer: coarse)");
@@ -216,6 +226,8 @@ export function KonvaBoard({
     if (moveFrameRef.current !== null) window.cancelAnimationFrame(moveFrameRef.current);
     if (drawFrameRef.current !== null) window.cancelAnimationFrame(drawFrameRef.current);
     if (wheelFrameRef.current !== null) window.cancelAnimationFrame(wheelFrameRef.current);
+    if (wheelCommitTimerRef.current !== null) window.clearTimeout(wheelCommitTimerRef.current);
+    if (longPressTimerRef.current !== null) window.clearTimeout(longPressTimerRef.current);
   }, []);
 
   const commit = useCallback((next: BoardDocument) => {
@@ -325,6 +337,82 @@ export function KonvaBoard({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [deleteSelection, duplicateSelection, redo, undo]);
 
+  function applyViewport(next: Viewport) {
+    viewportRef.current = next;
+    const stage = stageRef.current;
+    if (!stage) return;
+    stage.position({ x: next.x, y: next.y });
+    stage.scale({ x: next.scale, y: next.scale });
+    stage.batchDraw();
+  }
+
+  function commitViewport() {
+    setViewport({ ...viewportRef.current });
+  }
+
+  function touchPoint(touch: Touch): ScreenPoint | null {
+    const stage = stageRef.current;
+    if (!stage) return null;
+    const rect = stage.container().getBoundingClientRect();
+    return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+  }
+
+  function distance(a: ScreenPoint, b: ScreenPoint) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function clearLongPress() {
+    if (longPressTimerRef.current === null) return;
+    window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  }
+
+  function startLongPress(id: BoardElementId, event: KonvaEventObject<TouchEvent>) {
+    if (!isCoarsePointer || event.evt.touches.length !== 1) return;
+    clearLongPress();
+    longPressTimerRef.current = window.setTimeout(() => {
+      setSelection([id]);
+      onToolChange("select");
+      longPressTimerRef.current = null;
+    }, 450);
+  }
+
+  function handleTouchStart(event: KonvaEventObject<TouchEvent>) {
+    if (event.evt.touches.length !== 2) return;
+    clearLongPress();
+    event.evt.preventDefault();
+    stageRef.current?.stopDrag();
+    const first = touchPoint(event.evt.touches[0]);
+    const second = touchPoint(event.evt.touches[1]);
+    if (!first || !second) return;
+    touchGestureRef.current = {
+      distance: distance(first, second),
+      midpoint: { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 },
+      viewport: { ...viewportRef.current },
+    };
+  }
+
+  function handleTouchMove(event: KonvaEventObject<TouchEvent>) {
+    clearLongPress();
+    const gesture = touchGestureRef.current;
+    if (!gesture || event.evt.touches.length !== 2) return;
+    event.evt.preventDefault();
+    const first = touchPoint(event.evt.touches[0]);
+    const second = touchPoint(event.evt.touches[1]);
+    if (!first || !second) return;
+    const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+    const scale = Math.min(2.5, Math.max(0.25, gesture.viewport.scale * distance(first, second) / gesture.distance));
+    const world = { x: (gesture.midpoint.x - gesture.viewport.x) / gesture.viewport.scale, y: (gesture.midpoint.y - gesture.viewport.y) / gesture.viewport.scale };
+    applyViewport({ x: midpoint.x - world.x * scale, y: midpoint.y - world.y * scale, scale });
+  }
+
+  function handleTouchEnd(event: KonvaEventObject<TouchEvent>) {
+    clearLongPress();
+    if (!touchGestureRef.current || event.evt.touches.length >= 2) return;
+    touchGestureRef.current = null;
+    commitViewport();
+  }
+
   function worldPointer() {
     const pointer = stageRef.current?.getPointerPosition();
     if (!pointer) return null;
@@ -397,20 +485,27 @@ export function KonvaBoard({
     pendingWheelRef.current = {
       x: pointer.x,
       y: pointer.y,
+      deltaX: (pending?.deltaX ?? 0) + event.evt.deltaX,
       deltaY: (pending?.deltaY ?? 0) + event.evt.deltaY,
+      zoom: event.evt.ctrlKey,
     };
     if (wheelFrameRef.current !== null) return;
     wheelFrameRef.current = window.requestAnimationFrame(() => {
       wheelFrameRef.current = null;
-      const nextWheel = pendingWheelRef.current;
+      const wheel = pendingWheelRef.current;
       pendingWheelRef.current = null;
-      if (!nextWheel || elementGestureActiveRef.current) return;
-      setViewport((current) => {
-        const direction = nextWheel.deltaY > 0 ? 1 / 1.08 : 1.08;
-        const scale = Math.min(2.5, Math.max(0.25, current.scale * direction));
-        const world = { x: (nextWheel.x - current.x) / current.scale, y: (nextWheel.y - current.y) / current.scale };
-        return { scale, x: nextWheel.x - world.x * scale, y: nextWheel.y - world.y * scale };
-      });
+      if (!wheel || elementGestureActiveRef.current) return;
+      const current = viewportRef.current;
+      if (wheel.zoom) {
+        const factor = Math.exp(-wheel.deltaY * 0.01);
+        const scale = Math.min(2.5, Math.max(0.25, current.scale * factor));
+        const world = { x: (wheel.x - current.x) / current.scale, y: (wheel.y - current.y) / current.scale };
+        applyViewport({ x: wheel.x - world.x * scale, y: wheel.y - world.y * scale, scale });
+      } else {
+        applyViewport({ ...current, x: current.x - wheel.deltaX, y: current.y - wheel.deltaY });
+      }
+      if (wheelCommitTimerRef.current !== null) window.clearTimeout(wheelCommitTimerRef.current);
+      wheelCommitTimerRef.current = window.setTimeout(commitViewport, 120);
     });
   }
 
@@ -439,7 +534,7 @@ export function KonvaBoard({
         y={viewport.y}
         scaleX={viewport.scale}
         scaleY={viewport.scale}
-        draggable={activeTool === "hand"}
+        draggable={activeTool === "hand" && !isCoarsePointer}
         onDragEnd={(event) => {
           if (event.target !== event.target.getStage()) return;
           setViewport((current) => ({ ...current, x: event.target.x(), y: event.target.y() }));
@@ -447,6 +542,9 @@ export function KonvaBoard({
         onPointerDown={handleStagePointerDown}
         onPointerMove={handleStagePointerMove}
         onPointerUp={handleStagePointerUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         onWheel={handleWheel}
       >
         <Layer>
@@ -474,6 +572,9 @@ export function KonvaBoard({
                 draggable={activeTool === "select"}
                 onClick={(event) => selectElement(element.id, event)}
                 onTap={(event) => selectElement(element.id, event)}
+                onTouchStart={(event) => startLongPress(element.id, event)}
+                onTouchMove={clearLongPress}
+                onTouchEnd={clearLongPress}
                 onDblClick={(event) => {
                   event.cancelBubble = true;
                   setEditing({ id: element.id, value: element.text });

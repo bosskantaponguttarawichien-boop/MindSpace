@@ -1,6 +1,6 @@
 "use client";
 
-import { Circle, Hand, ImagePlus, MousePointer2, Pencil, RectangleHorizontal, StickyNote, Type, Waypoints } from "lucide-react";
+import { Circle, FileText, Hand, ImagePlus, MousePointer2, Pencil, RectangleHorizontal, StickyNote, Type, Waypoints } from "lucide-react";
 import { IconAction } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
 import { useLocale } from "@/lib/i18n/locale-provider";
@@ -17,7 +17,7 @@ const tools: Array<{ id: BoardTool; label: "select" | "hand" | "text" | "note" |
   { id: "draw", label: "draw", icon: Pencil, shortcut: "D" },
 ];
 
-export function BoardToolbar({ ready, activeTool, onToolChange, onImportImage }: { ready: boolean; activeTool: BoardTool; onToolChange: (tool: BoardTool) => void; onImportImage: () => void }) {
+export function BoardToolbar({ ready, activeTool, onToolChange, onImportImage, onImportPdf }: { ready: boolean; activeTool: BoardTool; onToolChange: (tool: BoardTool) => void; onImportImage: () => void; onImportPdf: () => void }) {
   const { t } = useLocale();
   function chooseTool(tool: BoardTool) {
     onToolChange(tool);
@@ -33,6 +33,7 @@ export function BoardToolbar({ ready, activeTool, onToolChange, onImportImage }:
       ))}
       <Separator orientation="vertical" className="mx-1 h-6" />
       <IconAction label={t("importImage")} icon={ImagePlus} disabled={!ready} onClick={onImportImage} />
+      <IconAction label={t("importPdf")} icon={FileText} disabled={!ready} onClick={onImportPdf} />
     </div>
   );
 }

@@ -21,10 +21,11 @@ The goal is to add useful visual references to a board while keeping file bytes 
 - Add uploaded images to a board as movable, resizable, undoable elements.
 - Persist image metadata and safe download URLs in the versioned board document.
 - Export the visible board through the browser print dialog as PDF.
+- Open a local PDF preview without claiming it was saved or synced.
 
 ### Explicitly out of scope
 
-- PDF upload, viewer, page extraction, and text extraction.
+- PDF storage, page extraction, and text extraction.
 - Exporting the entire infinite board to one PDF page.
 - Accounts, granular permissions, link revocation, and collaboration beyond one trusted user.
 - Live AI calls, AI context collection, and applying AI-generated operations.
@@ -39,7 +40,8 @@ Out-of-scope UI may appear as disabled or clearly labelled preview; it must not 
 2. Image geometry is persisted and remains after reload.
 3. Images are uploaded to Firebase Storage, not embedded in Firestore documents.
 4. A user can open the browser print dialog to save the visible board as PDF.
-5. `lint`, `typecheck`, `test`, and `build` pass.
+5. A user can open a local PDF preview and clearly sees that it is not yet persisted.
+6. `lint`, `typecheck`, `test`, and `build` pass.
 
 ## Promotion gate to PDF ingestion
 

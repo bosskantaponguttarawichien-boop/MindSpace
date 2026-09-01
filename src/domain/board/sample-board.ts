@@ -1,9 +1,13 @@
 import type { BoardDocument } from "@/domain/board/board-document";
 
-export const sampleBoard: BoardDocument = {
+export function createEmptyBoard(id = "board:untitled", name = "Untitled board"): BoardDocument {
+  return {
   version: 1,
-  id: "board:untitled",
-  name: "Untitled board",
+  id,
+  name,
   elements: [],
   connections: [],
-};
+  };
+}
+
+export const sampleBoard = createEmptyBoard();

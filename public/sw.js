@@ -1,4 +1,4 @@
-const CACHE_NAME = "mindspace-v1";
+const CACHE_NAME = "mindspace-v2";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",

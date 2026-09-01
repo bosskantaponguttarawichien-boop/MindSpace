@@ -1,9 +1,10 @@
 "use client";
 
-import { Copy, FileDown, FolderInput, Redo2, Trash2, Undo2 } from "lucide-react";
+import { Copy, FileDown, FolderInput, MoreHorizontal, Redo2, Trash2, Undo2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconAction } from "@/components/ui/icon-action";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useLocale } from "@/lib/i18n/locale-provider";
 import type { BoardEngine } from "@/infrastructure/board-engine/board-engine";
 import { LanguageSwitcher } from "@/features/workspace/components/language-switcher";
@@ -22,6 +23,17 @@ export function WorkspaceTopbar({ engine }: { engine: BoardEngine | null }) {
         </Badge>
         <IconAction label={t("undo")} icon={Undo2} shortcut="⌘ Z" disabled={!engine} onClick={() => engine?.undo()} />
         <IconAction label={t("redo")} icon={Redo2} shortcut="⇧ ⌘ Z" disabled={!engine} onClick={() => engine?.redo()} />
+        <div className="sm:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="More board actions" disabled={!engine}><MoreHorizontal className="size-5" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-40">
+              <DropdownMenuItem onSelect={() => engine?.duplicateSelection()}><Copy />{t("duplicate")}</DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => engine?.deleteSelection()}><Trash2 />{t("delete")}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <IconAction label={t("duplicate")} icon={Copy} disabled={!engine} onClick={() => engine?.duplicateSelection()} className="hidden sm:inline-flex" />
         <IconAction label={t("delete")} icon={Trash2} disabled={!engine} onClick={() => engine?.deleteSelection()} className="hidden sm:inline-flex" />
         <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled title={t("futureFeature")}><FolderInput className="size-4" />{t("import")}</Button>

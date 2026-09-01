@@ -24,6 +24,12 @@ function renderToolbar(overrides: Partial<Parameters<typeof BoardToolbar>[0]> = 
 }
 
 describe("BoardToolbar", () => {
+  it("keeps every tool in one horizontally scrollable row", () => {
+    renderToolbar();
+
+    expect(screen.getByRole("toolbar", { name: "Board tools" })).toHaveClass("flex-nowrap", "overflow-x-auto");
+  });
+
   it("picks the group tool and opens its card in one click", async () => {
     const user = userEvent.setup();
     const { onToolChange } = renderToolbar();

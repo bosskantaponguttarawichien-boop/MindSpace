@@ -5,7 +5,7 @@ import { createEmptyBoard } from "@/domain/board/sample-board";
 import type { BoardDocument } from "@/domain/board/board-document";
 import { getAnonymousUser } from "@/infrastructure/auth/firebase-anonymous-auth";
 import { saveBoard, subscribeToBoards, type BoardScope, type StoredBoard } from "@/infrastructure/persistence/firestore-board-repository";
-import { uploadBoardImage, type UploadedImage } from "@/infrastructure/files/firebase-board-images";
+import { deleteBoardImages, uploadBoardImage, type UploadedImage } from "@/infrastructure/files/firebase-board-images";
 
 export type BoardSyncStatus = "connecting" | "saved" | "saving" | "error";
 
@@ -158,5 +158,9 @@ export function usePersistedBoards() {
     return uploadBoardImage(scope, file);
   }, []);
 
-  return { boards, activeBoardId, setActiveBoardId, createBoard, updateBoardDocument, copySyncLink, uploadImage, syncStatus, syncError };
+  const deleteImages = useCallback(async (urls: string[]) => {
+    await deleteBoardImages(urls);
+  }, []);
+
+  return { boards, activeBoardId, setActiveBoardId, createBoard, updateBoardDocument, copySyncLink, uploadImage, deleteImages, syncStatus, syncError };
 }

@@ -20,13 +20,14 @@ The goal is to add useful visual references to a board while keeping file bytes 
 - Accept PNG, JPEG, WEBP, or GIF images up to 25 MB; resize supported still images to a 1,920px maximum side and upload WebP only when it reduces bytes. Stored files remain capped at 10 MB.
 - Add uploaded images to a board as movable, resizable, undoable elements.
 - Persist image metadata and safe download URLs in the versioned board document.
-- Export the visible board through the browser print dialog as PDF.
+- Export the full current board bounds through the browser print dialog as PDF.
+- Remove an image object from Storage 30 seconds after it is deleted from a board; undo within that window cancels cleanup.
 - Open a local PDF preview without claiming it was saved or synced.
 
 ### Explicitly out of scope
 
 - PDF storage, page extraction, and text extraction.
-- Exporting the entire infinite board to one PDF page.
+- Multi-page PDF layouts for oversized boards.
 - Accounts, granular permissions, link revocation, and collaboration beyond one trusted user.
 - Live AI calls, AI context collection, and applying AI-generated operations.
 - Sharing, permissions, billing, analytics, and production deployment.
@@ -39,9 +40,10 @@ Out-of-scope UI may appear as disabled or clearly labelled preview; it must not 
 1. A user can choose a supported image and see it on the board.
 2. Image geometry is persisted and remains after reload.
 3. Images are uploaded to Firebase Storage, not embedded in Firestore documents.
-4. A user can open the browser print dialog to save the visible board as PDF.
-5. A user can open a local PDF preview and clearly sees that it is not yet persisted.
-6. `lint`, `typecheck`, `test`, and `build` pass.
+4. A user can open the browser print dialog to save the full current board as PDF.
+5. Deleting an image removes its Storage object after a short undo window.
+6. A user can open a local PDF preview and clearly sees that it is not yet persisted.
+7. `lint`, `typecheck`, `test`, and `build` pass.
 
 ## Promotion gate to PDF ingestion
 

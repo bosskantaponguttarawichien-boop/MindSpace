@@ -23,6 +23,7 @@ const COLORS = {
 } as const;
 
 const INITIAL_VIEWPORT: Viewport = { x: 40, y: 25, scale: 0.9 };
+const PDF_PAGE = { width: 1123, height: 794, padding: 48 };
 
 function cloneDocument(document: BoardDocument): BoardDocument {
   return structuredClone(document);
@@ -34,6 +35,22 @@ function createElementId(): BoardElementId {
 
 function elementCenter(element: BoardElement) {
   return { x: element.x + element.width / 2, y: element.y + element.height / 2 };
+}
+
+function boardBounds(elements: BoardElement[]) {
+  if (elements.length === 0) return { minX: 0, minY: 0, maxX: 800, maxY: 600 };
+  const points = elements.flatMap((element) => {
+    if (element.kind !== "draw" || !element.points?.length) return [element.x, element.y, element.x + element.width, element.y + element.height];
+    return element.points;
+  });
+  const xs = points.filter((_, index) => index % 2 === 0);
+  const ys = points.filter((_, index) => index % 2 === 1);
+  return {
+    minX: Math.min(...xs),
+    minY: Math.min(...ys),
+    maxX: Math.max(...xs),
+    maxY: Math.max(...ys),
+  };
 }
 
 function nextElement(tool: BoardTool, x: number, y: number): BoardElement | null {
@@ -116,6 +133,14 @@ export function KonvaBoard({
   useEffect(() => {
     documentRef.current = document;
   }, [document]);
+
+  useEffect(() => {
+    if (JSON.stringify(initialDocument) === JSON.stringify(documentRef.current)) return;
+    documentRef.current = cloneDocument(initialDocument);
+    setDocument(documentRef.current);
+    setSelection([]);
+    setSelectedConnection(null);
+  }, [initialDocument]);
 
   useEffect(() => {
     viewportRef.current = viewport;
@@ -392,12 +417,30 @@ export function KonvaBoard({
   const printBoard = useCallback(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const dataUrl = stage.toDataURL({ pixelRatio: 2 });
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) return window.alert("Allow pop-ups to export this board as PDF.");
-    printWindow.document.write(`<!doctype html><title>MindSpace board</title><img src="${dataUrl}" style="width:100%;height:auto" />`);
-    printWindow.document.close();
-    printWindow.onload = () => printWindow.print();
+    const original = { width: stage.width(), height: stage.height(), x: stage.x(), y: stage.y(), scaleX: stage.scaleX(), scaleY: stage.scaleY() };
+    try {
+      const bounds = boardBounds(documentRef.current.elements);
+      const contentWidth = Math.max(1, bounds.maxX - bounds.minX);
+      const contentHeight = Math.max(1, bounds.maxY - bounds.minY);
+      const scale = Math.min((PDF_PAGE.width - PDF_PAGE.padding * 2) / contentWidth, (PDF_PAGE.height - PDF_PAGE.padding * 2) / contentHeight);
+      stage.size({ width: PDF_PAGE.width, height: PDF_PAGE.height });
+      stage.scale({ x: scale, y: scale });
+      stage.position({ x: (PDF_PAGE.width - contentWidth * scale) / 2 - bounds.minX * scale, y: (PDF_PAGE.height - contentHeight * scale) / 2 - bounds.minY * scale });
+      stage.draw();
+      const dataUrl = stage.toDataURL({ pixelRatio: 2 });
+      const printWindow = window.open("", "_blank", "noopener,noreferrer");
+      if (!printWindow) return window.alert("Allow pop-ups to export this board as PDF.");
+      printWindow.document.write(`<!doctype html><title>MindSpace board</title><img src="${dataUrl}" style="width:100%;height:auto" />`);
+      printWindow.document.close();
+      printWindow.onload = () => printWindow.print();
+    } catch {
+      window.alert("Unable to export this board. Images may need Firebase Storage access first.");
+    } finally {
+      stage.size({ width: original.width, height: original.height });
+      stage.scale({ x: original.scaleX, y: original.scaleY });
+      stage.position({ x: original.x, y: original.y });
+      stage.draw();
+    }
   }, []);
 
   const engine = useMemo<BoardEngine>(() => ({

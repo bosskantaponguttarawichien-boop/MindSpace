@@ -1,4 +1,4 @@
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { BoardScope } from "@/infrastructure/persistence/firestore-board-repository";
 import { getFirebaseServices } from "@/infrastructure/firebase/client";
 import { compressImageForUpload, isSupportedImageType, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "@/domain/files/image-compression";
@@ -45,4 +45,15 @@ export async function uploadBoardImage(scope: BoardScope, file: File): Promise<U
   } catch (error: unknown) {
     throw new Error(userFacingUploadError(error), { cause: error });
   }
+}
+
+export async function deleteBoardImages(urls: string[]) {
+  await Promise.all(urls.map(async (url) => {
+    try {
+      await deleteObject(ref(getFirebaseServices().storage, url));
+    } catch (error: unknown) {
+      const code = (error as { code?: unknown })?.code;
+      if (code !== "storage/object-not-found") throw error;
+    }
+  }));
 }

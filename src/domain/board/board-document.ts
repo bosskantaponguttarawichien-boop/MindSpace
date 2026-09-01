@@ -1,3 +1,27 @@
+export const BOARD_COLORS = [
+  "violet",
+  "purple",
+  "indigo",
+  "blue",
+  "sky",
+  "cyan",
+  "teal",
+  "emerald",
+  "green",
+  "lime",
+  "yellow",
+  "amber",
+  "orange",
+  "red",
+  "rose",
+  "pink",
+  "fuchsia",
+  "slate",
+  "grey",
+] as const;
+
+export type BoardColor = (typeof BOARD_COLORS)[number];
+
 export type BoardElementId = `element:${string}`;
 export type BoardConnectionId = `connection:${string}`;
 
@@ -9,15 +33,23 @@ export type BoardElement = {
   width: number;
   height: number;
   text: string;
-  color?: "violet" | "yellow" | "blue" | "green" | "grey";
+  color?: BoardColor;
   points?: number[];
   assetUrl?: string;
 };
+
+export type ConnectionStyle = "end" | "both" | "start" | "none";
+export type ConnectionLineStyle = "solid" | "dashed" | "dotted";
+export type ConnectionHeadType = "arrow" | "triangle" | "circle" | "diamond";
 
 export type BoardConnection = {
   id: BoardConnectionId;
   fromId: BoardElementId;
   toId: BoardElementId;
+  style?: ConnectionStyle;
+  lineStyle?: ConnectionLineStyle;
+  headType?: ConnectionHeadType;
+  color?: BoardColor;
 };
 
 export type BoardDocument = {
@@ -38,4 +70,18 @@ export function isBoardDocument(value: unknown): value is BoardDocument {
     Array.isArray(candidate.elements) &&
     Array.isArray(candidate.connections)
   );
+}
+
+/** Compares two documents by content, ignoring key order and fields left undefined. */
+export function sameBoardDocument(left: BoardDocument, right: BoardDocument): boolean {
+  return JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
+}
+
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (!value || typeof value !== "object") return value;
+  const entries = value as Record<string, unknown>;
+  return Object.keys(entries)
+    .sort()
+    .flatMap((key) => entries[key] === undefined ? [] : [[key, canonical(entries[key])]]);
 }

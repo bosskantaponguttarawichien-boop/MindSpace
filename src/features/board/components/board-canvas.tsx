@@ -8,6 +8,21 @@ import { ZoomControls } from "@/features/board/components/zoom-controls";
 import type { BoardEngine, BoardTool } from "@/infrastructure/board-engine/board-engine";
 import type { BoardDocument } from "@/domain/board/board-document";
 import { isSupportedPdf } from "@/domain/files/file-validation";
+import { ImageUploadError, type ImageUploadFailure } from "@/infrastructure/files/firebase-board-images";
+import { useLocale } from "@/lib/i18n/locale-provider";
+import type { MessageKey } from "@/lib/i18n/messages";
+
+const uploadFailureMessages: Record<ImageUploadFailure, MessageKey> = {
+  unsupportedType: "imageErrorUnsupportedType",
+  tooLarge: "imageErrorTooLarge",
+  stillTooLarge: "imageErrorStillTooLarge",
+  unreadable: "imageErrorUnreadable",
+  rulesBlocked: "imageErrorRulesBlocked",
+  quotaExceeded: "imageErrorQuotaExceeded",
+  bucketUnavailable: "imageErrorBucketUnavailable",
+  unreachable: "imageErrorUnreachable",
+  failed: "imageErrorFailed",
+};
 
 const KonvaBoard = dynamic(
   () => import("@/infrastructure/board-engine/konva-board").then((module) => module.KonvaBoard),
@@ -19,25 +34,36 @@ function imageUrls(document: BoardDocument) {
 }
 
 export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploadImage, onDeleteImages, onOpenPdf }: { onEngineReady: (engine: BoardEngine) => void; document: BoardDocument; onDocumentChange: (document: BoardDocument) => void; onUploadImage: (file: File) => Promise<{ url: string; width: number; height: number }>; onDeleteImages: (urls: string[]) => Promise<void>; onOpenPdf: (pdf: LocalPdf) => void }) {
+  const { t } = useLocale();
   const [engine, setEngine] = useState<BoardEngine | null>(null);
   const [activeTool, setActiveTool] = useState<BoardTool>("select");
+  const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean }>({ selectedShapeKind: null, hasSelection: false });
+  const [uploadingImage, setUploadingImage] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const documentRef = useRef(document);
   const deleteTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
+  const onEngineReadyRef = useRef(onEngineReady);
+  useEffect(() => {
+    onEngineReadyRef.current = onEngineReady;
+  }, [onEngineReady]);
+
   const handleReady = useCallback((readyEngine: BoardEngine) => {
     setEngine(readyEngine);
-    onEngineReady(readyEngine);
-  }, [onEngineReady]);
+    onEngineReadyRef.current(readyEngine);
+  }, []);
   const importImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || !engine) return;
+    setUploadingImage(true);
     try {
       engine.addImage(await onUploadImage(file));
     } catch (error: unknown) {
-      window.alert(error instanceof Error ? error.message : "Unable to upload image.");
+      window.alert(t(error instanceof ImageUploadError ? uploadFailureMessages[error.reason] : "imageErrorFailed"));
+    } finally {
+      setUploadingImage(false);
     }
   };
   const importPdf = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,7 +83,9 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
       if (after.has(url) || deleteTimersRef.current.has(url)) continue;
       deleteTimersRef.current.set(url, setTimeout(() => {
         deleteTimersRef.current.delete(url);
-        void onDeleteImages([url]);
+        // Cleanup is best effort: a rejected delete leaves an orphaned object, which must never
+        // surface as an unhandled rejection on a board the user is still editing.
+        void onDeleteImages([url]).catch(() => undefined);
       }, 30_000));
     }
     for (const url of after) {
@@ -77,20 +105,26 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
 
   return (
     <div className="relative h-full min-h-0 overflow-hidden bg-muted/30" data-testid="board-canvas">
-      <KonvaBoard initialDocument={document} onDocumentChange={handleDocumentChange} activeTool={activeTool} onToolChange={setActiveTool} onReady={handleReady} />
+      <KonvaBoard initialDocument={document} onDocumentChange={handleDocumentChange} activeTool={activeTool} onToolChange={setActiveTool} onSelectionChange={setSelectionState} onReady={handleReady} />
       <input ref={inputRef} className="sr-only" type="file" accept="image/*" onChange={importImage} />
       <input ref={pdfInputRef} className="sr-only" type="file" accept="application/pdf" onChange={importPdf} />
       <BoardToolbar
         ready={engine !== null}
+        uploadingImage={uploadingImage}
         activeTool={activeTool}
+        selectedShapeKind={selectionState.selectedShapeKind}
+        hasSelection={selectionState.hasSelection}
         onToolChange={setActiveTool}
+        onSetShape={(shape) => engine?.setSelectionShape(shape)}
         onImportImage={() => inputRef.current?.click()}
         onImportPdf={() => pdfInputRef.current?.click()}
         onAddChildNode={() => engine?.addChildNode()}
         onSetColor={(color) => engine?.setSelectionColor(color)}
         onAlign={(alignment) => engine?.alignSelection(alignment)}
+        onUpdateConnection={(patch) => { engine?.setConnectionDefaults(patch); engine?.updateSelectedConnection(patch); }}
       />
       <ZoomControls engine={engine} />
+      {uploadingImage ? <div className="pointer-events-none absolute bottom-4 end-4 z-30 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur" role="status">{t("imageUploading")}</div> : null}
     </div>
   );
 }

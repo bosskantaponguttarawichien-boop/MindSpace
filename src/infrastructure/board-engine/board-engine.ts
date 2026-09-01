@@ -1,4 +1,4 @@
-import type { BoardElement } from "@/domain/board/board-document";
+import type { BoardColor, BoardConnection } from "@/domain/board/board-document";
 
 export type BoardTool =
   | "select"
@@ -10,7 +10,10 @@ export type BoardTool =
   | "diamond"
   | "triangle"
   | "arrow"
-  | "draw";
+  | "draw"
+  | "eraser";
+
+export type BoardExport = { dataUrl: string; width: number; height: number };
 
 export type BoardEngine = {
   undo: () => void;
@@ -23,8 +26,12 @@ export type BoardEngine = {
   zoomOut: () => void;
   zoomToFit: () => void;
   addImage: (image: { url: string; width: number; height: number }) => void;
-  printBoard: () => void;
+  renderExport: () => BoardExport | null;
   addChildNode: () => void;
-  setSelectionColor: (color: NonNullable<BoardElement["color"]>) => void;
+  setSelectionColor: (color: BoardColor) => void;
+  setSelectionShape: (shape: BoardTool) => void;
   alignSelection: (alignment: "left" | "center" | "right" | "top" | "middle" | "bottom") => void;
+  updateSelectedConnection: (patch: Partial<BoardConnection>) => void;
+  setConnectionDefaults: (patch: Partial<BoardConnection>) => void;
 };
+

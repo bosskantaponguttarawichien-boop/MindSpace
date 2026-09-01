@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BOARD_COLORS } from "@/domain/board/board-document";
 import { parseBoardDocument } from "@/infrastructure/persistence/firestore-board-repository";
 
 describe("parseBoardDocument", () => {
@@ -27,6 +28,18 @@ describe("parseBoardDocument", () => {
       ],
       connections: [],
     })).not.toBeNull();
+  });
+
+  it("accepts every board colour and rejects an unknown one", () => {
+    const board = (color: string) => ({
+      version: 1,
+      id: "board:colors",
+      name: "Colors",
+      elements: [{ id: "element:one", kind: "note", x: 1, y: 2, width: 3, height: 4, text: "Hello", color }],
+      connections: [],
+    });
+    for (const color of BOARD_COLORS) expect(parseBoardDocument(board(color))).not.toBeNull();
+    expect(parseBoardDocument(board("chartreuse"))).toBeNull();
   });
 
   it("accepts an image element only with a HTTPS asset URL", () => {

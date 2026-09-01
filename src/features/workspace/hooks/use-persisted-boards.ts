@@ -4,10 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createEmptyBoard } from "@/domain/board/sample-board";
 import type { BoardDocument } from "@/domain/board/board-document";
 import { getAnonymousUser } from "@/infrastructure/auth/firebase-anonymous-auth";
-import { saveBoard, subscribeToBoards, type BoardScope, type StoredBoard } from "@/infrastructure/persistence/firestore-board-repository";
+import { deleteBoard as deleteRemoteBoard, saveBoard, subscribeToBoards, type BoardScope, type StoredBoard } from "@/infrastructure/persistence/firestore-board-repository";
 import { deleteBoardImages, uploadBoardImage, type UploadedImage } from "@/infrastructure/files/firebase-board-images";
+import { createBoardSaveQueue, type BoardSaveQueue, type BoardSaveState } from "@/features/workspace/sync/board-save-queue";
+import { mergeRemoteBoards } from "@/features/workspace/sync/merge-remote-boards";
 
 export type BoardSyncStatus = "connecting" | "saved" | "saving" | "error";
+
+/** A quick write stays invisible: the badge only announces saving when one outlives this. */
+const SAVING_NOTICE_MS = 1200;
 
 function newBoard(name: string): StoredBoard {
   const id = `board:${crypto.randomUUID()}`;
@@ -39,27 +44,45 @@ export function usePersistedBoards() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(readWorkspaceId);
   const scopeRef = useRef<BoardScope | null>(null);
-  const initialSnapshotRef = useRef(false);
-  const saveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const queueRef = useRef<BoardSaveQueue | null>(null);
+  const boardsRef = useRef<StoredBoard[]>([]);
+  const deletedIdsRef = useRef(new Set<string>());
+  const savingNoticeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const persist = useCallback(async (board: StoredBoard) => {
-    const scope = scopeRef.current;
-    if (!scope) return;
-    setSyncStatus("saving");
-    try {
-      await saveBoard(scope, board);
-      setSyncError(null);
-      setSyncStatus("saved");
-    } catch (error: unknown) {
-      setSyncError(errorMessage(error));
-      setSyncStatus("error");
+  const nextBoardName = `Untitled board ${boards.length + 1}`;
+
+  const commitBoards = useCallback((next: StoredBoard[]) => {
+    boardsRef.current = next;
+    setBoards(next);
+  }, []);
+
+  const applySaveState = useCallback((state: BoardSaveState) => {
+    if (savingNoticeRef.current) {
+      clearTimeout(savingNoticeRef.current);
+      savingNoticeRef.current = null;
     }
+    if (state.error !== null) {
+      setSyncError(errorMessage(state.error));
+      setSyncStatus("error");
+      return;
+    }
+    setSyncError(null);
+    if (state.pendingIds.size === 0) {
+      setSyncStatus("saved");
+      return;
+    }
+    setSyncStatus((current) => current === "error" ? "saving" : current);
+    savingNoticeRef.current = setTimeout(() => {
+      savingNoticeRef.current = null;
+      setSyncStatus("saving");
+    }, SAVING_NOTICE_MS);
   }, []);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
-    const saveTimers = saveTimersRef.current;
+    let queue: BoardSaveQueue | null = null;
+    const savingNotice = savingNoticeRef;
 
     async function connect() {
       try {
@@ -67,23 +90,29 @@ export function usePersistedBoards() {
         if (cancelled) return;
         const scope: BoardScope = workspaceId ? { kind: "shared", workspaceId } : { kind: "personal", uid: user.uid };
         scopeRef.current = scope;
-        initialSnapshotRef.current = false;
+        queue = createBoardSaveQueue({ save: (board) => saveBoard(scope, board), onChange: applySaveState });
+        queueRef.current = queue;
+        let firstSnapshot = true;
         unsubscribe = subscribeToBoards(scope, (remoteBoards) => {
-          if (cancelled) return;
-          if (!initialSnapshotRef.current) {
-            initialSnapshotRef.current = true;
+          if (cancelled || !queue) return;
+          if (firstSnapshot) {
+            firstSnapshot = false;
             if (remoteBoards.length === 0) {
               const board = newBoard("Untitled board");
-              setBoards([board]);
+              commitBoards([board]);
               setActiveBoardId(board.id);
-              void persist(board);
+              queue.schedule(board);
               return;
             }
           }
-          setBoards(remoteBoards);
-          setActiveBoardId((current) => remoteBoards.some((board) => board.id === current) ? current : (remoteBoards[0]?.id ?? ""));
-          setSyncStatus("saved");
-          setSyncError(null);
+          const remoteIds = new Set(remoteBoards.map((board) => board.id));
+          for (const deletedId of deletedIdsRef.current) {
+            if (!remoteIds.has(deletedId)) deletedIdsRef.current.delete(deletedId);
+          }
+          const merged = mergeRemoteBoards(boardsRef.current, remoteBoards, queue.pendingIds(), deletedIdsRef.current);
+          commitBoards(merged);
+          setActiveBoardId((current) => merged.some((board) => board.id === current) ? current : (merged[0]?.id ?? ""));
+          setSyncStatus((current) => current === "connecting" ? "saved" : current);
         }, (error) => {
           if (cancelled) return;
           setSyncStatus("error");
@@ -100,34 +129,80 @@ export function usePersistedBoards() {
     return () => {
       cancelled = true;
       scopeRef.current = null;
+      queueRef.current = null;
       unsubscribe?.();
-      saveTimers.forEach((timer) => clearTimeout(timer));
-      saveTimers.clear();
+      if (savingNotice.current) {
+        clearTimeout(savingNotice.current);
+        savingNotice.current = null;
+      }
+      // Queued edits outlive the subscription: tearing the hook down must still write them.
+      void queue?.flush();
     };
-  }, [persist, workspaceId]);
+  }, [applySaveState, commitBoards, workspaceId]);
 
-  const createBoard = useCallback(() => {
-    const board = newBoard(`Untitled board ${boards.length + 1}`);
-    setBoards((current) => [...current, board]);
+  useEffect(() => {
+    const flushWhenHidden = () => {
+      if (window.document.visibilityState === "hidden") void queueRef.current?.flush();
+    };
+    const flushNow = () => { void queueRef.current?.flush(); };
+    window.document.addEventListener("visibilitychange", flushWhenHidden);
+    window.addEventListener("pagehide", flushNow);
+    return () => {
+      window.document.removeEventListener("visibilitychange", flushWhenHidden);
+      window.removeEventListener("pagehide", flushNow);
+    };
+  }, []);
+
+  const createBoard = useCallback((name?: string) => {
+    const board = newBoard(name?.trim() || `Untitled board ${boardsRef.current.length + 1}`);
+    commitBoards([...boardsRef.current, board]);
     setActiveBoardId(board.id);
-    void persist(board);
-  }, [boards.length, persist]);
+    queueRef.current?.schedule(board);
+  }, [commitBoards]);
+
+  const renameBoard = useCallback((id: string, name: string) => {
+    const trimmed = name.trim();
+    const board = boardsRef.current.find((candidate) => candidate.id === id);
+    if (!trimmed || !board || board.name === trimmed) return;
+    const next: StoredBoard = { ...board, name: trimmed, document: { ...board.document, name: trimmed } };
+    commitBoards(boardsRef.current.map((candidate) => candidate.id === id ? next : candidate));
+    queueRef.current?.schedule(next);
+  }, [commitBoards]);
+
+  const deleteBoard = useCallback(async (id: string) => {
+    const scope = scopeRef.current;
+    if (!scope) return;
+    // A write already on the wire has to settle first, or it would recreate the deleted board.
+    await queueRef.current?.cancel(id);
+    deletedIdsRef.current.add(id);
+    const remaining = boardsRef.current.filter((board) => board.id !== id);
+    commitBoards(remaining);
+    setActiveBoardId((current) => current === id ? (remaining[0]?.id ?? "") : current);
+    try {
+      await deleteRemoteBoard(scope, id);
+      setSyncError(null);
+      setSyncStatus("saved");
+    } catch (error: unknown) {
+      deletedIdsRef.current.delete(id);
+      setSyncError(errorMessage(error));
+      setSyncStatus("error");
+      return;
+    }
+    if (remaining.length === 0) {
+      const board = newBoard("Untitled board 1");
+      commitBoards([board]);
+      setActiveBoardId(board.id);
+      queueRef.current?.schedule(board);
+    }
+  }, [commitBoards]);
 
   const updateBoardDocument = useCallback((id: string, document: BoardDocument) => {
-    setBoards((current) => {
-      const board = current.find((candidate) => candidate.id === id);
-      if (!board) return current;
-      const next = { ...board, document };
-      const previousTimer = saveTimersRef.current.get(id);
-      if (previousTimer) clearTimeout(previousTimer);
-      saveTimersRef.current.set(id, setTimeout(() => {
-        saveTimersRef.current.delete(id);
-        void persist(next);
-      }, 600));
-      setSyncStatus("saving");
-      return current.map((candidate) => candidate.id === id ? next : candidate);
-    });
-  }, [persist]);
+    const board = boardsRef.current.find((candidate) => candidate.id === id);
+    if (!board) return;
+    const next: StoredBoard = { ...board, document };
+    commitBoards(boardsRef.current.map((candidate) => candidate.id === id ? next : candidate));
+    queueRef.current?.schedule(next);
+  }, [commitBoards]);
 
   const copySyncLink = useCallback(async (): Promise<boolean> => {
     if (typeof window === "undefined") return false;
@@ -137,7 +212,7 @@ export function usePersistedBoards() {
       const sharedScope: BoardScope = { kind: "shared", workspaceId: nextWorkspaceId };
       setSyncStatus("saving");
       try {
-        await Promise.all(boards.map((board) => saveBoard(sharedScope, board)));
+        await Promise.all(boardsRef.current.map((board) => saveBoard(sharedScope, board)));
         setWorkspaceId(nextWorkspaceId);
         window.history.replaceState(null, "", `?workspace=${nextWorkspaceId}`);
       } catch (error: unknown) {
@@ -150,7 +225,7 @@ export function usePersistedBoards() {
     url.searchParams.set("workspace", nextWorkspaceId);
     await copyToClipboard(url.toString());
     return true;
-  }, [boards, workspaceId]);
+  }, [workspaceId]);
 
   const uploadImage = useCallback(async (file: File): Promise<UploadedImage> => {
     const scope = scopeRef.current;
@@ -162,5 +237,5 @@ export function usePersistedBoards() {
     await deleteBoardImages(urls);
   }, []);
 
-  return { boards, activeBoardId, setActiveBoardId, createBoard, updateBoardDocument, copySyncLink, uploadImage, deleteImages, syncStatus, syncError };
+  return { boards, activeBoardId, setActiveBoardId, nextBoardName, createBoard, renameBoard, deleteBoard, updateBoardDocument, copySyncLink, uploadImage, deleteImages, syncStatus, syncError };
 }

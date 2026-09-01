@@ -1,5 +1,5 @@
-import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, type FirestoreError } from "firebase/firestore";
-import type { BoardConnection, BoardDocument, BoardElement } from "@/domain/board/board-document";
+import { collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, type FirestoreError } from "firebase/firestore";
+import { BOARD_COLORS, type BoardConnection, type BoardDocument, type BoardElement } from "@/domain/board/board-document";
 import { getFirebaseServices } from "@/infrastructure/firebase/client";
 
 export type StoredBoard = {
@@ -12,7 +12,7 @@ export type BoardScope =
   | { kind: "personal"; uid: string }
   | { kind: "shared"; workspaceId: string };
 
-const colors = new Set(["violet", "yellow", "blue", "green", "grey"]);
+const colors = new Set<string>(BOARD_COLORS);
 const kinds = new Set(["text", "note", "rectangle", "ellipse", "diamond", "triangle", "draw", "image"]);
 
 function isBoardElement(value: unknown): value is BoardElement {
@@ -82,15 +82,22 @@ export function subscribeToBoards(
   );
 }
 
-export async function saveBoard(scope: BoardScope, board: StoredBoard) {
+function boardDocument(scope: BoardScope, boardId: string) {
   const firestore = getFirebaseServices().firestore;
-  const reference = scope.kind === "personal"
-    ? doc(firestore, "users", scope.uid, "boards", board.id)
-    : doc(firestore, "workspaces", scope.workspaceId, "boards", board.id);
-  await setDoc(reference, {
+  return scope.kind === "personal"
+    ? doc(firestore, "users", scope.uid, "boards", boardId)
+    : doc(firestore, "workspaces", scope.workspaceId, "boards", boardId);
+}
+
+export async function saveBoard(scope: BoardScope, board: StoredBoard) {
+  await setDoc(boardDocument(scope, board.id), {
     name: board.name,
     document: board.document,
     schemaVersion: 1,
     updatedAt: serverTimestamp(),
   }, { merge: true });
+}
+
+export async function deleteBoard(scope: BoardScope, boardId: string) {
+  await deleteDoc(boardDocument(scope, boardId));
 }

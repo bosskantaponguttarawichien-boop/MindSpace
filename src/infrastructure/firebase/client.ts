@@ -22,7 +22,13 @@ export function getFirebaseApp(): FirebaseApp {
   return getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 }
 
+/** Firebase retries a failing upload for two minutes by default, which reads as a frozen import. */
+const UPLOAD_RETRY_MS = 20_000;
+
 export function getFirebaseServices() {
   const app = getFirebaseApp();
-  return { app, auth: getAuth(app), firestore: getFirestore(app), storage: getStorage(app) };
+  const storage = getStorage(app);
+  storage.maxUploadRetryTime = UPLOAD_RETRY_MS;
+  storage.maxOperationRetryTime = UPLOAD_RETRY_MS;
+  return { app, auth: getAuth(app), firestore: getFirestore(app), storage };
 }

@@ -11,7 +11,7 @@ import type { BoardEngine } from "@/infrastructure/board-engine/board-engine";
 import { LanguageSwitcher } from "@/features/workspace/components/language-switcher";
 import type { BoardSyncStatus } from "@/features/workspace/hooks/use-persisted-boards";
 
-export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCopySyncLink, onOpenAi }: { engine: BoardEngine | null; boardName: string; syncStatus: BoardSyncStatus; syncError: string | null; onCopySyncLink: () => Promise<boolean>; onOpenAi: () => void }) {
+export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCopySyncLink, onExportPdf, onOpenAi }: { engine: BoardEngine | null; boardName: string; syncStatus: BoardSyncStatus; syncError: string | null; onCopySyncLink: () => Promise<boolean>; onExportPdf: () => void; onOpenAi: () => void }) {
   const { t, locale, setLocale } = useLocale();
   const [copied, setCopied] = useState(false);
   const syncLabel = {
@@ -37,7 +37,7 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCo
         </Badge>
         <IconAction label={t("undo")} icon={Undo2} shortcut="⌘ Z" disabled={!engine} onClick={() => engine?.undo()} />
         <IconAction label={t("redo")} icon={Redo2} shortcut="⇧ ⌘ Z" disabled={!engine} onClick={() => engine?.redo()} />
-        <div className="sm:hidden">
+        <div className="lg:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="More board actions" disabled={!engine}><MoreHorizontal className="size-5" /></Button>
@@ -50,7 +50,7 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCo
               <DropdownMenuItem variant="destructive" onSelect={() => engine?.deleteSelection()}><Trash2 />{t("delete")}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled><FolderInput />{t("import")}</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => engine?.printBoard()}><FileDown />{t("exportPdf")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onExportPdf}><FileDown />{t("exportPdf")}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuLabel>{t("language")}</DropdownMenuLabel>
               <DropdownMenuItem onSelect={() => setLocale("en")}><span className="flex-1">{t("english")}</span>{locale === "en" ? <Check /> : null}</DropdownMenuItem>
@@ -62,7 +62,7 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCo
         <IconAction label={copied ? t("syncLinkCopied") : t("copySyncLink")} icon={copied ? Check : Link} onClick={() => void copyLink()} className="hidden sm:inline-flex" />
         <IconAction label={t("delete")} icon={Trash2} disabled={!engine} onClick={() => engine?.deleteSelection()} className="hidden sm:inline-flex" />
         <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled title={t("importImage")}><FolderInput className="size-4" />{t("import")}</Button>
-        <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled={!engine} onClick={() => engine?.printBoard()}><FileDown className="size-4" />{t("exportPdf")}</Button>
+        <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled={!engine} onClick={onExportPdf}><FileDown className="size-4" />{t("exportPdf")}</Button>
         <div className="hidden sm:block"><LanguageSwitcher /></div>
       </div>
     </header>

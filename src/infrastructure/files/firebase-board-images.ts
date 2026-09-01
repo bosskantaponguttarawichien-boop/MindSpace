@@ -5,12 +5,36 @@ import { compressImageForUpload, isSupportedImageType, MAX_SOURCE_IMAGE_BYTES, M
 
 export type UploadedImage = { url: string; width: number; height: number };
 
-function userFacingUploadError(error: unknown) {
-  const candidate = error as { code?: unknown; serverResponse?: unknown };
-  if (candidate?.code === "storage/unauthorized") return "Storage Rules blocked this upload. Publish the Storage Rules, then try again.";
-  if (candidate?.code === "storage/quota-exceeded") return "Firebase Storage quota is full.";
-  if (candidate?.code === "storage/unknown") return "Firebase Storage is unavailable. Check the Storage bucket and published Storage Rules.";
-  return error instanceof Error ? error.message : "Unable to upload this image.";
+export type ImageUploadFailure =
+  | "unsupportedType"
+  | "tooLarge"
+  | "stillTooLarge"
+  | "unreadable"
+  | "rulesBlocked"
+  | "quotaExceeded"
+  | "bucketUnavailable"
+  | "unreachable"
+  | "failed";
+
+/** Carries a stable reason so the UI can render it in the reader's language. */
+export class ImageUploadError extends Error {
+  readonly reason: ImageUploadFailure;
+
+  constructor(reason: ImageUploadFailure, cause?: unknown) {
+    super(reason, { cause });
+    this.name = "ImageUploadError";
+    this.reason = reason;
+  }
+}
+
+function uploadFailure(error: unknown): ImageUploadFailure {
+  const code = (error as { code?: unknown })?.code;
+  if (code === "storage/unauthorized" || code === "storage/unauthenticated") return "rulesBlocked";
+  if (code === "storage/quota-exceeded") return "quotaExceeded";
+  if (code === "storage/bucket-not-found" || code === "storage/project-not-found") return "bucketUnavailable";
+  if (code === "storage/retry-limit-exceeded") return "unreachable";
+  if (code === "storage/unknown") return "bucketUnavailable";
+  return "failed";
 }
 
 function imageSize(file: File): Promise<{ width: number; height: number }> {
@@ -23,18 +47,18 @@ function imageSize(file: File): Promise<{ width: number; height: number }> {
     };
     image.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error("This image could not be read."));
+      reject(new ImageUploadError("unreadable"));
     };
     image.src = objectUrl;
   });
 }
 
 export async function uploadBoardImage(scope: BoardScope, file: File): Promise<UploadedImage> {
-  if (!isSupportedImageType(file.type)) throw new Error("Choose a PNG, JPEG, WEBP, or GIF image.");
-  if (file.size > MAX_SOURCE_IMAGE_BYTES) throw new Error("Image must be 25 MB or smaller.");
+  if (!isSupportedImageType(file.type)) throw new ImageUploadError("unsupportedType");
+  if (file.size > MAX_SOURCE_IMAGE_BYTES) throw new ImageUploadError("tooLarge");
 
   const preparedFile = await compressImageForUpload(file);
-  if (preparedFile.size > MAX_STORED_IMAGE_BYTES) throw new Error("This image is still over 10 MB after compression.");
+  if (preparedFile.size > MAX_STORED_IMAGE_BYTES) throw new ImageUploadError("stillTooLarge");
   const { width, height } = await imageSize(preparedFile);
   const prefix = scope.kind === "shared" ? `workspaces/${scope.workspaceId}` : `users/${scope.uid}`;
   const extension = preparedFile.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "image";
@@ -43,7 +67,7 @@ export async function uploadBoardImage(scope: BoardScope, file: File): Promise<U
     await uploadBytes(storageRef, preparedFile, { contentType: preparedFile.type });
     return { url: await getDownloadURL(storageRef), width, height };
   } catch (error: unknown) {
-    throw new Error(userFacingUploadError(error), { cause: error });
+    throw new ImageUploadError(uploadFailure(error), error);
   }
 }
 

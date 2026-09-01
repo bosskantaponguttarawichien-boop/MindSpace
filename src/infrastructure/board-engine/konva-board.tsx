@@ -63,6 +63,7 @@ export function KonvaBoard({
   const gestureStartRef = useRef<BoardDocument | null>(null);
   const elementGestureActiveRef = useRef(false);
   const dragPreviewRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
+  const arrowRefs = useRef(new Map<string, Konva.Arrow>());
   const drawStartRef = useRef<{ id: BoardElementId; document: BoardDocument } | null>(null);
   const moveFrameRef = useRef<number | null>(null);
   const pendingMoveRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
@@ -74,7 +75,6 @@ export function KonvaBoard({
   const [selection, setSelection] = useState<BoardElementId[]>([]);
   const [connectorStart, setConnectorStart] = useState<BoardElementId | null>(null);
   const [editing, setEditing] = useState<{ id: BoardElementId; value: string } | null>(null);
-  const [dragPreview, setDragPreview] = useState<{ id: BoardElementId; x: number; y: number } | null>(null);
   const [viewport, setViewport] = useState(INITIAL_VIEWPORT);
   const [size, setSize] = useState<Size>({ width: 900, height: 650 });
   const { t } = useLocale();
@@ -82,10 +82,6 @@ export function KonvaBoard({
   useEffect(() => {
     documentRef.current = document;
   }, [document]);
-
-  useEffect(() => {
-    dragPreviewRef.current = dragPreview;
-  }, [dragPreview]);
 
   useEffect(() => {
     selectionRef.current = selection;
@@ -137,7 +133,6 @@ export function KonvaBoard({
       elementGestureActiveRef.current = false;
       cancelPendingMove();
       const preview = dragPreviewRef.current;
-      setDragPreview(null);
       if (!preview) return;
       shapeRefs.current.get(preview.id)?.clearCache();
       updateElement(preview.id, { x: preview.x, y: preview.y }, true);
@@ -145,6 +140,20 @@ export function KonvaBoard({
     window.addEventListener("blur", finishInterruptedGesture);
     return () => window.removeEventListener("blur", finishInterruptedGesture);
   }, [cancelPendingMove, updateElement]);
+
+  const updateConnectedArrows = useCallback((movedId: BoardElementId, x: number, y: number) => {
+    for (const connection of documentRef.current.connections) {
+      if (connection.fromId !== movedId && connection.toId !== movedId) continue;
+      const from = documentRef.current.elements.find((element) => element.id === connection.fromId);
+      const to = documentRef.current.elements.find((element) => element.id === connection.toId);
+      if (!from || !to) continue;
+      const start = elementCenter(connection.fromId === movedId ? { ...from, x, y } : from);
+      const end = elementCenter(connection.toId === movedId ? { ...to, x, y } : to);
+      const arrow = arrowRefs.current.get(connection.id);
+      arrow?.points([start.x, start.y, end.x, end.y]);
+      arrow?.getLayer()?.batchDraw();
+    }
+  }, []);
 
   const scheduleMove = useCallback((id: BoardElementId, x: number, y: number) => {
     pendingMoveRef.current = { id, x, y };
@@ -154,9 +163,10 @@ export function KonvaBoard({
       const pending = pendingMoveRef.current;
       pendingMoveRef.current = null;
       if (!pending) return;
-      setDragPreview({ id: pending.id, x: pending.x, y: pending.y });
+      dragPreviewRef.current = pending;
+      updateConnectedArrows(pending.id, pending.x, pending.y);
     });
-  }, []);
+  }, [updateConnectedArrows]);
 
   const flushPendingDrawPoint = useCallback(() => {
     if (drawFrameRef.current !== null) {
@@ -401,7 +411,7 @@ export function KonvaBoard({
   }
 
   return (
-    <div ref={containerRef} className="konva-board h-full w-full" data-testid="konva-board" data-element-count={document.elements.length}>
+    <div ref={containerRef} className="konva-board h-full w-full touch-none" data-testid="konva-board" data-element-count={document.elements.length}>
       <Stage
         ref={stageRef}
         width={size.width}
@@ -425,9 +435,9 @@ export function KonvaBoard({
             const from = elementMap.get(connection.fromId);
             const to = elementMap.get(connection.toId);
             if (!from || !to) return null;
-            const start = elementCenter(dragPreview?.id === from.id ? { ...from, x: dragPreview.x, y: dragPreview.y } : from);
-            const end = elementCenter(dragPreview?.id === to.id ? { ...to, x: dragPreview.x, y: dragPreview.y } : to);
-            return <Arrow key={connection.id} points={[start.x, start.y, end.x, end.y]} stroke="#64748b" fill="#64748b" strokeWidth={2} pointerLength={8} pointerWidth={8} />;
+            const start = elementCenter(from);
+            const end = elementCenter(to);
+            return <Arrow key={connection.id} ref={(node) => { if (node) arrowRefs.current.set(connection.id, node); else arrowRefs.current.delete(connection.id); }} points={[start.x, start.y, end.x, end.y]} stroke="#64748b" fill="#64748b" strokeWidth={2} pointerLength={8} pointerWidth={8} perfectDrawEnabled={false} />;
           })}
           {document.elements.map((element) => {
             if (element.kind === "draw") {
@@ -457,7 +467,7 @@ export function KonvaBoard({
                 onDragMove={(event) => scheduleMove(element.id, event.target.x(), event.target.y())}
                 onDragEnd={(event) => {
                   cancelPendingMove();
-                  setDragPreview(null);
+                  dragPreviewRef.current = null;
                   elementGestureActiveRef.current = false;
                   event.target.clearCache();
                   updateElement(element.id, { x: event.target.x(), y: event.target.y() }, true);

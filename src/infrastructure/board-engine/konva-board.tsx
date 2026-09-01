@@ -62,6 +62,12 @@ export function KonvaBoard({
   const futureRef = useRef<BoardDocument[]>([]);
   const gestureStartRef = useRef<BoardDocument | null>(null);
   const drawStartRef = useRef<{ id: BoardElementId; document: BoardDocument } | null>(null);
+  const moveFrameRef = useRef<number | null>(null);
+  const pendingMoveRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
+  const drawFrameRef = useRef<number | null>(null);
+  const pendingDrawPointRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
+  const wheelFrameRef = useRef<number | null>(null);
+  const pendingWheelRef = useRef<{ x: number; y: number; deltaY: number } | null>(null);
   const [document, setDocument] = useState(() => cloneDocument(sampleBoard));
   const [selection, setSelection] = useState<BoardElementId[]>([]);
   const [connectorStart, setConnectorStart] = useState<BoardElementId | null>(null);
@@ -82,7 +88,7 @@ export function KonvaBoard({
     });
     transformerRef.current?.nodes(nodes);
     transformerRef.current?.getLayer()?.batchDraw();
-  }, [selection, document]);
+  }, [selection]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -98,6 +104,60 @@ export function KonvaBoard({
   const replaceDocument = useCallback((next: BoardDocument) => {
     documentRef.current = next;
     setDocument(next);
+  }, []);
+
+  const flushPendingMove = useCallback(() => {
+    if (moveFrameRef.current !== null) {
+      window.cancelAnimationFrame(moveFrameRef.current);
+      moveFrameRef.current = null;
+    }
+    const pending = pendingMoveRef.current;
+    pendingMoveRef.current = null;
+    if (!pending) return;
+    replaceDocument({
+      ...documentRef.current,
+      elements: documentRef.current.elements.map((element) => element.id === pending.id ? { ...element, x: pending.x, y: pending.y } : element),
+    });
+  }, [replaceDocument]);
+
+  const scheduleMove = useCallback((id: BoardElementId, x: number, y: number) => {
+    pendingMoveRef.current = { id, x, y };
+    if (moveFrameRef.current !== null) return;
+    moveFrameRef.current = window.requestAnimationFrame(() => {
+      moveFrameRef.current = null;
+      flushPendingMove();
+    });
+  }, [flushPendingMove]);
+
+  const flushPendingDrawPoint = useCallback(() => {
+    if (drawFrameRef.current !== null) {
+      window.cancelAnimationFrame(drawFrameRef.current);
+      drawFrameRef.current = null;
+    }
+    const pending = pendingDrawPointRef.current;
+    pendingDrawPointRef.current = null;
+    if (!pending) return;
+    replaceDocument({
+      ...documentRef.current,
+      elements: documentRef.current.elements.map((element) => element.id === pending.id
+        ? { ...element, points: [...(element.points ?? []), pending.x, pending.y] }
+        : element),
+    });
+  }, [replaceDocument]);
+
+  const scheduleDrawPoint = useCallback((id: BoardElementId, x: number, y: number) => {
+    pendingDrawPointRef.current = { id, x, y };
+    if (drawFrameRef.current !== null) return;
+    drawFrameRef.current = window.requestAnimationFrame(() => {
+      drawFrameRef.current = null;
+      flushPendingDrawPoint();
+    });
+  }, [flushPendingDrawPoint]);
+
+  useEffect(() => () => {
+    if (moveFrameRef.current !== null) window.cancelAnimationFrame(moveFrameRef.current);
+    if (drawFrameRef.current !== null) window.cancelAnimationFrame(drawFrameRef.current);
+    if (wheelFrameRef.current !== null) window.cancelAnimationFrame(wheelFrameRef.current);
   }, []);
 
   const commit = useCallback((next: BoardDocument) => {
@@ -238,17 +298,13 @@ export function KonvaBoard({
     if (!drawing) return;
     const point = worldPointer();
     if (!point) return;
-    replaceDocument({
-      ...documentRef.current,
-      elements: documentRef.current.elements.map((element) => element.id === drawing.id
-        ? { ...element, points: [...(element.points ?? []), point.x, point.y] }
-        : element),
-    });
+    scheduleDrawPoint(drawing.id, point.x, point.y);
   }
 
   function handleStagePointerUp() {
     const drawing = drawStartRef.current;
     if (!drawing) return;
+    flushPendingDrawPoint();
     pastRef.current.push(drawing.document);
     futureRef.current = [];
     drawStartRef.current = null;
@@ -288,10 +344,25 @@ export function KonvaBoard({
     event.evt.preventDefault();
     const pointer = stageRef.current?.getPointerPosition();
     if (!pointer) return;
-    const direction = event.evt.deltaY > 0 ? 1 / 1.08 : 1.08;
-    const scale = Math.min(2.5, Math.max(0.25, viewport.scale * direction));
-    const world = { x: (pointer.x - viewport.x) / viewport.scale, y: (pointer.y - viewport.y) / viewport.scale };
-    setViewport({ scale, x: pointer.x - world.x * scale, y: pointer.y - world.y * scale });
+    const pending = pendingWheelRef.current;
+    pendingWheelRef.current = {
+      x: pointer.x,
+      y: pointer.y,
+      deltaY: (pending?.deltaY ?? 0) + event.evt.deltaY,
+    };
+    if (wheelFrameRef.current !== null) return;
+    wheelFrameRef.current = window.requestAnimationFrame(() => {
+      wheelFrameRef.current = null;
+      const nextWheel = pendingWheelRef.current;
+      pendingWheelRef.current = null;
+      if (!nextWheel) return;
+      setViewport((current) => {
+        const direction = nextWheel.deltaY > 0 ? 1 / 1.08 : 1.08;
+        const scale = Math.min(2.5, Math.max(0.25, current.scale * direction));
+        const world = { x: (nextWheel.x - current.x) / current.scale, y: (nextWheel.y - current.y) / current.scale };
+        return { scale, x: nextWheel.x - world.x * scale, y: nextWheel.y - world.y * scale };
+      });
+    });
   }
 
   const elementMap = new Map(document.elements.map((element) => [element.id, element]));
@@ -356,8 +427,11 @@ export function KonvaBoard({
                   setEditing({ id: element.id, value: element.text });
                 }}
                 onDragStart={() => { gestureStartRef.current = cloneDocument(documentRef.current); }}
-                onDragMove={(event) => updateElement(element.id, { x: event.target.x(), y: event.target.y() })}
-                onDragEnd={(event) => updateElement(element.id, { x: event.target.x(), y: event.target.y() }, true)}
+                onDragMove={(event) => scheduleMove(element.id, event.target.x(), event.target.y())}
+                onDragEnd={(event) => {
+                  flushPendingMove();
+                  updateElement(element.id, { x: event.target.x(), y: event.target.y() }, true);
+                }}
                 onTransformStart={() => { gestureStartRef.current = cloneDocument(documentRef.current); }}
                 onTransformEnd={(event) => {
                   const node = event.target;

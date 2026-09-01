@@ -23,6 +23,8 @@ The goal is to add useful visual references to a board while keeping file bytes 
 - Export the full current board bounds through the browser print dialog as PDF.
 - Remove an image object from Storage 30 seconds after it is deleted from a board; undo within that window cancels cleanup.
 - Open a local PDF preview without claiming it was saved or synced.
+- Provide diagram shapes (rectangle, circle, diamond, triangle), color changes, and multi-selection alignment.
+- Create a connected mind-map child node from a selected element.
 
 ### Explicitly out of scope
 
@@ -43,7 +45,8 @@ Out-of-scope UI may appear as disabled or clearly labelled preview; it must not 
 4. A user can open the browser print dialog to save the full current board as PDF.
 5. Deleting an image removes its Storage object after a short undo window.
 6. A user can open a local PDF preview and clearly sees that it is not yet persisted.
-7. `lint`, `typecheck`, `test`, and `build` pass.
+7. A user can create and format diagram shapes, align two or more selected elements, and add a connected child node with undo and redo.
+8. `lint`, `typecheck`, `test`, and `build` pass.
 
 ## Promotion gate to PDF ingestion
 

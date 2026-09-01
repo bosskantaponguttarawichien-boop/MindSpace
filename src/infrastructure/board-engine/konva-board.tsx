@@ -59,6 +59,8 @@ function nextElement(tool: BoardTool, x: number, y: number): BoardElement | null
   if (tool === "note") return { id, kind: "note", x, y, width: 190, height: 170, text: "New note", color: "yellow" };
   if (tool === "rectangle") return { id, kind: "rectangle", x, y, width: 220, height: 120, text: "New concept", color: "violet" };
   if (tool === "ellipse") return { id, kind: "ellipse", x, y, width: 200, height: 120, text: "New concept", color: "blue" };
+  if (tool === "diamond") return { id, kind: "diamond", x, y, width: 180, height: 140, text: "Decision", color: "yellow" };
+  if (tool === "triangle") return { id, kind: "triangle", x, y, width: 180, height: 140, text: "Step", color: "green" };
   return null;
 }
 
@@ -443,6 +445,61 @@ export function KonvaBoard({
     }
   }, []);
 
+  const setSelectionColor = useCallback((color: NonNullable<BoardElement["color"]>) => {
+    const ids = new Set(selectionRef.current);
+    if (ids.size === 0) return;
+    commit({
+      ...documentRef.current,
+      elements: documentRef.current.elements.map((element) => ids.has(element.id) && element.kind !== "image" ? { ...element, color } : element),
+    });
+  }, [commit]);
+
+  const addChildNode = useCallback(() => {
+    const parentId = selectionRef.current[0];
+    const parent = parentId ? documentRef.current.elements.find((element) => element.id === parentId) : undefined;
+    if (!parent) return;
+    const child: BoardElement = {
+      id: createElementId(),
+      kind: "note",
+      x: parent.x + parent.width + 120,
+      y: parent.y,
+      width: 190,
+      height: 110,
+      text: "New idea",
+      color: "violet",
+    };
+    commit({
+      ...documentRef.current,
+      elements: [...documentRef.current.elements, child],
+      connections: [...documentRef.current.connections, { id: `connection:${crypto.randomUUID()}`, fromId: parent.id, toId: child.id }],
+    });
+    setSelection([child.id]);
+  }, [commit]);
+
+  const alignSelection = useCallback((alignment: "left" | "center" | "right" | "top" | "middle" | "bottom") => {
+    const ids = new Set(selectionRef.current);
+    const selected = documentRef.current.elements.filter((element) => ids.has(element.id));
+    if (selected.length < 2) return;
+    const minX = Math.min(...selected.map((element) => element.x));
+    const maxX = Math.max(...selected.map((element) => element.x + element.width));
+    const minY = Math.min(...selected.map((element) => element.y));
+    const maxY = Math.max(...selected.map((element) => element.y + element.height));
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    commit({
+      ...documentRef.current,
+      elements: documentRef.current.elements.map((element) => {
+        if (!ids.has(element.id)) return element;
+        if (alignment === "left") return { ...element, x: minX };
+        if (alignment === "center") return { ...element, x: centerX - element.width / 2 };
+        if (alignment === "right") return { ...element, x: maxX - element.width };
+        if (alignment === "top") return { ...element, y: minY };
+        if (alignment === "middle") return { ...element, y: centerY - element.height / 2 };
+        return { ...element, y: maxY - element.height };
+      }),
+    });
+  }, [commit]);
+
   const engine = useMemo<BoardEngine>(() => ({
     undo,
     redo,
@@ -455,7 +512,10 @@ export function KonvaBoard({
     zoomToFit,
     addImage,
     printBoard,
-  }), [addImage, copySelection, deleteSelection, duplicateSelection, pasteClipboard, printBoard, redo, undo, zoomAtCenter, zoomToFit]);
+    addChildNode,
+    setSelectionColor,
+    alignSelection,
+  }), [addChildNode, addImage, alignSelection, copySelection, deleteSelection, duplicateSelection, pasteClipboard, printBoard, redo, setSelectionColor, undo, zoomAtCenter, zoomToFit]);
 
   useEffect(() => onReady(engine), [engine, onReady]);
 
@@ -718,7 +778,7 @@ export function KonvaBoard({
           })}
           {document.elements.map((element) => {
             if (element.kind === "draw") {
-              return <Line key={element.id} points={element.points ?? []} stroke="#7c3aed" strokeWidth={3} lineCap="round" lineJoin="round" tension={0.25} />;
+              return <Line key={element.id} points={element.points ?? []} stroke={COLORS[element.color ?? "violet"].stroke} strokeWidth={3} lineCap="round" lineJoin="round" tension={0.25} />;
             }
             const colors = COLORS[element.color ?? "grey"];
             return (
@@ -774,6 +834,10 @@ export function KonvaBoard({
                   ? <BoardImage element={element} />
                   : element.kind === "ellipse"
                   ? <Ellipse x={element.width / 2} y={element.height / 2} radiusX={element.width / 2} radiusY={element.height / 2} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />
+                  : element.kind === "diamond"
+                    ? <Line points={[element.width / 2, 0, element.width, element.height / 2, element.width / 2, element.height, 0, element.height / 2]} closed fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />
+                    : element.kind === "triangle"
+                      ? <Line points={[element.width / 2, 0, element.width, element.height, 0, element.height]} closed fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />
                   : element.kind === "text"
                     ? null
                     : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} cornerRadius={element.kind === "note" ? 4 : 16} shadowColor="#475569" shadowOpacity={isCoarsePointer ? 0 : 0.12} shadowBlur={isCoarsePointer ? 0 : 10} shadowOffsetY={4} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}

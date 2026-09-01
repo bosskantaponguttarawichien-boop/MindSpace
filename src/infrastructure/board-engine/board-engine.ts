@@ -1,3 +1,5 @@
+import type { BoardElement } from "@/domain/board/board-document";
+
 export type BoardTool =
   | "select"
   | "hand"
@@ -5,6 +7,8 @@ export type BoardTool =
   | "note"
   | "rectangle"
   | "ellipse"
+  | "diamond"
+  | "triangle"
   | "arrow"
   | "draw";
 
@@ -20,4 +24,7 @@ export type BoardEngine = {
   zoomToFit: () => void;
   addImage: (image: { url: string; width: number; height: number }) => void;
   printBoard: () => void;
+  addChildNode: () => void;
+  setSelectionColor: (color: NonNullable<BoardElement["color"]>) => void;
+  alignSelection: (alignment: "left" | "center" | "right" | "top" | "middle" | "bottom") => void;
 };

@@ -13,7 +13,7 @@ export type BoardScope =
   | { kind: "shared"; workspaceId: string };
 
 const colors = new Set(["violet", "yellow", "blue", "green", "grey"]);
-const kinds = new Set(["text", "note", "rectangle", "ellipse", "draw", "image"]);
+const kinds = new Set(["text", "note", "rectangle", "ellipse", "diamond", "triangle", "draw", "image"]);
 
 function isBoardElement(value: unknown): value is BoardElement {
   if (!value || typeof value !== "object") return false;

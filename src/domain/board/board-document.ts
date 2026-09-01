@@ -3,7 +3,7 @@ export type BoardConnectionId = `connection:${string}`;
 
 export type BoardElement = {
   id: BoardElementId;
-  kind: "text" | "note" | "rectangle" | "ellipse" | "draw" | "image";
+  kind: "text" | "note" | "rectangle" | "ellipse" | "diamond" | "triangle" | "draw" | "image";
   x: number;
   y: number;
   width: number;

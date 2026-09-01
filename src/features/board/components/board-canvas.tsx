@@ -80,7 +80,16 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
       <KonvaBoard initialDocument={document} onDocumentChange={handleDocumentChange} activeTool={activeTool} onToolChange={setActiveTool} onReady={handleReady} />
       <input ref={inputRef} className="sr-only" type="file" accept="image/*" onChange={importImage} />
       <input ref={pdfInputRef} className="sr-only" type="file" accept="application/pdf" onChange={importPdf} />
-      <BoardToolbar ready={engine !== null} activeTool={activeTool} onToolChange={setActiveTool} onImportImage={() => inputRef.current?.click()} onImportPdf={() => pdfInputRef.current?.click()} />
+      <BoardToolbar
+        ready={engine !== null}
+        activeTool={activeTool}
+        onToolChange={setActiveTool}
+        onImportImage={() => inputRef.current?.click()}
+        onImportPdf={() => pdfInputRef.current?.click()}
+        onAddChildNode={() => engine?.addChildNode()}
+        onSetColor={(color) => engine?.setSelectionColor(color)}
+        onAlign={(alignment) => engine?.alignSelection(alignment)}
+      />
       <ZoomControls engine={engine} />
     </div>
   );

@@ -16,6 +16,19 @@ describe("parseBoardDocument", () => {
     expect(parseBoardDocument({ version: 1, id: "board:one", name: "One", elements: [{ id: "element:one", kind: "bad" }], connections: [] })).toBeNull();
   });
 
+  it("accepts diagram shapes", () => {
+    expect(parseBoardDocument({
+      version: 1,
+      id: "board:diagram",
+      name: "Diagram",
+      elements: [
+        { id: "element:diamond", kind: "diamond", x: 1, y: 2, width: 120, height: 80, text: "Decision", color: "yellow" },
+        { id: "element:triangle", kind: "triangle", x: 160, y: 2, width: 120, height: 80, text: "Step", color: "green" },
+      ],
+      connections: [],
+    })).not.toBeNull();
+  });
+
   it("accepts an image element only with a HTTPS asset URL", () => {
     expect(parseBoardDocument({
       version: 1,

@@ -11,7 +11,8 @@
 - The full current board bounds are fitted to one landscape page and exported through the browser print dialog, where the user saves it as PDF.
 - Deleting an image starts a 30-second delayed Storage cleanup. Restoring the image with undo during that window cancels cleanup.
 - A local PDF can be previewed in the browser, but it is never written to a board document or presented as persisted.
+- Phase 4.2 adds diagram and mind-map authoring commands to the existing versioned board document; each uses the existing history path.
 
 ## Deferred
 
-PDF storage, page extraction, export of the entire infinite board, and cleanup of deleted file objects need separate design work.
+PDF storage, page extraction, and multi-page layouts for oversized boards need separate design work.

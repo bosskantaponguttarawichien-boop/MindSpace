@@ -25,7 +25,7 @@ export function MindSpaceApp() {
     setEngine(null);
   };
   return <>
-    <AppShell sidebar={<WorkspaceSidebar boards={boards} activeBoardId={activeBoardId} onCreateBoard={createBoard} onSelectBoard={(id) => { setActiveBoardId(id); setEngine(null); }} />} topbar={<WorkspaceTopbar engine={engine} boardName={activeBoard.name} onOpenAi={() => setAiOpen(true)} />} board={<BoardCanvas key={activeBoardId} onEngineReady={handleEngineReady} />} rightPanel={<AiPanel />} />}
+    <AppShell sidebar={<WorkspaceSidebar boards={boards} activeBoardId={activeBoardId} onCreateBoard={createBoard} onSelectBoard={(id) => { setActiveBoardId(id); setEngine(null); }} />} topbar={<WorkspaceTopbar engine={engine} boardName={activeBoard.name} onOpenAi={() => setAiOpen(true)} />} board={<BoardCanvas key={activeBoardId} onEngineReady={handleEngineReady} />} rightPanel={<AiPanel />} />
     {aiOpen ? <div className="fixed inset-0 z-50 bg-background lg:hidden"><button type="button" className="absolute end-4 top-4 z-10 rounded-md border border-border px-3 py-1 text-sm" onClick={() => setAiOpen(false)}>Close</button><AiPanel /></div> : null}
   </>;
 }

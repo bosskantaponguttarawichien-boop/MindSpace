@@ -13,7 +13,7 @@ export type BoardScope =
   | { kind: "shared"; workspaceId: string };
 
 const colors = new Set(["violet", "yellow", "blue", "green", "grey"]);
-const kinds = new Set(["text", "note", "rectangle", "ellipse", "draw"]);
+const kinds = new Set(["text", "note", "rectangle", "ellipse", "draw", "image"]);
 
 function isBoardElement(value: unknown): value is BoardElement {
   if (!value || typeof value !== "object") return false;
@@ -24,7 +24,8 @@ function isBoardElement(value: unknown): value is BoardElement {
     [candidate.x, candidate.y, candidate.width, candidate.height].every((field) => typeof field === "number" && Number.isFinite(field)) &&
     typeof candidate.text === "string" &&
     (candidate.color === undefined || (typeof candidate.color === "string" && colors.has(candidate.color))) &&
-    (candidate.points === undefined || (Array.isArray(candidate.points) && candidate.points.every((point) => typeof point === "number" && Number.isFinite(point))))
+    (candidate.points === undefined || (Array.isArray(candidate.points) && candidate.points.every((point) => typeof point === "number" && Number.isFinite(point)))) &&
+    (candidate.assetUrl === undefined || (typeof candidate.assetUrl === "string" && /^https:\/\//.test(candidate.assetUrl)))
   );
 }
 

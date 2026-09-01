@@ -3,7 +3,7 @@
 import Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Arrow, Ellipse, Group, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
+import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
 import { sampleBoard } from "@/domain/board/sample-board";
 import type { BoardConnection, BoardDocument, BoardElement, BoardElementId } from "@/domain/board/board-document";
 import type { BoardEngine, BoardTool } from "@/infrastructure/board-engine/board-engine";
@@ -43,6 +43,27 @@ function nextElement(tool: BoardTool, x: number, y: number): BoardElement | null
   if (tool === "rectangle") return { id, kind: "rectangle", x, y, width: 220, height: 120, text: "New concept", color: "violet" };
   if (tool === "ellipse") return { id, kind: "ellipse", x, y, width: 200, height: 120, text: "New concept", color: "blue" };
   return null;
+}
+
+function BoardImage({ element }: { element: BoardElement }) {
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    if (!element.assetUrl) return;
+    const next = new window.Image();
+    next.crossOrigin = "anonymous";
+    next.onload = () => setImage(next);
+    next.onerror = () => setImage(null);
+    next.src = element.assetUrl;
+    return () => {
+      next.onload = null;
+      next.onerror = null;
+    };
+  }, [element.assetUrl]);
+
+  return image
+    ? <KonvaImage image={image} width={element.width} height={element.height} cornerRadius={12} />
+    : <Rect width={element.width} height={element.height} fill="#e2e8f0" stroke="#94a3b8" strokeWidth={2} cornerRadius={12} />;
 }
 
 export function KonvaBoard({
@@ -347,6 +368,38 @@ export function KonvaBoard({
     setViewport({ x: (size.width - (maxX + minX) * scale) / 2, y: (size.height - (maxY + minY) * scale) / 2, scale });
   }, [size]);
 
+  const addImage = useCallback((image: { url: string; width: number; height: number }) => {
+    const maxWidth = 420;
+    const maxHeight = 320;
+    const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
+    const width = Math.max(80, Math.round(image.width * scale));
+    const height = Math.max(80, Math.round(image.height * scale));
+    const viewport = viewportRef.current;
+    const element: BoardElement = {
+      id: createElementId(),
+      kind: "image",
+      x: (size.width / 2 - viewport.x) / viewport.scale - width / 2,
+      y: (size.height / 2 - viewport.y) / viewport.scale - height / 2,
+      width,
+      height,
+      text: "",
+      assetUrl: image.url,
+    };
+    commit({ ...documentRef.current, elements: [...documentRef.current.elements, element] });
+    setSelection([element.id]);
+  }, [commit, size]);
+
+  const printBoard = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const dataUrl = stage.toDataURL({ pixelRatio: 2 });
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!printWindow) return window.alert("Allow pop-ups to export this board as PDF.");
+    printWindow.document.write(`<!doctype html><title>MindSpace board</title><img src="${dataUrl}" style="width:100%;height:auto" />`);
+    printWindow.document.close();
+    printWindow.onload = () => printWindow.print();
+  }, []);
+
   const engine = useMemo<BoardEngine>(() => ({
     undo,
     redo,
@@ -357,7 +410,9 @@ export function KonvaBoard({
     zoomIn: () => zoomAtCenter(1.2),
     zoomOut: () => zoomAtCenter(1 / 1.2),
     zoomToFit,
-  }), [copySelection, deleteSelection, duplicateSelection, pasteClipboard, redo, undo, zoomAtCenter, zoomToFit]);
+    addImage,
+    printBoard,
+  }), [addImage, copySelection, deleteSelection, duplicateSelection, pasteClipboard, printBoard, redo, undo, zoomAtCenter, zoomToFit]);
 
   useEffect(() => onReady(engine), [engine, onReady]);
 
@@ -672,12 +727,14 @@ export function KonvaBoard({
                   updateElement(element.id, { x: node.x(), y: node.y(), width, height }, true);
                 }}
               >
-                {element.kind === "ellipse"
+                {element.kind === "image"
+                  ? <BoardImage element={element} />
+                  : element.kind === "ellipse"
                   ? <Ellipse x={element.width / 2} y={element.height / 2} radiusX={element.width / 2} radiusY={element.height / 2} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />
                   : element.kind === "text"
                     ? null
                     : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} cornerRadius={element.kind === "note" ? 4 : 16} shadowColor="#475569" shadowOpacity={isCoarsePointer ? 0 : 0.12} shadowBlur={isCoarsePointer ? 0 : 10} shadowOffsetY={4} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
-                <Text text={element.text} width={element.width} height={element.height} padding={element.kind === "text" ? 0 : 18} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={element.kind === "text" ? 18 : 16} fontStyle={element.kind === "text" ? "normal" : "bold"} lineHeight={1.35} verticalAlign="middle" align={element.kind === "text" ? "left" : "center"} wrap="word" />
+                {element.kind === "image" ? null : <Text text={element.text} width={element.width} height={element.height} padding={element.kind === "text" ? 0 : 18} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={element.kind === "text" ? 18 : 16} fontStyle={element.kind === "text" ? "normal" : "bold"} lineHeight={1.35} verticalAlign="middle" align={element.kind === "text" ? "left" : "center"} wrap="word" />}
               </Group>
             );
           })}

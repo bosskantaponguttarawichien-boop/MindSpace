@@ -1,6 +1,7 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -23,5 +24,5 @@ export function getFirebaseApp(): FirebaseApp {
 
 export function getFirebaseServices() {
   const app = getFirebaseApp();
-  return { app, auth: getAuth(app), firestore: getFirestore(app) };
+  return { app, auth: getAuth(app), firestore: getFirestore(app), storage: getStorage(app) };
 }

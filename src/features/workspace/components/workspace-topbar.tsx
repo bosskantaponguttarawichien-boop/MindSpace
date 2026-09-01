@@ -50,7 +50,7 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCo
               <DropdownMenuItem variant="destructive" onSelect={() => engine?.deleteSelection()}><Trash2 />{t("delete")}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled><FolderInput />{t("import")}</DropdownMenuItem>
-              <DropdownMenuItem disabled><FileDown />{t("exportPdf")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => engine?.printBoard()}><FileDown />{t("exportPdf")}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuLabel>{t("language")}</DropdownMenuLabel>
               <DropdownMenuItem onSelect={() => setLocale("en")}><span className="flex-1">{t("english")}</span>{locale === "en" ? <Check /> : null}</DropdownMenuItem>
@@ -61,8 +61,8 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCo
         <IconAction label={t("duplicate")} icon={Copy} disabled={!engine} onClick={() => engine?.duplicateSelection()} className="hidden sm:inline-flex" />
         <IconAction label={copied ? t("syncLinkCopied") : t("copySyncLink")} icon={copied ? Check : Link} onClick={() => void copyLink()} className="hidden sm:inline-flex" />
         <IconAction label={t("delete")} icon={Trash2} disabled={!engine} onClick={() => engine?.deleteSelection()} className="hidden sm:inline-flex" />
-        <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled title={t("futureFeature")}><FolderInput className="size-4" />{t("import")}</Button>
-        <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled title={t("futureFeature")}><FileDown className="size-4" />{t("exportPdf")}</Button>
+        <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled title={t("importImage")}><FolderInput className="size-4" />{t("import")}</Button>
+        <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled={!engine} onClick={() => engine?.printBoard()}><FileDown className="size-4" />{t("exportPdf")}</Button>
         <div className="hidden sm:block"><LanguageSwitcher /></div>
       </div>
     </header>

@@ -18,4 +18,6 @@ export type BoardEngine = {
   zoomIn: () => void;
   zoomOut: () => void;
   zoomToFit: () => void;
+  addImage: (image: { url: string; width: number; height: number }) => void;
+  printBoard: () => void;
 };

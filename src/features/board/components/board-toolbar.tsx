@@ -1,6 +1,6 @@
 "use client";
 
-import { Circle, Hand, MousePointer2, Pencil, RectangleHorizontal, StickyNote, Type, Waypoints } from "lucide-react";
+import { Circle, Hand, ImagePlus, MousePointer2, Pencil, RectangleHorizontal, StickyNote, Type, Waypoints } from "lucide-react";
 import { IconAction } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
 import { useLocale } from "@/lib/i18n/locale-provider";
@@ -17,7 +17,7 @@ const tools: Array<{ id: BoardTool; label: "select" | "hand" | "text" | "note" |
   { id: "draw", label: "draw", icon: Pencil, shortcut: "D" },
 ];
 
-export function BoardToolbar({ ready, activeTool, onToolChange }: { ready: boolean; activeTool: BoardTool; onToolChange: (tool: BoardTool) => void }) {
+export function BoardToolbar({ ready, activeTool, onToolChange, onImportImage }: { ready: boolean; activeTool: BoardTool; onToolChange: (tool: BoardTool) => void; onImportImage: () => void }) {
   const { t } = useLocale();
   function chooseTool(tool: BoardTool) {
     onToolChange(tool);
@@ -31,6 +31,8 @@ export function BoardToolbar({ ready, activeTool, onToolChange }: { ready: boole
           <IconAction label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id} disabled={!ready} onClick={() => chooseTool(tool.id)} />
         </div>
       ))}
+      <Separator orientation="vertical" className="mx-1 h-6" />
+      <IconAction label={t("importImage")} icon={ImagePlus} disabled={!ready} onClick={onImportImage} />
     </div>
   );
 }

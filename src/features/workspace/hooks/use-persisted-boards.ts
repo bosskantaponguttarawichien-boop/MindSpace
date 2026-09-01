@@ -5,6 +5,7 @@ import { createEmptyBoard } from "@/domain/board/sample-board";
 import type { BoardDocument } from "@/domain/board/board-document";
 import { getAnonymousUser } from "@/infrastructure/auth/firebase-anonymous-auth";
 import { saveBoard, subscribeToBoards, type BoardScope, type StoredBoard } from "@/infrastructure/persistence/firestore-board-repository";
+import { uploadBoardImage, type UploadedImage } from "@/infrastructure/files/firebase-board-images";
 
 export type BoardSyncStatus = "connecting" | "saved" | "saving" | "error";
 
@@ -150,5 +151,11 @@ export function usePersistedBoards() {
     await copyToClipboard(url.toString());
   }, [boards, workspaceId]);
 
-  return { boards, activeBoardId, setActiveBoardId, createBoard, updateBoardDocument, copySyncLink, syncStatus, syncError };
+  const uploadImage = useCallback(async (file: File): Promise<UploadedImage> => {
+    const scope = scopeRef.current;
+    if (!scope) throw new Error("Your board is still connecting.");
+    return uploadBoardImage(scope, file);
+  }, []);
+
+  return { boards, activeBoardId, setActiveBoardId, createBoard, updateBoardDocument, copySyncLink, uploadImage, syncStatus, syncError };
 }

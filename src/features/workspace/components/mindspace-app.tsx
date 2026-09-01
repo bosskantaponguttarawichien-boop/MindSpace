@@ -13,13 +13,13 @@ import { useLocale } from "@/lib/i18n/locale-provider";
 export function MindSpaceApp() {
   const { t } = useLocale();
   const [engine, setEngine] = useState<BoardEngine | null>(null);
-  const { boards, activeBoardId, setActiveBoardId, createBoard, updateBoardDocument, copySyncLink, syncStatus, syncError } = usePersistedBoards();
+  const { boards, activeBoardId, setActiveBoardId, createBoard, updateBoardDocument, copySyncLink, uploadImage, syncStatus, syncError } = usePersistedBoards();
   const [aiOpen, setAiOpen] = useState(false);
   const activeBoard = boards.find((board) => board.id === activeBoardId);
   const handleEngineReady = useCallback((readyEngine: BoardEngine) => setEngine(readyEngine), []);
   const selectBoard = (id: string) => { setActiveBoardId(id); setEngine(null); };
   return <>
-    <AppShell sidebar={<WorkspaceSidebar boards={boards} activeBoardId={activeBoardId} onCreateBoard={createBoard} onSelectBoard={selectBoard} />} topbar={<WorkspaceTopbar engine={engine} boardName={activeBoard?.name ?? "MindSpace"} syncStatus={syncStatus} syncError={syncError} onCopySyncLink={copySyncLink} onOpenAi={() => setAiOpen(true)} />} board={activeBoard ? <BoardCanvas key={activeBoardId} document={activeBoard.document} onDocumentChange={(document) => updateBoardDocument(activeBoard.id, document)} onEngineReady={handleEngineReady} /> : <div className="grid h-full place-items-center text-sm text-muted-foreground">{t("syncConnecting")}…</div>} rightPanel={<AiPanel />} />
+    <AppShell sidebar={<WorkspaceSidebar boards={boards} activeBoardId={activeBoardId} onCreateBoard={createBoard} onSelectBoard={selectBoard} />} topbar={<WorkspaceTopbar engine={engine} boardName={activeBoard?.name ?? "MindSpace"} syncStatus={syncStatus} syncError={syncError} onCopySyncLink={copySyncLink} onOpenAi={() => setAiOpen(true)} />} board={activeBoard ? <BoardCanvas key={activeBoardId} document={activeBoard.document} onDocumentChange={(document) => updateBoardDocument(activeBoard.id, document)} onUploadImage={uploadImage} onEngineReady={handleEngineReady} /> : <div className="grid h-full place-items-center text-sm text-muted-foreground">{t("syncConnecting")}…</div>} rightPanel={<AiPanel />} />
     {aiOpen ? <div className="fixed inset-0 z-50 bg-background lg:hidden"><button type="button" className="absolute end-4 top-4 z-10 rounded-md border border-border px-3 py-1 text-sm" onClick={() => setAiOpen(false)}>Close</button><AiPanel /></div> : null}
   </>;
 }

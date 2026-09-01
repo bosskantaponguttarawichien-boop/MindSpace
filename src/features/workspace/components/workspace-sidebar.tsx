@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useLocale } from "@/lib/i18n/locale-provider";
 
-const boards = ["Backend Learning", "AI Agent", "English", "Random Ideas", "System Design"];
+type BoardSummary = { id: string; name: string };
 
-export function WorkspaceSidebar() {
+export function WorkspaceSidebar({ boards, activeBoardId, onCreateBoard, onSelectBoard }: { boards: BoardSummary[]; activeBoardId: string; onCreateBoard: () => void; onSelectBoard: (id: string) => void }) {
   const { t } = useLocale();
   return (
     <aside className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -16,16 +16,16 @@ export function WorkspaceSidebar() {
         <span className="text-[15px] font-bold tracking-tight">{t("appName")}</span>
       </div>
       <div className="px-4 pb-5">
-        <Button className="w-full justify-start gap-2" disabled title={t("futureFeature")}>
+        <Button className="w-full justify-start gap-2" onClick={onCreateBoard}>
           <Plus className="size-4" /> {t("newBoard")}
         </Button>
       </div>
       <div className="px-5 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("boards")}</div>
       <ScrollArea className="min-h-0 flex-1 px-3">
         <nav aria-label={t("boards")} className="space-y-1">
-          {boards.map((board, index) => (
-            <button key={board} type="button" className="w-full rounded-lg px-3 py-2.5 text-start text-sm transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring disabled:cursor-default disabled:opacity-50 data-[active=true]:bg-primary/10 data-[active=true]:font-semibold data-[active=true]:text-primary" data-active={index === 0} disabled={index !== 0} title={index !== 0 ? t("futureFeature") : undefined}>
-              {board}
+          {boards.map((board) => (
+            <button key={board.id} type="button" className="w-full rounded-lg px-3 py-2.5 text-start text-sm transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[active=true]:bg-primary/10 data-[active=true]:font-semibold data-[active=true]:text-primary" data-active={board.id === activeBoardId} onClick={() => onSelectBoard(board.id)}>
+              {board.name}
             </button>
           ))}
         </nav>

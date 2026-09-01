@@ -15,6 +15,25 @@ test("loads the Phase 1 board shell and switches language", async ({ page }) => 
   await expect(page.getByText("ต้นแบบในเครื่อง")).toBeVisible();
 });
 
+test("ships an installable PWA manifest and app icons", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "/manifest.webmanifest");
+
+  const manifestResponse = await page.request.get("/manifest.webmanifest");
+  expect(manifestResponse.ok()).toBe(true);
+  await expect(manifestResponse.json()).resolves.toMatchObject({
+    name: "MindSpace",
+    display: "standalone",
+    icons: [
+      { src: "/icons/mindspace-192.png", sizes: "192x192" },
+      { src: "/icons/mindspace-512.png", sizes: "512x512" },
+    ],
+  });
+
+  const iconResponse = await page.request.get("/icons/mindspace-192.png");
+  expect(iconResponse.ok()).toBe(true);
+});
+
 test("exposes the core board tools", async ({ page }) => {
   await page.goto("/");
   for (const tool of ["Text", "Sticky note", "Rectangle", "Circle", "Connector", "Draw"]) {

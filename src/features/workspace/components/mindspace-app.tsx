@@ -15,7 +15,7 @@ export function MindSpaceApp() {
   const [boards, setBoards] = useState<BoardSummary[]>([{ id: "board:untitled", name: "Untitled board" }]);
   const [activeBoardId, setActiveBoardId] = useState("board:untitled");
   const [aiOpen, setAiOpen] = useState(false);
-  const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
+  const activeBoard = boards.find((board) => board.id === activeBoardId) ?? { id: "board:untitled", name: "Untitled board" };
   const handleEngineReady = useCallback((readyEngine: BoardEngine) => setEngine(readyEngine), []);
   const createBoard = () => {
     const number = boards.length + 1;

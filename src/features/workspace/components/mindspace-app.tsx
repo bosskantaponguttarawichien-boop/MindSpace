@@ -8,8 +8,20 @@ import { WorkspaceSidebar } from "@/features/workspace/components/workspace-side
 import { WorkspaceTopbar } from "@/features/workspace/components/workspace-topbar";
 import type { BoardEngine } from "@/infrastructure/board-engine/board-engine";
 
+type BoardSummary = { id: string; name: string };
+
 export function MindSpaceApp() {
   const [engine, setEngine] = useState<BoardEngine | null>(null);
+  const [boards, setBoards] = useState<BoardSummary[]>([{ id: "board:untitled", name: "Untitled board" }]);
+  const [activeBoardId, setActiveBoardId] = useState("board:untitled");
+  const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
   const handleEngineReady = useCallback((readyEngine: BoardEngine) => setEngine(readyEngine), []);
-  return <AppShell sidebar={<WorkspaceSidebar />} topbar={<WorkspaceTopbar engine={engine} />} board={<BoardCanvas onEngineReady={handleEngineReady} />} rightPanel={<AiPanel />} />;
+  const createBoard = () => {
+    const number = boards.length + 1;
+    const board = { id: `board:${crypto.randomUUID()}`, name: `Untitled board ${number}` };
+    setBoards((current) => [...current, board]);
+    setActiveBoardId(board.id);
+    setEngine(null);
+  };
+  return <AppShell sidebar={<WorkspaceSidebar boards={boards} activeBoardId={activeBoardId} onCreateBoard={createBoard} onSelectBoard={(id) => { setActiveBoardId(id); setEngine(null); }} />} topbar={<WorkspaceTopbar engine={engine} boardName={activeBoard.name} />} board={<BoardCanvas key={activeBoardId} onEngineReady={handleEngineReady} />} rightPanel={<AiPanel />} />;
 }

@@ -8,6 +8,7 @@ describe("PWA manifest", () => {
       short_name: "MindSpace",
       display: "standalone",
       start_url: "/",
+      background_color: "#4939ed",
       icons: [
         { src: "/icons/mindspace-192.png", sizes: "192x192" },
         { src: "/icons/mindspace-512.png", sizes: "512x512" },

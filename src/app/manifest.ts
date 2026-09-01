@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "An infinite board for connecting ideas and building knowledge.",
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
+    background_color: "#4939ed",
     theme_color: "#7357e8",
     icons: [
       { src: "/icons/mindspace-192.png", sizes: "192x192", type: "image/png" },

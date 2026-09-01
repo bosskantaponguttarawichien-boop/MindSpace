@@ -129,8 +129,8 @@ export function usePersistedBoards() {
     });
   }, [persist]);
 
-  const copySyncLink = useCallback(async () => {
-    if (typeof window === "undefined") return;
+  const copySyncLink = useCallback(async (): Promise<boolean> => {
+    if (typeof window === "undefined") return false;
     let nextWorkspaceId = workspaceId;
     if (!nextWorkspaceId) {
       nextWorkspaceId = crypto.randomUUID();
@@ -143,12 +143,13 @@ export function usePersistedBoards() {
       } catch (error: unknown) {
         setSyncError(errorMessage(error));
         setSyncStatus("error");
-        return;
+        return false;
       }
     }
     const url = new URL(window.location.href);
     url.searchParams.set("workspace", nextWorkspaceId);
     await copyToClipboard(url.toString());
+    return true;
   }, [boards, workspaceId]);
 
   const uploadImage = useCallback(async (file: File): Promise<UploadedImage> => {

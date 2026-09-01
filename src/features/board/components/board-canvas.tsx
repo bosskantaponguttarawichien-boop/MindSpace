@@ -7,6 +7,7 @@ import type { LocalPdf } from "@/features/board/components/local-pdf-viewer";
 import { ZoomControls } from "@/features/board/components/zoom-controls";
 import type { BoardEngine, BoardTool } from "@/infrastructure/board-engine/board-engine";
 import type { BoardDocument } from "@/domain/board/board-document";
+import { isSupportedPdf } from "@/domain/files/file-validation";
 
 const KonvaBoard = dynamic(
   () => import("@/infrastructure/board-engine/konva-board").then((module) => module.KonvaBoard),
@@ -37,7 +38,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (file.type !== "application/pdf" || file.size > 25 * 1024 * 1024) {
+    if (!isSupportedPdf(file)) {
       window.alert("Choose a PDF file that is 25 MB or smaller.");
       return;
     }

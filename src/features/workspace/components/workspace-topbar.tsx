@@ -11,7 +11,7 @@ import type { BoardEngine } from "@/infrastructure/board-engine/board-engine";
 import { LanguageSwitcher } from "@/features/workspace/components/language-switcher";
 import type { BoardSyncStatus } from "@/features/workspace/hooks/use-persisted-boards";
 
-export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCopySyncLink, onOpenAi }: { engine: BoardEngine | null; boardName: string; syncStatus: BoardSyncStatus; syncError: string | null; onCopySyncLink: () => Promise<void>; onOpenAi: () => void }) {
+export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCopySyncLink, onOpenAi }: { engine: BoardEngine | null; boardName: string; syncStatus: BoardSyncStatus; syncError: string | null; onCopySyncLink: () => Promise<boolean>; onOpenAi: () => void }) {
   const { t, locale, setLocale } = useLocale();
   const [copied, setCopied] = useState(false);
   const syncLabel = {
@@ -21,7 +21,7 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onCo
     error: t("syncError"),
   }[syncStatus];
   const copyLink = async () => {
-    await onCopySyncLink();
+    if (!await onCopySyncLink()) return;
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
   };

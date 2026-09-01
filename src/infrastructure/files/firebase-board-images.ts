@@ -6,6 +6,14 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export type UploadedImage = { url: string; width: number; height: number };
 
+function userFacingUploadError(error: unknown) {
+  const candidate = error as { code?: unknown; serverResponse?: unknown };
+  if (candidate?.code === "storage/unauthorized") return "Storage Rules blocked this upload. Publish the Storage Rules, then try again.";
+  if (candidate?.code === "storage/quota-exceeded") return "Firebase Storage quota is full.";
+  if (candidate?.code === "storage/unknown") return "Firebase Storage is unavailable. Check the Storage bucket and published Storage Rules.";
+  return error instanceof Error ? error.message : "Unable to upload this image.";
+}
+
 function imageSize(file: File): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -30,6 +38,10 @@ export async function uploadBoardImage(scope: BoardScope, file: File): Promise<U
   const prefix = scope.kind === "shared" ? `workspaces/${scope.workspaceId}` : `users/${scope.uid}`;
   const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "image";
   const storageRef = ref(getFirebaseServices().storage, `${prefix}/images/${crypto.randomUUID()}.${extension}`);
-  await uploadBytes(storageRef, file, { contentType: file.type });
-  return { url: await getDownloadURL(storageRef), width, height };
+  try {
+    await uploadBytes(storageRef, file, { contentType: file.type });
+    return { url: await getDownloadURL(storageRef), width, height };
+  } catch (error: unknown) {
+    throw new Error(userFacingUploadError(error), { cause: error });
+  }
 }

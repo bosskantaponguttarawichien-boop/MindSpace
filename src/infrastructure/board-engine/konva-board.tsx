@@ -386,6 +386,7 @@ export function KonvaBoard({
     if (!firstTouch || !secondTouch) return;
     const first = touchPoint(firstTouch);
     const second = touchPoint(secondTouch);
+    if (!first || !second) return;
     touchGestureRef.current = {
       distance: distance(first, second),
       midpoint: { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 },
@@ -402,6 +403,7 @@ export function KonvaBoard({
     if (!firstTouch || !secondTouch) return;
     const first = touchPoint(firstTouch);
     const second = touchPoint(secondTouch);
+    if (!first || !second) return;
     const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
     const scale = Math.min(2.5, Math.max(0.25, gesture.viewport.scale * distance(first, second) / gesture.distance));
     const world = { x: (gesture.midpoint.x - gesture.viewport.x) / gesture.viewport.scale, y: (gesture.midpoint.y - gesture.viewport.y) / gesture.viewport.scale };

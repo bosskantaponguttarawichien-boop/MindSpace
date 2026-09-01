@@ -17,7 +17,7 @@ The goal is to add useful visual references to a board while keeping file bytes 
 - Create/delete node-to-node connectors that follow moved nodes.
 - Undo and redo for every board mutation in this phase.
 - Keyboard access for primary actions and clear focus states.
-- Upload PNG, JPEG, WEBP, or GIF images up to 10 MB to Firebase Storage.
+- Accept PNG, JPEG, WEBP, or GIF images up to 25 MB; resize supported still images to a 1,920px maximum side and upload WebP only when it reduces bytes. Stored files remain capped at 10 MB.
 - Add uploaded images to a board as movable, resizable, undoable elements.
 - Persist image metadata and safe download URLs in the versioned board document.
 - Export the visible board through the browser print dialog as PDF.

@@ -1,8 +1,7 @@
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { BoardScope } from "@/infrastructure/persistence/firestore-board-repository";
 import { getFirebaseServices } from "@/infrastructure/firebase/client";
-
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+import { compressImageForUpload, isSupportedImageType, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "@/domain/files/image-compression";
 
 export type UploadedImage = { url: string; width: number; height: number };
 
@@ -31,15 +30,17 @@ function imageSize(file: File): Promise<{ width: number; height: number }> {
 }
 
 export async function uploadBoardImage(scope: BoardScope, file: File): Promise<UploadedImage> {
-  if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
-  if (file.size > MAX_IMAGE_BYTES) throw new Error("Image must be 10 MB or smaller.");
+  if (!isSupportedImageType(file.type)) throw new Error("Choose a PNG, JPEG, WEBP, or GIF image.");
+  if (file.size > MAX_SOURCE_IMAGE_BYTES) throw new Error("Image must be 25 MB or smaller.");
 
-  const { width, height } = await imageSize(file);
+  const preparedFile = await compressImageForUpload(file);
+  if (preparedFile.size > MAX_STORED_IMAGE_BYTES) throw new Error("This image is still over 10 MB after compression.");
+  const { width, height } = await imageSize(preparedFile);
   const prefix = scope.kind === "shared" ? `workspaces/${scope.workspaceId}` : `users/${scope.uid}`;
-  const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "image";
+  const extension = preparedFile.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "image";
   const storageRef = ref(getFirebaseServices().storage, `${prefix}/images/${crypto.randomUUID()}.${extension}`);
   try {
-    await uploadBytes(storageRef, file, { contentType: file.type });
+    await uploadBytes(storageRef, preparedFile, { contentType: preparedFile.type });
     return { url: await getDownloadURL(storageRef), width, height };
   } catch (error: unknown) {
     throw new Error(userFacingUploadError(error), { cause: error });

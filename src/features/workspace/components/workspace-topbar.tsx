@@ -25,7 +25,7 @@ export function WorkspaceTopbar({ engine, boardName, syncStatus, syncError, onOp
         <p className="truncate text-[11px] text-muted-foreground">{t("boardSubtitle")}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <Badge variant="outline" className="me-1 hidden gap-1.5 md:flex" title={syncError ?? syncLabel}>
+        <Badge variant="outline" className="me-1 flex shrink-0 gap-1 px-2 text-[10px] sm:gap-1.5 sm:text-xs" title={syncError ?? syncLabel}>
           {syncStatus === "error" ? <AlertCircle className="size-3.5 text-destructive" /> : <Cloud className="size-3.5" />} {syncLabel}
         </Badge>
         <IconAction label={t("undo")} icon={Undo2} shortcut="⌘ Z" disabled={!engine} onClick={() => engine?.undo()} />

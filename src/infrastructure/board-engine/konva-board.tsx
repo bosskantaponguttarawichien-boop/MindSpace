@@ -10,6 +10,7 @@ import { getConnectionEndpoints } from "@/domain/board/geometry";
 import { appendMindMapChild, appendMindMapSibling, layoutMindMap } from "@/domain/board/mind-map";
 import { parseMarkdown } from "@/domain/board/markdown";
 import type { BoardEngine, BoardExport, BoardTool } from "@/infrastructure/board-engine/board-engine";
+import { heightForEditedElement } from "@/infrastructure/board-engine/element-sizing";
 import { useLocale } from "@/lib/i18n/locale-provider";
 
 type Viewport = { x: number; y: number; scale: number };
@@ -180,6 +181,7 @@ export function KonvaBoard({
   const viewportRef = useRef<Viewport>(INITIAL_VIEWPORT);
   const touchGestureRef = useRef<TouchGesture | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [document, setDocument] = useState(() => cloneDocument(initialDocument));
   const [selection, setSelection] = useState<BoardElementId[]>([]);
   const [connectorStart, setConnectorStart] = useState<BoardElementId | null>(null);
@@ -950,9 +952,17 @@ export function KonvaBoard({
     if (!editing) return;
     const element = documentRef.current.elements.find((candidate) => candidate.id === editing.id);
     if (element && element.text !== editing.value) {
+      const textarea = textareaRef.current;
+      let height = element.height;
+      if (textarea) {
+        const previousHeight = textarea.style.height;
+        textarea.style.height = "0px";
+        height = heightForEditedElement(element, textarea.scrollHeight, viewportRef.current.scale);
+        textarea.style.height = previousHeight;
+      }
       commit({
         ...documentRef.current,
-        elements: documentRef.current.elements.map((candidate) => candidate.id === editing.id ? { ...candidate, text: editing.value } : candidate),
+        elements: documentRef.current.elements.map((candidate) => candidate.id === editing.id ? { ...candidate, text: editing.value, height } : candidate),
       });
     }
     setEditing(null);
@@ -1153,6 +1163,7 @@ export function KonvaBoard({
       </Stage>
       {editing && editingElement ? (
         <textarea
+          ref={textareaRef}
           autoFocus
           aria-label={t("editElement")}
           className="absolute z-20 resize-none border-0 bg-transparent outline-none"
@@ -1161,6 +1172,7 @@ export function KonvaBoard({
             top: viewport.y + editingElement.y * viewport.scale,
             width: Math.max(140, editingElement.width * viewport.scale),
             height: Math.max(60, editingElement.height * viewport.scale),
+            boxSizing: "border-box",
             padding: editingElement.kind === "text" ? 0 : "18px",
             paddingTop: editingElement.kind === "text" || editingElement.kind === "note" ? undefined : Math.max(18, editingElement.height * viewport.scale * 0.23),
             borderRadius: editingElement.kind === "ellipse" ? "50%" : undefined,

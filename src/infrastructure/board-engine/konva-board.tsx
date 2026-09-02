@@ -7,7 +7,7 @@ import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Stage, T
 import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId } from "@/domain/board/board-document";
 import { getConnectionEndpoints } from "@/domain/board/geometry";
-import { appendMindMapChild, appendMindMapSibling } from "@/domain/board/mind-map";
+import { appendMindMapChild, appendMindMapSibling, layoutMindMap } from "@/domain/board/mind-map";
 import type { BoardEngine, BoardExport, BoardTool } from "@/infrastructure/board-engine/board-engine";
 import { useLocale } from "@/lib/i18n/locale-provider";
 
@@ -596,6 +596,12 @@ export function KonvaBoard({
     if (parentId) addMindMapNode("child", parentId);
   }, [addMindMapNode]);
 
+  const arrangeMindMap = useCallback(() => {
+    const rootId = selectionRef.current[0];
+    const next = layoutMindMap(documentRef.current, rootId);
+    if (next !== documentRef.current) commit(next);
+  }, [commit]);
+
   const alignSelection = useCallback((alignment: "left" | "center" | "right" | "top" | "middle" | "bottom") => {
     const ids = new Set(selectionRef.current);
     const selected = documentRef.current.elements.filter((element) => ids.has(element.id));
@@ -633,12 +639,13 @@ export function KonvaBoard({
     addImage,
     renderExport,
     addChildNode,
+    layoutMindMap: arrangeMindMap,
     setSelectionColor,
     setSelectionShape,
     alignSelection,
     updateSelectedConnection,
     setConnectionDefaults,
-  }), [addChildNode, addImage, alignSelection, copySelection, deleteSelection, duplicateSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionShape, undo, updateSelectedConnection, zoomAtCenter, zoomToFit]);
+  }), [addChildNode, addImage, alignSelection, arrangeMindMap, copySelection, deleteSelection, duplicateSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionShape, undo, updateSelectedConnection, zoomAtCenter, zoomToFit]);
 
   useEffect(() => onReadyRef.current(engine), [engine]);
 

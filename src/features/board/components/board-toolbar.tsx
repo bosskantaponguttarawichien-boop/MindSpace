@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndVertical, AlignLeft, AlignRight, AlignStartVertical, FileText, GitBranchPlus, ImagePlus, Palette, Pencil, RectangleHorizontal, Waypoints } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndVertical, AlignLeft, AlignRight, AlignStartVertical, FileText, GitBranchPlus, ImagePlus, Palette, Pencil, RectangleHorizontal, Spline, Waypoints } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { IconAction } from "@/components/ui/icon-action";
@@ -24,6 +24,7 @@ export function BoardToolbar({
   onImportImage,
   onImportPdf,
   onAddChildNode,
+  onLayoutMindMap,
   onSetColor,
   onAlign,
   onUpdateConnection,
@@ -38,6 +39,7 @@ export function BoardToolbar({
   onImportImage: () => void;
   onImportPdf: () => void;
   onAddChildNode: () => void;
+  onLayoutMindMap: () => void;
   onSetColor: (color: BoardColor) => void;
   onAlign: (alignment: "left" | "center" | "right" | "top" | "middle" | "bottom") => void;
   onUpdateConnection?: (patch: Partial<BoardConnection>) => void;
@@ -118,6 +120,7 @@ export function BoardToolbar({
         <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-1 h-6" />
           <IconAction label={t("addChildNode")} icon={GitBranchPlus} disabled={!ready} onClick={onAddChildNode} />
+          <IconAction label={t("autoLayout")} icon={Spline} disabled={!ready} onClick={onLayoutMindMap} />
           <IconAction label={t("changeColor")} icon={Palette} expandable expanded={openCard === "color"} disabled={!ready} onClick={() => toggleCard("color")} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild><span><IconAction label={t("align")} icon={AlignCenterHorizontal} disabled={!ready} /></span></DropdownMenuTrigger>

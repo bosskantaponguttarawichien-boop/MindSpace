@@ -14,6 +14,7 @@ function renderToolbar(overrides: Partial<Parameters<typeof BoardToolbar>[0]> = 
     onImportImage: vi.fn(),
     onImportPdf: vi.fn(),
     onAddChildNode: vi.fn(),
+    onLayoutMindMap: vi.fn(),
     onSetColor: vi.fn(),
     onAlign: vi.fn(),
     onUpdateConnection: vi.fn(),

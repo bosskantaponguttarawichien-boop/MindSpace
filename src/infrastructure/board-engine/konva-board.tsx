@@ -7,6 +7,7 @@ import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Stage, T
 import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId } from "@/domain/board/board-document";
 import { getConnectionEndpoints } from "@/domain/board/geometry";
+import { appendMindMapChild, appendMindMapSibling } from "@/domain/board/mind-map";
 import type { BoardEngine, BoardExport, BoardTool } from "@/infrastructure/board-engine/board-engine";
 import { useLocale } from "@/lib/i18n/locale-provider";
 
@@ -580,27 +581,20 @@ export function KonvaBoard({
     });
   }, [commit]);
 
+  const addMindMapNode = useCallback((kind: "child" | "sibling", currentId: BoardElementId, text = "New idea", source = documentRef.current) => {
+    const result = kind === "child"
+      ? appendMindMapChild(source, currentId, createElementId(), `connection:${crypto.randomUUID()}`, text)
+      : appendMindMapSibling(source, currentId, createElementId(), `connection:${crypto.randomUUID()}`, text);
+    if (!result) return null;
+    commit(result.document);
+    setSelection([result.node.id]);
+    return result.node;
+  }, [commit]);
+
   const addChildNode = useCallback(() => {
     const parentId = selectionRef.current[0];
-    const parent = parentId ? documentRef.current.elements.find((element) => element.id === parentId) : undefined;
-    if (!parent) return;
-    const child: BoardElement = {
-      id: createElementId(),
-      kind: "note",
-      x: parent.x + parent.width + 120,
-      y: parent.y,
-      width: 190,
-      height: 110,
-      text: "New idea",
-      color: elementColorRef.current ?? "violet",
-    };
-    commit({
-      ...documentRef.current,
-      elements: [...documentRef.current.elements, child],
-      connections: [...documentRef.current.connections, { id: `connection:${crypto.randomUUID()}`, fromId: parent.id, toId: child.id, ...connectionDefaultsRef.current }],
-    });
-    setSelection([child.id]);
-  }, [commit]);
+    if (parentId) addMindMapNode("child", parentId);
+  }, [addMindMapNode]);
 
   const alignSelection = useCallback((alignment: "left" | "center" | "right" | "top" | "middle" | "bottom") => {
     const ids = new Set(selectionRef.current);
@@ -909,6 +903,20 @@ export function KonvaBoard({
   const elementMap = new Map(document.elements.map((element) => [element.id, element]));
   const editingElement = editing ? elementMap.get(editing.id) : undefined;
 
+  function documentWithEditingText() {
+    if (!editing) return documentRef.current;
+    return {
+      ...documentRef.current,
+      elements: documentRef.current.elements.map((element) => element.id === editing.id ? { ...element, text: editing.value } : element),
+    };
+  }
+
+  function continueMindMap(kind: "child" | "sibling") {
+    if (!editing) return;
+    const node = addMindMapNode(kind, editing.id, "", documentWithEditingText());
+    if (node) setEditing({ id: node.id, value: "" });
+  }
+
   function finishEditing() {
     if (!editing) return;
     const element = documentRef.current.elements.find((candidate) => candidate.id === editing.id);
@@ -1139,7 +1147,18 @@ export function KonvaBoard({
           onBlur={finishEditing}
           onKeyDown={(event) => {
             if (event.key === "Escape") setEditing(null);
-            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") event.currentTarget.blur();
+            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+              event.currentTarget.blur();
+              return;
+            }
+            if (event.key === "Tab") {
+              event.preventDefault();
+              continueMindMap("child");
+            }
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              continueMindMap("sibling");
+            }
           }}
         />
       ) : null}

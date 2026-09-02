@@ -8,6 +8,7 @@ import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId } from "@/domain/board/board-document";
 import { getConnectionEndpoints } from "@/domain/board/geometry";
 import { appendMindMapChild, appendMindMapSibling, layoutMindMap } from "@/domain/board/mind-map";
+import { parseMarkdown } from "@/domain/board/markdown";
 import type { BoardEngine, BoardExport, BoardTool } from "@/infrastructure/board-engine/board-engine";
 import { useLocale } from "@/lib/i18n/locale-provider";
 
@@ -114,6 +115,27 @@ function BoardImage({ element }: { element: BoardElement }) {
   return image
     ? <KonvaImage image={image} width={element.width} height={element.height} cornerRadius={12} />
     : <Rect width={element.width} height={element.height} fill="#e2e8f0" stroke="#94a3b8" strokeWidth={2} cornerRadius={12} />;
+}
+
+function MarkdownText({ element, color }: { element: BoardElement; color: string }) {
+  const lines = parseMarkdown(element.text);
+  const isStructured = lines.length > 1 || lines.some((line) => line.kind !== "paragraph");
+  const padding = element.kind === "text" ? 0 : 18;
+  const defaultFontSize = element.kind === "text" ? 18 : 16;
+  const startY = element.kind === "note" || element.kind === "text" || isStructured ? padding : element.height / 2 - defaultFontSize * 0.7;
+  return (
+    <Group listening={false}>
+      {lines.map((line, index) => {
+        const fontSize = line.kind === "heading" ? ({ 1: 24, 2: 20, 3: 18 }[line.level ?? 3]) : defaultFontSize;
+        const prefix = line.kind === "bullet" ? "• " : line.kind === "task" ? `${line.checked ? "☑" : "☐"} ` : line.kind === "quote" ? "│ " : "";
+        const lineY = startY + lines.slice(0, index).reduce((offset, previous) => {
+          const previousFontSize = previous.kind === "heading" ? ({ 1: 24, 2: 20, 3: 18 }[previous.level ?? 3]) : defaultFontSize;
+          return offset + previousFontSize * 1.45;
+        }, 0);
+        return <Text key={`${line.kind}-${index}`} text={`${prefix}${line.text}`} x={padding} y={lineY} width={element.width - padding * 2} fill={color} fontFamily={line.kind === "code" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "Geist, Noto Sans Thai, sans-serif"} fontSize={fontSize} fontStyle={line.bold || line.kind === "heading" ? "bold" : "normal"} lineHeight={1.35} align={element.kind === "note" || element.kind === "text" || isStructured ? "left" : "center"} wrap="word" />;
+      })}
+    </Group>
+  );
 }
 
 export function KonvaBoard({
@@ -1122,7 +1144,7 @@ export function KonvaBoard({
                   : element.kind === "text"
                     ? null
                     : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} cornerRadius={16} shadowColor="#475569" shadowOpacity={isCoarsePointer ? 0 : 0.12} shadowBlur={isCoarsePointer ? 0 : 10} shadowOffsetY={4} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
-                {element.kind === "image" || editing?.id === element.id ? null : <Text text={element.text} width={element.width} height={element.height} padding={element.kind === "text" ? 0 : 18} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={element.kind === "text" ? 18 : 16} fontStyle={element.kind === "text" ? "normal" : "bold"} lineHeight={1.35} verticalAlign={element.kind === "note" ? "top" : "middle"} align={element.kind === "text" || element.kind === "note" ? "left" : "center"} wrap="word" />}
+                {element.kind === "image" || editing?.id === element.id ? null : <MarkdownText element={element} color={colors.text} />}
               </Group>
             );
           })}

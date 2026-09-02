@@ -1118,7 +1118,7 @@ export function KonvaBoard({
         <textarea
           autoFocus
           aria-label={t("editElement")}
-          className="absolute z-20 resize-none rounded-md border-2 border-primary bg-background/95 p-3 text-sm shadow-xl outline-none"
+          className="absolute z-20 resize-none rounded-md border-2 border-primary bg-background/95 p-3 text-base shadow-xl outline-none sm:text-sm"
           style={{
             left: viewport.x + editingElement.x * viewport.scale,
             top: viewport.y + editingElement.y * viewport.scale,

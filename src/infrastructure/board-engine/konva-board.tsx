@@ -1107,7 +1107,7 @@ export function KonvaBoard({
                   : element.kind === "text"
                     ? null
                     : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} cornerRadius={16} shadowColor="#475569" shadowOpacity={isCoarsePointer ? 0 : 0.12} shadowBlur={isCoarsePointer ? 0 : 10} shadowOffsetY={4} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
-                {element.kind === "image" ? null : <Text text={element.text} width={element.width} height={element.height} padding={element.kind === "text" ? 0 : 18} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={element.kind === "text" ? 18 : 16} fontStyle={element.kind === "text" ? "normal" : "bold"} lineHeight={1.35} verticalAlign={element.kind === "note" ? "top" : "middle"} align={element.kind === "text" || element.kind === "note" ? "left" : "center"} wrap="word" />}
+                {element.kind === "image" || editing?.id === element.id ? null : <Text text={element.text} width={element.width} height={element.height} padding={element.kind === "text" ? 0 : 18} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={element.kind === "text" ? 18 : 16} fontStyle={element.kind === "text" ? "normal" : "bold"} lineHeight={1.35} verticalAlign={element.kind === "note" ? "top" : "middle"} align={element.kind === "text" || element.kind === "note" ? "left" : "center"} wrap="word" />}
               </Group>
             );
           })}
@@ -1118,12 +1118,21 @@ export function KonvaBoard({
         <textarea
           autoFocus
           aria-label={t("editElement")}
-          className="absolute z-20 resize-none rounded-md border-2 border-primary bg-background/95 p-3 text-base shadow-xl outline-none sm:text-sm"
+          className="absolute z-20 resize-none border-0 bg-transparent outline-none"
           style={{
             left: viewport.x + editingElement.x * viewport.scale,
             top: viewport.y + editingElement.y * viewport.scale,
             width: Math.max(140, editingElement.width * viewport.scale),
             height: Math.max(60, editingElement.height * viewport.scale),
+            padding: editingElement.kind === "text" ? 0 : "18px",
+            paddingTop: editingElement.kind === "text" || editingElement.kind === "note" ? undefined : Math.max(18, editingElement.height * viewport.scale * 0.23),
+            borderRadius: editingElement.kind === "ellipse" ? "50%" : undefined,
+            color: COLORS[editingElement.color ?? "grey"].text,
+            fontFamily: "Geist, Noto Sans Thai, sans-serif",
+            fontSize: editingElement.kind === "text" ? 18 : 16,
+            fontWeight: editingElement.kind === "text" ? "normal" : "bold",
+            lineHeight: 1.35,
+            textAlign: editingElement.kind === "text" || editingElement.kind === "note" ? "left" : "center",
           }}
           value={editing.value}
           onChange={(event) => setEditing({ ...editing, value: event.target.value })}

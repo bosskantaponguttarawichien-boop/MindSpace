@@ -1025,6 +1025,10 @@ export function KonvaBoard({
                   event.cancelBubble = true;
                   setEditing({ id: element.id, value: element.text });
                 }}
+                onDblTap={(event) => {
+                  event.cancelBubble = true;
+                  setEditing({ id: element.id, value: element.text });
+                }}
                 onDragStart={(event) => {
                   gestureStartRef.current = cloneDocument(documentRef.current);
                   elementGestureActiveRef.current = true;

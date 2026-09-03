@@ -149,7 +149,8 @@ function MarkdownText({ element, color }: { element: BoardElement; color: string
   const padding = element.kind === "text" ? 0 : 18;
   const textStyle = effectiveTextStyleFor(element);
   const defaultFontSize = element.kind === "text" ? textStyle.fontSize : 16;
-  const startY = element.kind === "note" || element.kind === "text" || isStructured ? padding : element.height / 2 - defaultFontSize * 0.7;
+  // Shapes read like notes: start at the top and use consistent inner padding.
+  const startY = padding;
   const availableWidth = Math.max(20, element.width - padding * 2);
 
   return (
@@ -1425,7 +1426,6 @@ export function KonvaBoard({
             height: Math.max(60, editingElement.height * viewport.scale),
             boxSizing: "border-box",
             padding: editingElement.kind === "text" ? 0 : "18px",
-            paddingTop: editingElement.kind === "text" || editingElement.kind === "note" ? undefined : Math.max(18, editingElement.height * viewport.scale * 0.23),
             borderRadius: editingElement.kind === "ellipse" ? "50%" : undefined,
             color: COLORS[editingElement.color ?? "grey"].text,
             fontFamily: "Geist, Noto Sans Thai, sans-serif",

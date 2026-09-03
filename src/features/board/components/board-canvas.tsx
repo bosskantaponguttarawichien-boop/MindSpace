@@ -6,7 +6,7 @@ import { BoardToolbar } from "@/features/board/components/board-toolbar";
 import type { LocalPdf } from "@/features/board/components/local-pdf-viewer";
 import { ZoomControls } from "@/features/board/components/zoom-controls";
 import type { BoardEngine, BoardTool } from "@/infrastructure/board-engine/board-engine";
-import type { BoardDocument } from "@/domain/board/board-document";
+import { DEFAULT_TEXT_STYLE, type BoardDocument, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
 import { isSupportedPdf } from "@/domain/files/file-validation";
 import { ImageUploadError, type ImageUploadFailure } from "@/infrastructure/files/firebase-board-images";
 import { useLocale } from "@/lib/i18n/locale-provider";
@@ -33,11 +33,12 @@ function imageUrls(document: BoardDocument) {
   return new Set(document.elements.flatMap((element) => element.kind === "image" && element.assetUrl ? [element.assetUrl] : []));
 }
 
-export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploadImage, onDeleteImages, onOpenPdf }: { onEngineReady: (engine: BoardEngine) => void; document: BoardDocument; onDocumentChange: (document: BoardDocument) => void; onUploadImage: (file: File) => Promise<{ url: string; width: number; height: number }>; onDeleteImages: (urls: string[]) => Promise<void>; onOpenPdf: (pdf: LocalPdf) => void }) {
+export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploadImage, onDeleteImages, onOpenPdf, onSelectionIdsChange }: { onEngineReady: (engine: BoardEngine) => void; document: BoardDocument; onDocumentChange: (document: BoardDocument) => void; onUploadImage: (file: File) => Promise<{ url: string; width: number; height: number }>; onDeleteImages: (urls: string[]) => Promise<void>; onOpenPdf: (pdf: LocalPdf) => void; onSelectionIdsChange?: (ids: BoardElementId[]) => void }) {
   const { t } = useLocale();
   const [engine, setEngine] = useState<BoardEngine | null>(null);
   const [activeTool, setActiveTool] = useState<BoardTool>("select");
-  const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean }>({ selectedShapeKind: null, hasSelection: false });
+  const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedTextStyle: BoardTextStyle | null }>({ selectedShapeKind: null, hasSelection: false, selectedTextStyle: null });
+  const [textStyle, setTextStyle] = useState<BoardTextStyle>(DEFAULT_TEXT_STYLE);
   const [uploadingImage, setUploadingImage] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +54,17 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
     setEngine(readyEngine);
     onEngineReadyRef.current(readyEngine);
   }, []);
+
+  const handleSelectionChange = useCallback((next: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }) => {
+    setSelectionState(next);
+    if (next.selectedTextStyle) setTextStyle(next.selectedTextStyle);
+    if (next.selectedIds && onSelectionIdsChange) onSelectionIdsChange(next.selectedIds);
+  }, [onSelectionIdsChange]);
+
+  const setTextFormatting = useCallback((patch: Partial<BoardTextStyle>) => {
+    setTextStyle((current) => ({ ...current, ...patch }));
+    engine?.setSelectionTextStyle(patch);
+  }, [engine]);
   const importImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -105,27 +117,28 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
 
   return (
     <div className="relative h-full min-h-0 overflow-hidden bg-muted/30" data-testid="board-canvas">
-      <KonvaBoard initialDocument={document} onDocumentChange={handleDocumentChange} activeTool={activeTool} onToolChange={setActiveTool} onSelectionChange={setSelectionState} onReady={handleReady} />
+      <KonvaBoard initialDocument={document} onDocumentChange={handleDocumentChange} activeTool={activeTool} textStyle={textStyle} onToolChange={setActiveTool} onSelectionChange={handleSelectionChange} onReady={handleReady} />
       <input ref={inputRef} className="sr-only" type="file" accept="image/*" onChange={importImage} />
       <input ref={pdfInputRef} className="sr-only" type="file" accept="application/pdf" onChange={importPdf} />
       <BoardToolbar
         ready={engine !== null}
         uploadingImage={uploadingImage}
         activeTool={activeTool}
+        textStyle={textStyle}
         selectedShapeKind={selectionState.selectedShapeKind}
         hasSelection={selectionState.hasSelection}
         onToolChange={setActiveTool}
         onSetShape={(shape) => engine?.setSelectionShape(shape)}
+        onSetTextStyle={setTextFormatting}
         onImportImage={() => inputRef.current?.click()}
         onImportPdf={() => pdfInputRef.current?.click()}
         onAddChildNode={() => engine?.addChildNode()}
         onLayoutMindMap={() => engine?.layoutMindMap()}
         onSetColor={(color) => engine?.setSelectionColor(color)}
-        onAlign={(alignment) => engine?.alignSelection(alignment)}
         onUpdateConnection={(patch) => { engine?.setConnectionDefaults(patch); engine?.updateSelectedConnection(patch); }}
       />
       <ZoomControls engine={engine} />
-      {uploadingImage ? <div className="pointer-events-none absolute bottom-4 end-4 z-30 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur" role="status">{t("imageUploading")}</div> : null}
+      {uploadingImage ? <div className="pointer-events-none absolute bottom-20 end-3 sm:bottom-4 sm:end-4 z-30 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur" role="status">{t("imageUploading")}</div> : null}
     </div>
   );
 }

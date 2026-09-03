@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BoardToolbar } from "@/features/board/components/board-toolbar";
-import { BOARD_COLORS } from "@/domain/board/board-document";
+import { BOARD_COLORS, DEFAULT_TEXT_STYLE } from "@/domain/board/board-document";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -10,13 +10,14 @@ function renderToolbar(overrides: Partial<Parameters<typeof BoardToolbar>[0]> = 
   const props = {
     ready: true,
     activeTool: "select" as const,
+    textStyle: DEFAULT_TEXT_STYLE,
     onToolChange: vi.fn(),
     onImportImage: vi.fn(),
     onImportPdf: vi.fn(),
     onAddChildNode: vi.fn(),
     onLayoutMindMap: vi.fn(),
     onSetColor: vi.fn(),
-    onAlign: vi.fn(),
+    onSetTextStyle: vi.fn(),
     onUpdateConnection: vi.fn(),
     ...overrides,
   };
@@ -25,10 +26,19 @@ function renderToolbar(overrides: Partial<Parameters<typeof BoardToolbar>[0]> = 
 }
 
 describe("BoardToolbar", () => {
-  it("keeps every tool in one horizontally scrollable row", () => {
+  it("keeps every tool in a touch-scrollable row without alignment", () => {
     renderToolbar();
 
-    expect(screen.getByRole("toolbar", { name: "Board tools" })).toHaveClass("flex-nowrap", "overflow-x-auto");
+    expect(screen.getByRole("toolbar", { name: "Board tools" })).toHaveClass("w-full", "flex-nowrap", "overflow-x-auto", "touch-pan-x");
+  });
+
+  it("renders connector tool visible on mobile without being hidden", () => {
+    renderToolbar();
+
+    const connectorButton = screen.getByRole("button", { name: "Connector" });
+    expect(connectorButton).toBeInTheDocument();
+    expect(connectorButton).toHaveClass("max-sm:size-10");
+    expect(connectorButton.closest(".hidden")).toBeNull();
   });
 
   it("picks the group tool and opens its card in one click", async () => {
@@ -41,6 +51,42 @@ describe("BoardToolbar", () => {
     expect(onToolChange).toHaveBeenCalledWith("rectangle");
     expect(screen.getByRole("group", { name: "Shapes" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Shapes" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("opens text formatting controls and dispatches bold and font-size changes", async () => {
+    const user = userEvent.setup();
+    const { onSetTextStyle } = renderToolbar({ activeTool: "text" });
+
+    const textTool = screen.getByRole("button", { name: "Text" });
+    expect(textTool).toHaveAttribute("aria-expanded", "false");
+    await user.click(textTool);
+    await user.click(screen.getByRole("button", { name: "Bold" }));
+    await user.click(screen.getByRole("button", { name: "24 px" }));
+
+    expect(screen.getByRole("group", { name: "Text formatting" })).toBeInTheDocument();
+    expect(textTool).toHaveAttribute("aria-expanded", "true");
+    expect(onSetTextStyle).toHaveBeenCalledWith({ fontWeight: "bold" });
+    expect(onSetTextStyle).toHaveBeenCalledWith({ fontSize: 24 });
+  });
+
+  it("opens text formatting for a selected element without changing tools", async () => {
+    const user = userEvent.setup();
+    const { onToolChange } = renderToolbar({ hasSelection: true });
+
+    await user.click(screen.getByRole("button", { name: "Text" }));
+
+    expect(screen.getByRole("group", { name: "Text formatting" })).toBeInTheDocument();
+    expect(onToolChange).not.toHaveBeenCalled();
+  });
+
+  it("marks the selected text style in the format card", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ activeTool: "text", textStyle: { fontSize: 32, fontWeight: "bold" } });
+
+    await user.click(screen.getByRole("button", { name: "Text" }));
+
+    expect(screen.getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "32 px" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("keeps the tool selected when the card is toggled shut", async () => {
@@ -72,6 +118,23 @@ describe("BoardToolbar", () => {
     await user.click(screen.getByRole("button", { name: "Eraser" }));
 
     expect(onToolChange).toHaveBeenCalledWith("eraser");
+  });
+
+  it("sets the colour for drawing from the draw card", async () => {
+    const user = userEvent.setup();
+    const { onSetColor } = renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Draw and erase" }));
+    await user.click(screen.getByRole("button", { name: "Red" }));
+
+    expect(onSetColor).toHaveBeenCalledWith("red");
+  });
+
+  it("removes alignment without hiding tools in a mobile overflow menu", () => {
+    renderToolbar();
+
+    expect(screen.queryByRole("button", { name: "More tools" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Align selection" })).toBeNull();
   });
 
   it("opens one card at a time", async () => {

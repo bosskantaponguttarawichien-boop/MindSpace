@@ -53,3 +53,65 @@ test("creates a Konva shape and can undo it", async ({ page }) => {
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(board).toHaveAttribute("data-element-count", "5");
 });
+
+test("uses keyboard tool shortcuts and temporarily pans while Space is held", async ({ page }) => {
+  await page.goto("/");
+  const board = page.getByTestId("konva-board");
+
+  await page.keyboard.press("d");
+  await expect(page.getByRole("button", { name: "Draw and erase" })).toHaveAttribute("aria-pressed", "true");
+
+  await page.keyboard.down("Space");
+  await expect(board).toHaveAttribute("data-space-panning", "true");
+  await expect(board).toHaveClass("cursor-grab");
+
+  await page.mouse.move(500, 430);
+  await page.mouse.down();
+  await page.mouse.move(620, 430);
+  await page.mouse.up();
+  await page.keyboard.up("Space");
+
+  await expect(board).not.toHaveAttribute("data-space-panning");
+  await expect(page.getByRole("button", { name: "Draw and erase" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("creates, formats, and edits a styled text element", async ({ page }) => {
+  await page.goto("/");
+  const board = page.getByTestId("konva-board");
+  const canvas = board.locator("canvas").first();
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await page.getByRole("button", { name: "Bold" }).click();
+  await page.getByRole("button", { name: "24 px" }).click();
+  await canvas.click({ position: { x: 520, y: 420 } });
+  await expect(board).toHaveAttribute("data-element-count", "6");
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await page.getByRole("button", { name: "Bold" }).click();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await canvas.dblclick({ position: { x: 520, y: 420 } });
+
+  const editor = page.getByRole("textbox", { name: "Edit board item" });
+  await expect(editor).toHaveCSS("font-size", "24px");
+  await expect(editor).toHaveCSS("font-weight", "700");
+
+  await page.keyboard.down("Space");
+  await expect(board).not.toHaveAttribute("data-space-panning");
+  await page.keyboard.up("Space");
+});
+
+test("selects a text element from its rendered area", async ({ page }) => {
+  await page.goto("/");
+  const board = page.getByTestId("konva-board");
+  const canvas = board.locator("canvas").first();
+
+  await page.getByRole("button", { name: "Text" }).click();
+  await canvas.click({ position: { x: 520, y: 420 } });
+  await expect(board).toHaveAttribute("data-element-count", "6");
+
+  await page.getByRole("button", { name: "Select" }).click();
+  await canvas.click({ position: { x: 520, y: 420 } });
+  await page.keyboard.press("Delete");
+
+  await expect(board).toHaveAttribute("data-element-count", "5");
+});

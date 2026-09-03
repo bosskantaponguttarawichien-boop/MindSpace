@@ -47,7 +47,7 @@ for (const heading of ["## Source of truth", "## Current delivery boundary", "##
 }
 
 const scope = await read("docs/harness/product-scope.md");
-for (const heading of ["## Current phase: Phase 4 — Image files and PDF export", "### In scope", "### Explicitly out of scope", "## Phase 4 acceptance criteria"]) {
+for (const heading of ["## Current phase: Phase 6 — Production hardening", "### In scope", "### Explicitly out of scope", "## Phase 6 acceptance criteria", "## Release gate"]) {
   if (!scope.includes(heading)) failures.push(`product-scope.md: missing '${heading}'`);
 }
 

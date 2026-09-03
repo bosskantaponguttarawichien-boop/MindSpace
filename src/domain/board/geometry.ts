@@ -1,6 +1,39 @@
 import type { BoardElement } from "@/domain/board/board-document";
 
 export type Point = { x: number; y: number };
+export type Bounds = { x: number; y: number; width: number; height: number };
+
+export function boundsFromPoints(first: Point, second: Point): Bounds {
+  return {
+    x: Math.min(first.x, second.x),
+    y: Math.min(first.y, second.y),
+    width: Math.abs(second.x - first.x),
+    height: Math.abs(second.y - first.y),
+  };
+}
+
+export function elementBounds(element: BoardElement): Bounds {
+  if (element.kind !== "draw" || !element.points || element.points.length < 2) {
+    return { x: element.x, y: element.y, width: element.width, height: element.height };
+  }
+
+  const xs = element.points.filter((_, index) => index % 2 === 0);
+  const ys = element.points.filter((_, index) => index % 2 === 1);
+  return {
+    x: Math.min(...xs),
+    y: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
+}
+
+export function isElementContainedByBounds(element: BoardElement, bounds: Bounds): boolean {
+  const candidate = elementBounds(element);
+  return candidate.x >= bounds.x &&
+    candidate.y >= bounds.y &&
+    candidate.x + candidate.width <= bounds.x + bounds.width &&
+    candidate.y + candidate.height <= bounds.y + bounds.height;
+}
 
 export function elementCenter(element: BoardElement): Point {
   return { x: element.x + element.width / 2, y: element.y + element.height / 2 };
@@ -121,4 +154,3 @@ export function getConnectionEndpoints(
     },
   };
 }
-

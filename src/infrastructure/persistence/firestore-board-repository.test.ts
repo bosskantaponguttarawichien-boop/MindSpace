@@ -30,6 +30,20 @@ describe("parseBoardDocument", () => {
     })).not.toBeNull();
   });
 
+  it("accepts a valid persisted text style and rejects an invalid one", () => {
+    const board = (textStyle: unknown) => ({
+      version: 1,
+      id: "board:text-style",
+      name: "Text style",
+      elements: [{ id: "element:text", kind: "text", x: 1, y: 2, width: 120, height: 48, text: "Heading", textStyle }],
+      connections: [],
+    });
+
+    expect(parseBoardDocument(board({ fontSize: 32, fontWeight: "bold" }))).not.toBeNull();
+    expect(parseBoardDocument(board({ fontSize: 19, fontWeight: "bold" }))).toBeNull();
+    expect(parseBoardDocument(board({ fontSize: 32, fontWeight: "heavy" }))).toBeNull();
+  });
+
   it("accepts every board colour and rejects an unknown one", () => {
     const board = (color: string) => ({
       version: 1,

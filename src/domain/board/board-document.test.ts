@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sameBoardDocument, type BoardDocument } from "@/domain/board/board-document";
+import { DEFAULT_TEXT_STYLE, sameBoardDocument, textStyleFor, type BoardDocument } from "@/domain/board/board-document";
 
 function board(overrides: Partial<BoardDocument> = {}): BoardDocument {
   return {
@@ -13,6 +13,11 @@ function board(overrides: Partial<BoardDocument> = {}): BoardDocument {
 }
 
 describe("sameBoardDocument", () => {
+  it("uses the historical text defaults when a style is not persisted", () => {
+    expect(textStyleFor({})).toEqual(DEFAULT_TEXT_STYLE);
+    expect(textStyleFor({ textStyle: { fontSize: 32, fontWeight: "bold" } })).toEqual({ fontSize: 32, fontWeight: "bold" });
+  });
+
   it("ignores key order, so a Firestore echo does not read as a new document", () => {
     const local = board();
     const echoed = JSON.parse(JSON.stringify({
@@ -36,5 +41,11 @@ describe("sameBoardDocument", () => {
     const recoloured = board({ elements: [{ id: "element:1", kind: "note", x: 0, y: 0, width: 10, height: 10, text: "Hi", color: "red" }] });
 
     expect(sameBoardDocument(board(), recoloured)).toBe(false);
+  });
+
+  it("recognizes a persisted text-style change", () => {
+    const styled = board({ elements: [{ id: "element:1", kind: "text", x: 0, y: 0, width: 10, height: 10, text: "Hi", textStyle: { fontSize: 24, fontWeight: "bold" } }] });
+
+    expect(sameBoardDocument(board(), styled)).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
-import type { BoardColor, BoardConnection } from "@/domain/board/board-document";
+import type { BoardColor, BoardConnection, BoardTextStyle } from "@/domain/board/board-document";
+import type { AiProposal } from "@/domain/ai/proposal-schema";
 
 export type BoardTool =
   | "select"
@@ -31,7 +32,8 @@ export type BoardEngine = {
   layoutMindMap: () => void;
   setSelectionColor: (color: BoardColor) => void;
   setSelectionShape: (shape: BoardTool) => void;
-  alignSelection: (alignment: "left" | "center" | "right" | "top" | "middle" | "bottom") => void;
+  setSelectionTextStyle: (patch: Partial<BoardTextStyle>) => void;
   updateSelectedConnection: (patch: Partial<BoardConnection>) => void;
   setConnectionDefaults: (patch: Partial<BoardConnection>) => void;
+  applyProposal: (proposal: AiProposal) => void;
 };

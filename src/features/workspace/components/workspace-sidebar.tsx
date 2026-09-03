@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Cloud, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Cloud, MoreHorizontal, PanelLeftClose, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -13,7 +13,25 @@ import { useLocale } from "@/lib/i18n/locale-provider";
 type BoardSummary = { id: string; name: string };
 type NameDialog = { board: BoardSummary | null; value: string };
 
-export function WorkspaceSidebar({ boards, activeBoardId, nextBoardName, onCreateBoard, onRenameBoard, onDeleteBoard, onSelectBoard }: { boards: BoardSummary[]; activeBoardId: string; nextBoardName: string; onCreateBoard: (name: string) => void; onRenameBoard: (id: string, name: string) => void; onDeleteBoard: (id: string) => void; onSelectBoard: (id: string) => void }) {
+export function WorkspaceSidebar({
+  boards,
+  activeBoardId,
+  nextBoardName,
+  onCreateBoard,
+  onRenameBoard,
+  onDeleteBoard,
+  onSelectBoard,
+  onToggleSidebar,
+}: {
+  boards: BoardSummary[];
+  activeBoardId: string;
+  nextBoardName: string;
+  onCreateBoard: (name: string) => void;
+  onRenameBoard: (id: string, name: string) => void;
+  onDeleteBoard: (id: string) => void;
+  onSelectBoard: (id: string) => void;
+  onToggleSidebar?: () => void;
+}) {
   const { t } = useLocale();
   const [nameDialog, setNameDialog] = useState<NameDialog | null>(null);
   const [boardToDelete, setBoardToDelete] = useState<BoardSummary | null>(null);
@@ -33,9 +51,24 @@ export function WorkspaceSidebar({ boards, activeBoardId, nextBoardName, onCreat
 
   return (
     <aside className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-16 items-center gap-3 px-5">
-        <Image src="/icons/mindspace-192.png" alt="" width={32} height={32} className="size-8 rounded-xl shadow-sm" priority />
-        <span className="text-[15px] font-bold tracking-tight">{t("appName")}</span>
+      <div className="flex h-16 items-center justify-between px-4 sm:px-5">
+        <div className="flex items-center gap-3">
+          <Image src="/icons/mindspace-192.png" alt="" width={32} height={32} className="size-8 rounded-xl shadow-sm" priority />
+          <span className="text-[15px] font-bold tracking-tight">{t("appName")}</span>
+        </div>
+        {onToggleSidebar ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground"
+            aria-label={t("collapseSidebar")}
+            title={t("collapseSidebar")}
+            onClick={onToggleSidebar}
+          >
+            <PanelLeftClose className="size-4" />
+          </Button>
+        ) : null}
       </div>
       <div className="px-4 pb-5">
         <Button className="w-full justify-start gap-2" onClick={() => setNameDialog({ board: null, value: nextBoardName })}>

@@ -2,7 +2,7 @@
   "$schema": "./docs/harness/harness.schema.json",
   "version": 1,
   "project": "MindSpace",
-  "currentPhase": "phase-4-image-files-and-pdf-export",
+  "currentPhase": "phase-6-production-hardening",
   "sources": {
     "product": "requirement.md",
     "visualReference": "poc.html",
@@ -22,6 +22,7 @@
     "docs/harness/decisions/0004-firestore-board-schema.md",
     "docs/harness/decisions/0005-private-sync-links.md",
     "docs/harness/decisions/0006-board-image-files.md",
+    "docs/harness/decisions/0013-email-password-account-linking.md",
     "storage.rules"
   ],
   "validation": {

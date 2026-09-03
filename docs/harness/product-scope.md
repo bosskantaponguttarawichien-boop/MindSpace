@@ -4,50 +4,43 @@
 
 MindSpace is an AI-powered personal knowledge workspace built around an infinite board. The full vision remains in `requirement.md`; delivery is phased to avoid coupling the board engine to persistence, files, realtime, and AI too early.
 
-## Current phase: Phase 4 — Image files and PDF export
+## Current phase: Phase 6 — Production hardening
 
-The goal is to add useful visual references to a board while keeping file bytes outside the board document.
+The goal is to make the existing personal knowledge workspace safe, recoverable, observable, and ready for a controlled production launch. Phase 6 hardens the product; it does not weaken the board command, privacy, or human-approved AI guarantees established in earlier phases.
 
 ### In scope
 
-- Application shell matching the POC's information architecture: board list, board workspace, top bar, tool bar, and a non-functional AI-panel placeholder.
-- Infinite canvas using a board-engine adapter, with pan and zoom.
-- Create and edit text, sticky-note, and basic shape elements.
-- Select, multi-select, move, resize, duplicate, copy/paste, and delete.
-- Create/delete node-to-node connectors that follow moved nodes.
-- Undo and redo for every board mutation in this phase.
-- Keyboard access for primary actions and clear focus states.
-- Accept PNG, JPEG, WEBP, or GIF images up to 25 MB; resize supported still images to a 1,920px maximum side and upload WebP only when it reduces bytes. Stored files remain capped at 10 MB.
-- Add uploaded images to a board as movable, resizable, undoable elements.
-- Persist image metadata and safe download URLs in the versioned board document.
-- Export the full current board bounds through the browser print dialog as PDF.
-- Remove an image object from Storage 30 seconds after it is deleted from a board; undo within that window cancels cleanup.
-- Open a local PDF preview without claiming it was saved or synced.
-- Provide diagram shapes (rectangle, circle, diamond, triangle), color changes, and multi-selection alignment.
-- Create a connected mind-map child node from a selected element.
+- Preserve all verified Phase 1–5 behavior: boards, file references, autosave, and AI proposals remain functional and no AI proposal may mutate a board without approval.
+- Replace anonymous-only ownership and bearer sync links with account-based identity, safe anonymous-data linking/migration, and server-authorized workspace membership. The initial sign-in providers and recovery experience require an ADR before implementation.
+- Role-based workspace access with owner, editor, and viewer capabilities; invite, remove, and revoke sharing access. Firestore and Storage rules must deny unauthenticated and cross-workspace access by default.
+- Versioned board history snapshots, owner-controlled backups, and restore with a preview/confirmation step. Restoring a snapshot is a board mutation recorded in undo/redo where the active editor can support it.
+- Offline-first edit recovery that exposes pending state, reconnects safely, and gives the user an actionable conflict/recovery path rather than silently dropping changes.
+- Production error boundaries, privacy-preserving structured monitoring, and operational alerts. Logs must not contain board content, file bytes, prompts, provider keys, or raw provider responses.
+- Authenticated and authorized AI boundary with request bounds, rate limiting, auditable metadata, usage/cost tracking, and clear limit/error recovery states. Private AI context is never recorded in analytics logs.
+- Production deployment readiness: validated environment configuration, least-privilege service credentials, Security Rules Emulator coverage, CI gates, and documented backup/incident/release procedures.
 
 ### Explicitly out of scope
 
-- PDF storage, page extraction, and text extraction.
-- Multi-page PDF layouts for oversized boards.
-- Accounts, granular permissions, link revocation, and collaboration beyond one trusted user.
-- Live AI calls, AI context collection, and applying AI-generated operations.
-- Sharing, permissions, billing, analytics, and production deployment.
-- Building a custom canvas engine when the approved board engine supports the need.
+- New board-element types, PDF OCR/extraction, or multi-page PDF layouts.
+- Presence indicators, cursors, comments, conflict-free realtime collaboration, and other synchronous collaboration semantics.
+- Autonomous AI actions, model training on user content, or storing raw board/AI content in monitoring or analytics.
+- Paid billing/subscriptions, enterprise SSO/SCIM, organization administration, and arbitrary public sharing links.
+- A provider-specific identity experience before its UX, account-recovery, and anonymous-migration decision is recorded.
 
 Out-of-scope UI may appear as disabled or clearly labelled preview; it must not pretend that data was saved, synced, exported, or processed.
 
-## Phase 4 acceptance criteria
+## Phase 6 acceptance criteria
 
-1. A user can choose a supported image and see it on the board.
-2. Image geometry is persisted and remains after reload.
-3. Images are uploaded to Firebase Storage, not embedded in Firestore documents.
-4. A user can open the browser print dialog to save the full current board as PDF.
-5. Deleting an image removes its Storage object after a short undo window.
-6. A user can open a local PDF preview and clearly sees that it is not yet persisted.
-7. A user can create and format diagram shapes, align two or more selected elements, and add a connected child node with undo and redo.
-8. `lint`, `typecheck`, `test`, and `build` pass.
+1. A documented account-linking and recovery decision exists before a sign-in provider is shipped; linking preserves a user's eligible anonymous boards or clearly reports a recoverable migration failure.
+2. An authenticated user can create a workspace, invite an editor or viewer, and revoke a member. Server routes/actions, Firestore Rules, and Storage Rules enforce the same capability and deny cross-workspace access.
+3. A board owner can inspect history, create or use a backup, preview a prior revision, and explicitly restore it without silent data loss.
+4. A user can edit while temporarily offline, sees pending/recovery status, and receives an actionable conflict path after reconnection.
+5. Expected application failures render localized recovery UI; production telemetry records a minimal structured event without board content, prompt content, file bytes, credentials, or raw provider output.
+6. AI requests require a verified actor and authorized board/workspace context, have bounded input and rate-limit handling, and record only provider/model, usage/cost, operation type, approval, and failure metadata.
+7. Deployment configuration fails safely when required secrets or production controls are missing. Secret values never reach client bundles, committed files, or logs.
+8. Firebase Emulator tests prove allowed owner/editor/viewer behavior and denied anonymous, revoked, and cross-workspace access; tests also cover history restore, offline recovery, and AI-limit behavior.
+9. `lint`, `typecheck`, `test`, relevant end-to-end tests, and `build` pass; release/rollback, backup restore, and incident response are documented.
 
-## Promotion gate to PDF ingestion
+## Release gate
 
-Before cross-device access, choose an account-linking experience, migrate anonymous data safely, add rules/emulator tests for migration, and define conflict behavior across devices.
+Before declaring a production launch, close every Phase 6 acceptance criterion, run the same checks in CI, perform a controlled restore rehearsal, and approve the documented identity/migration, retention/deletion, and incident-response procedures.

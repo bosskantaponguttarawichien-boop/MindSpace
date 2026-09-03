@@ -1,5 +1,5 @@
 import { collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, type FirestoreError } from "firebase/firestore";
-import { BOARD_COLORS, type BoardConnection, type BoardDocument, type BoardElement } from "@/domain/board/board-document";
+import { BOARD_COLORS, TEXT_FONT_SIZES, type BoardConnection, type BoardDocument, type BoardElement, type BoardTextStyle } from "@/domain/board/board-document";
 import { getFirebaseServices } from "@/infrastructure/firebase/client";
 
 export type StoredBoard = {
@@ -14,6 +14,14 @@ export type BoardScope =
 
 const colors = new Set<string>(BOARD_COLORS);
 const kinds = new Set(["text", "note", "rectangle", "ellipse", "diamond", "triangle", "draw", "image"]);
+const textFontSizes = new Set<number>(TEXT_FONT_SIZES);
+
+function isBoardTextStyle(value: unknown): value is BoardTextStyle {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as { fontSize?: unknown; fontWeight?: unknown };
+  return typeof candidate.fontSize === "number" && textFontSizes.has(candidate.fontSize) &&
+    (candidate.fontWeight === "normal" || candidate.fontWeight === "bold");
+}
 
 function isBoardElement(value: unknown): value is BoardElement {
   if (!value || typeof value !== "object") return false;
@@ -25,7 +33,8 @@ function isBoardElement(value: unknown): value is BoardElement {
     typeof candidate.text === "string" &&
     (candidate.color === undefined || (typeof candidate.color === "string" && colors.has(candidate.color))) &&
     (candidate.points === undefined || (Array.isArray(candidate.points) && candidate.points.every((point) => typeof point === "number" && Number.isFinite(point)))) &&
-    (candidate.assetUrl === undefined || (typeof candidate.assetUrl === "string" && /^https:\/\//.test(candidate.assetUrl)))
+    (candidate.assetUrl === undefined || (typeof candidate.assetUrl === "string" && /^https:\/\//.test(candidate.assetUrl))) &&
+    (candidate.textStyle === undefined || (candidate.kind === "text" && isBoardTextStyle(candidate.textStyle)))
   );
 }
 
@@ -90,9 +99,11 @@ function boardDocument(scope: BoardScope, boardId: string) {
 }
 
 export async function saveBoard(scope: BoardScope, board: StoredBoard) {
+  // Strip any undefined properties from elements and connections to prevent Firestore serialization errors
+  const sanitizedDocument = JSON.parse(JSON.stringify(board.document));
   await setDoc(boardDocument(scope, board.id), {
     name: board.name,
-    document: board.document,
+    document: sanitizedDocument,
     schemaVersion: 1,
     updatedAt: serverTimestamp(),
   }, { merge: true });

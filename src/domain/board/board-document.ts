@@ -22,6 +22,18 @@ export const BOARD_COLORS = [
 
 export type BoardColor = (typeof BOARD_COLORS)[number];
 
+export const TEXT_FONT_SIZES = [14, 16, 18, 24, 32, 40] as const;
+
+export type BoardTextFontSize = (typeof TEXT_FONT_SIZES)[number];
+export type BoardTextFontWeight = "normal" | "bold";
+
+export type BoardTextStyle = {
+  fontSize: BoardTextFontSize;
+  fontWeight: BoardTextFontWeight;
+};
+
+export const DEFAULT_TEXT_STYLE: BoardTextStyle = { fontSize: 18, fontWeight: "normal" };
+
 export type BoardElementId = `element:${string}`;
 export type BoardConnectionId = `connection:${string}`;
 
@@ -36,7 +48,12 @@ export type BoardElement = {
   color?: BoardColor;
   points?: number[];
   assetUrl?: string;
+  textStyle?: BoardTextStyle;
 };
+
+export function textStyleFor(element: Pick<BoardElement, "textStyle">): BoardTextStyle {
+  return { ...DEFAULT_TEXT_STYLE, ...element.textStyle };
+}
 
 export type ConnectionStyle = "end" | "both" | "start" | "none";
 export type ConnectionLineStyle = "solid" | "dashed" | "dotted";

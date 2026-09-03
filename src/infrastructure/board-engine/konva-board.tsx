@@ -88,11 +88,21 @@ function nextElement(tool: BoardTool, x: number, y: number, textStyle: BoardText
   const id = createElementId();
   if (tool === "text") return { id, kind: "text", x, y, width: 220, height: 54, text: "New idea", color: "grey", textStyle };
   if (tool === "note") return { id, kind: "note", x, y, width: 190, height: 170, text: "New note", color: "yellow" };
-  if (tool === "rectangle") return { id, kind: "rectangle", x, y, width: 220, height: 120, text: "New concept", color: "violet" };
-  if (tool === "ellipse") return { id, kind: "ellipse", x, y, width: 200, height: 120, text: "New concept", color: "blue" };
-  if (tool === "diamond") return { id, kind: "diamond", x, y, width: 180, height: 140, text: "Decision", color: "yellow" };
-  if (tool === "triangle") return { id, kind: "triangle", x, y, width: 180, height: 140, text: "Step", color: "green" };
+  if (tool === "rectangle") return { id, kind: "rectangle", x, y, width: 220, height: 120, text: "New concept", color: "violet", textStyle };
+  if (tool === "ellipse") return { id, kind: "ellipse", x, y, width: 200, height: 120, text: "New concept", color: "blue", textStyle };
+  if (tool === "diamond") return { id, kind: "diamond", x, y, width: 180, height: 140, text: "Decision", color: "yellow", textStyle };
+  if (tool === "triangle") return { id, kind: "triangle", x, y, width: 180, height: 140, text: "Step", color: "green", textStyle };
   return null;
+}
+
+function supportsTextStyle(element: BoardElement) {
+  return element.kind === "text" || element.kind === "rectangle" || element.kind === "ellipse" || element.kind === "diamond" || element.kind === "triangle";
+}
+
+function effectiveTextStyleFor(element: Pick<BoardElement, "kind" | "textStyle">): BoardTextStyle {
+  const style = textStyleFor(element);
+  const isLegacyShape = element.kind === "rectangle" || element.kind === "ellipse" || element.kind === "diamond" || element.kind === "triangle";
+  return isLegacyShape && element.textStyle?.textAlign === undefined ? { ...style, textAlign: "center" } : style;
 }
 
 function BoardImage({ element }: { element: BoardElement }) {
@@ -137,7 +147,7 @@ function MarkdownText({ element, color }: { element: BoardElement; color: string
   const lines = parseMarkdown(element.text);
   const isStructured = lines.length > 1 || lines.some((line) => line.kind !== "paragraph");
   const padding = element.kind === "text" ? 0 : 18;
-  const textStyle = textStyleFor(element);
+  const textStyle = effectiveTextStyleFor(element);
   const defaultFontSize = element.kind === "text" ? textStyle.fontSize : 16;
   const startY = element.kind === "note" || element.kind === "text" || isStructured ? padding : element.height / 2 - defaultFontSize * 0.7;
   const availableWidth = Math.max(20, element.width - padding * 2);
@@ -155,7 +165,7 @@ function MarkdownText({ element, color }: { element: BoardElement; color: string
           const estimatedLines = Math.max(1, Math.ceil(totalLength / charsPerLine));
           return offset + prevFontSize * 1.45 * estimatedLines;
         }, 0);
-        return <Text key={`${line.kind}-${index}`} text={`${prefix}${line.text}`} x={padding} y={lineY} width={availableWidth} fill={color} fontFamily={line.kind === "code" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "Geist, Noto Sans Thai, sans-serif"} fontSize={fontSize} fontStyle={(element.kind === "text" && textStyle.fontWeight === "bold") || line.bold || line.kind === "heading" ? "bold" : "normal"} lineHeight={1.35} align={element.kind === "text" ? textStyle.textAlign : element.kind === "note" || isStructured ? "left" : "center"} wrap="word" />;
+        return <Text key={`${line.kind}-${index}`} text={`${prefix}${line.text}`} x={padding} y={lineY} width={availableWidth} fill={color} fontFamily={line.kind === "code" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "Geist, Noto Sans Thai, sans-serif"} fontSize={fontSize} fontStyle={(supportsTextStyle(element) && textStyle.fontWeight === "bold") || line.bold || line.kind === "heading" ? "bold" : "normal"} lineHeight={1.35} align={supportsTextStyle(element) ? textStyle.textAlign : element.kind === "note" || isStructured ? "left" : "center"} wrap="word" />;
       })}
     </Group>
   );
@@ -294,10 +304,10 @@ export function KonvaBoard({
       const shapeKinds: BoardTool[] = ["rectangle", "ellipse", "diamond", "triangle"];
       const selectedElements = documentRef.current.elements.filter((element) => selection.includes(element.id));
       const shapeElement = selectedElements.find((element) => shapeKinds.includes(element.kind as BoardTool));
-      const selectedTextElements = selectedElements.filter((element) => element.kind === "text");
-      const firstTextStyle = selectedTextElements[0] ? textStyleFor(selectedTextElements[0]) : null;
+      const selectedTextElements = selectedElements.filter(supportsTextStyle);
+      const firstTextStyle = selectedTextElements[0] ? effectiveTextStyleFor(selectedTextElements[0]) : null;
       const selectedTextStyle = firstTextStyle && selectedTextElements.every((element) => {
-        const style = textStyleFor(element);
+        const style = effectiveTextStyleFor(element);
         return style.fontSize === firstTextStyle.fontSize && style.fontWeight === firstTextStyle.fontWeight && style.textAlign === firstTextStyle.textAlign;
       }) ? firstTextStyle : null;
       onSelectionChangeRef.current?.({ selectedShapeKind: shapeElement ? (shapeElement.kind as BoardTool) : null, hasSelection, selectedTextStyle, selectedIds: selection });
@@ -760,13 +770,14 @@ export function KonvaBoard({
   const setSelectionTextStyle = useCallback((patch: Partial<BoardTextStyle>) => {
     const ids = new Set(selectionRef.current);
     if (ids.size === 0) return;
-    const hasTextSelection = documentRef.current.elements.some((element) => ids.has(element.id) && element.kind === "text");
+    const hasTextSelection = documentRef.current.elements.some((element) => ids.has(element.id) && supportsTextStyle(element));
     if (!hasTextSelection) return;
     let changed = false;
     const elements = documentRef.current.elements.map((element) => {
-      if (element.kind !== "text" || !ids.has(element.id)) return element;
-      const nextTextStyle = { ...textStyleFor(element), ...patch };
-      if (nextTextStyle.fontSize === textStyleFor(element).fontSize && nextTextStyle.fontWeight === textStyleFor(element).fontWeight && nextTextStyle.textAlign === textStyleFor(element).textAlign) return element;
+      if (!supportsTextStyle(element) || !ids.has(element.id)) return element;
+      const currentTextStyle = effectiveTextStyleFor(element);
+      const nextTextStyle = { ...currentTextStyle, ...patch };
+      if (nextTextStyle.fontSize === currentTextStyle.fontSize && nextTextStyle.fontWeight === currentTextStyle.fontWeight && nextTextStyle.textAlign === currentTextStyle.textAlign) return element;
       changed = true;
       return { ...element, textStyle: nextTextStyle };
     });
@@ -785,7 +796,7 @@ export function KonvaBoard({
     const defaults: MindMapDefaults = {
       kind: nodeKind,
       color: elementColorRef.current ?? sourceElement?.color ?? "violet",
-      textStyle: textStyleFor(sourceElement ?? {}),
+      textStyle: sourceElement ? effectiveTextStyleFor(sourceElement) : textStyleFor({}),
       connection: connectionDefaultsRef.current,
     };
     const result = kind === "child"
@@ -1412,10 +1423,10 @@ export function KonvaBoard({
             borderRadius: editingElement.kind === "ellipse" ? "50%" : undefined,
             color: COLORS[editingElement.color ?? "grey"].text,
             fontFamily: "Geist, Noto Sans Thai, sans-serif",
-            fontSize: editingElement.kind === "text" ? textStyleFor(editingElement).fontSize : 16,
-            fontWeight: editingElement.kind === "text" ? textStyleFor(editingElement).fontWeight : "bold",
+            fontSize: supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).fontSize : 16,
+            fontWeight: supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).fontWeight : "bold",
             lineHeight: 1.35,
-            textAlign: editingElement.kind === "text" ? textStyleFor(editingElement).textAlign : editingElement.kind === "note" ? "left" : "center",
+            textAlign: supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).textAlign : editingElement.kind === "note" ? "left" : "center",
           }}
           value={editing.value}
           onChange={(event) => setEditing({ ...editing, value: event.target.value })}

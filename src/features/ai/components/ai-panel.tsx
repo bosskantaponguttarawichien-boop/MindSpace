@@ -56,6 +56,7 @@ export function AiPanel({
     clearMessages,
   } = chat;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -308,12 +309,18 @@ export function AiPanel({
           }}
         >
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={t("askAiPlaceholder")}
             disabled={loading}
-            className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50"
+            onFocus={() => {
+              window.requestAnimationFrame(() => {
+                inputRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+              });
+            }}
+            className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-base outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 lg:text-xs"
           />
           <Button
             type="submit"

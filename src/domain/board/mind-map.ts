@@ -1,33 +1,53 @@
-import type { BoardDocument, BoardElement, BoardElementId } from "@/domain/board/board-document";
+import type { BoardConnection, BoardDocument, BoardElement, BoardElementId, BoardTextStyle } from "@/domain/board/board-document";
 
 type MindMapResult = { document: BoardDocument; node: BoardElement };
+type MindMapNodeKind = Extract<BoardElement["kind"], "text" | "note" | "rectangle" | "ellipse" | "diamond" | "triangle">;
 
-function newNode(id: BoardElementId, x: number, y: number, text: string): BoardElement {
-  return { id, kind: "note", x, y, width: 190, height: 110, text, color: "violet" };
+export type MindMapDefaults = {
+  kind: MindMapNodeKind;
+  color: NonNullable<BoardElement["color"]>;
+  textStyle: BoardTextStyle;
+  connection: Partial<Pick<BoardConnection, "style" | "lineStyle" | "headType" | "color">>;
+};
+
+const DEFAULT_MIND_MAP_DEFAULTS: MindMapDefaults = {
+  kind: "note",
+  color: "violet",
+  textStyle: { fontSize: 18, fontWeight: "normal", textAlign: "left" },
+  connection: {},
+};
+
+function newNode(id: BoardElementId, x: number, y: number, text: string, defaults: MindMapDefaults): BoardElement {
+  const dimensions: Record<MindMapNodeKind, { width: number; height: number }> = {
+    text: { width: 220, height: 54 }, note: { width: 190, height: 110 }, rectangle: { width: 220, height: 120 },
+    ellipse: { width: 200, height: 120 }, diamond: { width: 180, height: 140 }, triangle: { width: 180, height: 140 },
+  };
+  const { width, height } = dimensions[defaults.kind];
+  return { id, kind: defaults.kind, x, y, width, height, text, color: defaults.color, ...(defaults.kind === "text" ? { textStyle: defaults.textStyle } : {}) };
 }
 
-export function appendMindMapChild(document: BoardDocument, parentId: BoardElementId, id: BoardElementId, connectionId: `connection:${string}`, text = "New idea"): MindMapResult | null {
+export function appendMindMapChild(document: BoardDocument, parentId: BoardElementId, id: BoardElementId, connectionId: `connection:${string}`, text = "New idea", defaults = DEFAULT_MIND_MAP_DEFAULTS): MindMapResult | null {
   const parent = document.elements.find((element) => element.id === parentId);
   if (!parent) return null;
   const siblingCount = document.connections.filter((connection) => connection.fromId === parentId).length;
-  const node = newNode(id, parent.x + parent.width + 120, parent.y + siblingCount * 150, text);
+  const node = newNode(id, parent.x + parent.width + 120, parent.y + siblingCount * 150, text, defaults);
   return {
     node,
-    document: { ...document, elements: [...document.elements, node], connections: [...document.connections, { id: connectionId, fromId: parentId, toId: node.id }] },
+    document: { ...document, elements: [...document.elements, node], connections: [...document.connections, { id: connectionId, fromId: parentId, toId: node.id, ...defaults.connection }] },
   };
 }
 
-export function appendMindMapSibling(document: BoardDocument, currentId: BoardElementId, id: BoardElementId, connectionId: `connection:${string}`, text = "New idea"): MindMapResult | null {
+export function appendMindMapSibling(document: BoardDocument, currentId: BoardElementId, id: BoardElementId, connectionId: `connection:${string}`, text = "New idea", defaults = DEFAULT_MIND_MAP_DEFAULTS): MindMapResult | null {
   const current = document.elements.find((element) => element.id === currentId);
   if (!current) return null;
   const parentConnection = document.connections.find((connection) => connection.toId === currentId);
-  const node = newNode(id, current.x, current.y + current.height + 48, text);
+  const node = newNode(id, current.x, current.y + current.height + 48, text, defaults);
   return {
     node,
     document: {
       ...document,
       elements: [...document.elements, node],
-      connections: parentConnection ? [...document.connections, { id: connectionId, fromId: parentConnection.fromId, toId: node.id }] : document.connections,
+      connections: parentConnection ? [...document.connections, { id: connectionId, fromId: parentConnection.fromId, toId: node.id, ...defaults.connection }] : document.connections,
     },
   };
 }

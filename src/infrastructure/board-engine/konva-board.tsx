@@ -7,7 +7,7 @@ import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Stage, T
 import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, textStyleFor, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
 import { boundsFromPoints, getConnectionEndpoints, isElementContainedByBounds, type Bounds } from "@/domain/board/geometry";
-import { appendMindMapChild, appendMindMapSibling, layoutMindMap } from "@/domain/board/mind-map";
+import { appendMindMapChild, appendMindMapSibling, layoutMindMap, type MindMapDefaults } from "@/domain/board/mind-map";
 import { parseMarkdown } from "@/domain/board/markdown";
 import type { BoardEngine, BoardExport, BoardTool } from "@/infrastructure/board-engine/board-engine";
 import type { AiProposal } from "@/domain/ai/proposal-schema";
@@ -19,6 +19,8 @@ type Size = { width: number; height: number };
 type ScreenPoint = { x: number; y: number };
 type TouchGesture = { distance: number; midpoint: ScreenPoint; viewport: Viewport };
 type SelectionMarqueeStart = { point: ScreenPoint; additive: boolean };
+type MindMapNodeKind = MindMapDefaults["kind"];
+const mindMapNodeKinds = new Set<MindMapNodeKind>(["text", "note", "rectangle", "ellipse", "diamond", "triangle"]);
 
 const COLORS: Record<BoardColor, { fill: string; stroke: string; text: string }> = {
   violet: { fill: "#ede9fe", stroke: "#7c3aed", text: "#3b0764" },
@@ -153,7 +155,7 @@ function MarkdownText({ element, color }: { element: BoardElement; color: string
           const estimatedLines = Math.max(1, Math.ceil(totalLength / charsPerLine));
           return offset + prevFontSize * 1.45 * estimatedLines;
         }, 0);
-        return <Text key={`${line.kind}-${index}`} text={`${prefix}${line.text}`} x={padding} y={lineY} width={availableWidth} fill={color} fontFamily={line.kind === "code" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "Geist, Noto Sans Thai, sans-serif"} fontSize={fontSize} fontStyle={(element.kind === "text" && textStyle.fontWeight === "bold") || line.bold || line.kind === "heading" ? "bold" : "normal"} lineHeight={1.35} align={element.kind === "note" || element.kind === "text" || isStructured ? "left" : "center"} wrap="word" />;
+        return <Text key={`${line.kind}-${index}`} text={`${prefix}${line.text}`} x={padding} y={lineY} width={availableWidth} fill={color} fontFamily={line.kind === "code" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "Geist, Noto Sans Thai, sans-serif"} fontSize={fontSize} fontStyle={(element.kind === "text" && textStyle.fontWeight === "bold") || line.bold || line.kind === "heading" ? "bold" : "normal"} lineHeight={1.35} align={element.kind === "text" ? textStyle.textAlign : element.kind === "note" || isStructured ? "left" : "center"} wrap="word" />;
       })}
     </Group>
   );
@@ -296,7 +298,7 @@ export function KonvaBoard({
       const firstTextStyle = selectedTextElements[0] ? textStyleFor(selectedTextElements[0]) : null;
       const selectedTextStyle = firstTextStyle && selectedTextElements.every((element) => {
         const style = textStyleFor(element);
-        return style.fontSize === firstTextStyle.fontSize && style.fontWeight === firstTextStyle.fontWeight;
+        return style.fontSize === firstTextStyle.fontSize && style.fontWeight === firstTextStyle.fontWeight && style.textAlign === firstTextStyle.textAlign;
       }) ? firstTextStyle : null;
       onSelectionChangeRef.current?.({ selectedShapeKind: shapeElement ? (shapeElement.kind as BoardTool) : null, hasSelection, selectedTextStyle, selectedIds: selection });
     } else {
@@ -764,7 +766,7 @@ export function KonvaBoard({
     const elements = documentRef.current.elements.map((element) => {
       if (element.kind !== "text" || !ids.has(element.id)) return element;
       const nextTextStyle = { ...textStyleFor(element), ...patch };
-      if (nextTextStyle.fontSize === textStyleFor(element).fontSize && nextTextStyle.fontWeight === textStyleFor(element).fontWeight) return element;
+      if (nextTextStyle.fontSize === textStyleFor(element).fontSize && nextTextStyle.fontWeight === textStyleFor(element).fontWeight && nextTextStyle.textAlign === textStyleFor(element).textAlign) return element;
       changed = true;
       return { ...element, textStyle: nextTextStyle };
     });
@@ -776,9 +778,19 @@ export function KonvaBoard({
   }, [commit]);
 
   const addMindMapNode = useCallback((kind: "child" | "sibling", currentId: BoardElementId, text = "New idea", source = documentRef.current) => {
+    const sourceElement = source.elements.find((element) => element.id === currentId);
+    const nodeKind = sourceElement && mindMapNodeKinds.has(sourceElement.kind as MindMapNodeKind)
+      ? sourceElement.kind as MindMapNodeKind
+      : "note";
+    const defaults: MindMapDefaults = {
+      kind: nodeKind,
+      color: elementColorRef.current ?? sourceElement?.color ?? "violet",
+      textStyle: textStyleFor(sourceElement ?? {}),
+      connection: connectionDefaultsRef.current,
+    };
     const result = kind === "child"
-      ? appendMindMapChild(source, currentId, createElementId(), `connection:${crypto.randomUUID()}`, text)
-      : appendMindMapSibling(source, currentId, createElementId(), `connection:${crypto.randomUUID()}`, text);
+      ? appendMindMapChild(source, currentId, createElementId(), `connection:${crypto.randomUUID()}`, text, defaults)
+      : appendMindMapSibling(source, currentId, createElementId(), `connection:${crypto.randomUUID()}`, text, defaults);
     if (!result) return null;
     commit(result.document);
     setSelection([result.node.id]);
@@ -1403,7 +1415,7 @@ export function KonvaBoard({
             fontSize: editingElement.kind === "text" ? textStyleFor(editingElement).fontSize : 16,
             fontWeight: editingElement.kind === "text" ? textStyleFor(editingElement).fontWeight : "bold",
             lineHeight: 1.35,
-            textAlign: editingElement.kind === "text" || editingElement.kind === "note" ? "left" : "center",
+            textAlign: editingElement.kind === "text" ? textStyleFor(editingElement).textAlign : editingElement.kind === "note" ? "left" : "center",
           }}
           value={editing.value}
           onChange={(event) => setEditing({ ...editing, value: event.target.value })}

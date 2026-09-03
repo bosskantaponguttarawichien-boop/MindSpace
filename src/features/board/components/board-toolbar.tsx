@@ -1,6 +1,6 @@
 "use client";
 
-import { Bold, FileText, GitBranchPlus, ImagePlus, Palette, Pencil, RectangleHorizontal, Spline, Waypoints } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Bold, FileText, GitBranchPlus, ImagePlus, Palette, Pencil, RectangleHorizontal, Spline, Waypoints } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { IconAction } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
@@ -146,6 +146,13 @@ export function BoardToolbar({
       {openCard === "text" ? (
         <ToolCard label={t("textFormatting")}>
           <IconAction label={t("bold")} icon={Bold} active={textStyle.fontWeight === "bold"} onClick={() => onSetTextStyle({ fontWeight: textStyle.fontWeight === "bold" ? "normal" : "bold" })} />
+          <ToolCardSeparator />
+          <ToolCardRow>
+            <ToolCardLabel>{t("textAlign")}</ToolCardLabel>
+            <IconAction label={t("textAlignLeft")} icon={AlignLeft} active={textStyle.textAlign === "left"} onClick={() => onSetTextStyle({ textAlign: "left" })} />
+            <IconAction label={t("textAlignCenter")} icon={AlignCenter} active={textStyle.textAlign === "center"} onClick={() => onSetTextStyle({ textAlign: "center" })} />
+            <IconAction label={t("textAlignRight")} icon={AlignRight} active={textStyle.textAlign === "right"} onClick={() => onSetTextStyle({ textAlign: "right" })} />
+          </ToolCardRow>
           <ToolCardSeparator />
           <ToolCardRow>
             <ToolCardLabel>{t("textSize")}</ToolCardLabel>

@@ -81,12 +81,22 @@ describe("BoardToolbar", () => {
 
   it("marks the selected text style in the format card", async () => {
     const user = userEvent.setup();
-    renderToolbar({ activeTool: "text", textStyle: { fontSize: 32, fontWeight: "bold" } });
+    renderToolbar({ activeTool: "text", textStyle: { fontSize: 32, fontWeight: "bold", textAlign: "left" } });
 
     await user.click(screen.getByRole("button", { name: "Text" }));
 
     expect(screen.getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "32 px" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("sets text alignment for future text and a selected text element", async () => {
+    const user = userEvent.setup();
+    const { onSetTextStyle } = renderToolbar({ activeTool: "text" });
+
+    await user.click(screen.getByRole("button", { name: "Text" }));
+    await user.click(screen.getByRole("button", { name: "Center text" }));
+
+    expect(onSetTextStyle).toHaveBeenCalledWith({ textAlign: "center" });
   });
 
   it("keeps the tool selected when the card is toggled shut", async () => {

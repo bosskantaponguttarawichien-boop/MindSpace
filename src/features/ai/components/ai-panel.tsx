@@ -17,6 +17,7 @@ const actions: Array<{ label: AiActionType; icon: typeof Sparkles }> = [
   { label: "summarize", icon: Sparkles },
   { label: "expand", icon: ListPlus },
   { label: "check", icon: CheckCircle2 },
+  { label: "proofread", icon: ScanSearch },
   { label: "mindMap", icon: GitFork },
   { label: "explain", icon: CircleHelp },
   { label: "improve", icon: ScanSearch },
@@ -316,6 +317,8 @@ export function AiPanel({
             placeholder={t("askAiPlaceholder")}
             disabled={loading}
             onFocus={() => {
+              // Keep the focused native control inside the visual viewport after
+              // iOS finishes resizing it for the on-screen keyboard.
               window.requestAnimationFrame(() => {
                 inputRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
               });

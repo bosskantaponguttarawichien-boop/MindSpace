@@ -20,6 +20,7 @@ export interface AiProvider {
 
 const SYSTEM_PROMPT = `You are MindSpace AI, an intelligent personal knowledge workspace assistant for visual mind-mapping and whiteboarding.
 You help users explore thoughts, summarize content, explain concepts, expand brainstorms, check completeness, build mind maps, and modify board elements/connections safely.
+When asked to proofread or find incorrect words, list each issue with the original wording, a correction, and a short reason. Do not create board changes unless the user explicitly asks for them.
 
 CRITICAL WORKFLOW:
 When the user asks to add new concepts, expand ideas, create mind maps, or modify existing elements/connections on the board, ALWAYS provide:
@@ -220,6 +221,13 @@ export class MockAiProvider implements AiProvider {
       const text = isThai
         ? "การตรวจสอบเนื้อหา: โครงสร้างบนบอร์ดมีความสมบูรณ์เบื้องต้น แนะนำให้เพิ่มเติมรายละเอียดเชิงปฏิบัติการหรือผลลัพธ์ที่คาดหวังในแต่ละกิ่งความคิด"
         : "Content Review: The board structure is logically consistent. Consider adding action items or concrete deliverables to each branch.";
+      return { text, provider: "mock-ai", isMock: true };
+    }
+
+    if (params.action === "proofread") {
+      const text = isThai
+        ? "ตรวจคำผิด: ผมจะตรวจคำสะกด คำที่ใช้ไม่เหมาะสม และประโยคที่อ่านไม่ลื่นจากเนื้อหาที่เลือก พร้อมเสนอคำแก้ไขทีละจุด โดยจะไม่แก้บนบอร์ดเองจนกว่าคุณจะขอ"
+        : "Proofreading: I will flag spelling, word-choice, and clarity issues in the selected content, with a suggested correction and reason for each. I will not change the board unless you ask.";
       return { text, provider: "mock-ai", isMock: true };
     }
 

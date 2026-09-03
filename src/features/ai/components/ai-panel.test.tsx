@@ -66,6 +66,19 @@ describe("AiPanel", () => {
     });
   });
 
+  it("offers proofread as a quick action", async () => {
+    const user = userEvent.setup();
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ text: "No spelling issues found.", provider: "mock-ai", isMock: true }),
+    });
+
+    render(<LocaleProvider><AiPanel document={mockDocument} /></LocaleProvider>);
+    await user.click(screen.getByRole("button", { name: "Proofread" }));
+
+    await waitFor(() => expect(screen.getByText("No spelling issues found.")).toBeInTheDocument());
+  });
+
   it("displays proposal card and calls onApplyProposal when Approved", async () => {
     const user = userEvent.setup();
     const onApplyProposal = vi.fn();
@@ -235,4 +248,3 @@ describe("AiPanel", () => {
     });
   });
 });
-

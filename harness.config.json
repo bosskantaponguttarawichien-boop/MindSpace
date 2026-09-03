@@ -23,6 +23,7 @@
     "docs/harness/decisions/0005-private-sync-links.md",
     "docs/harness/decisions/0006-board-image-files.md",
     "docs/harness/decisions/0013-email-password-account-linking.md",
+    "docs/harness/decisions/0014-text-alignment-and-tool-defaults.md",
     "storage.rules"
   ],
   "validation": {

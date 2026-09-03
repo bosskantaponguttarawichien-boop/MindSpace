@@ -15,7 +15,7 @@ function board(overrides: Partial<BoardDocument> = {}): BoardDocument {
 describe("sameBoardDocument", () => {
   it("uses the historical text defaults when a style is not persisted", () => {
     expect(textStyleFor({})).toEqual(DEFAULT_TEXT_STYLE);
-    expect(textStyleFor({ textStyle: { fontSize: 32, fontWeight: "bold" } })).toEqual({ fontSize: 32, fontWeight: "bold" });
+    expect(textStyleFor({ textStyle: { fontSize: 32, fontWeight: "bold" } })).toEqual({ fontSize: 32, fontWeight: "bold", textAlign: "left" });
   });
 
   it("ignores key order, so a Firestore echo does not read as a new document", () => {

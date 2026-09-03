@@ -6,7 +6,7 @@ import type {
   ConnectionStyle,
 } from "@/domain/board/board-document";
 
-export type AiActionType = "summarize" | "explain" | "expand" | "check" | "improve" | "mindMap";
+export type AiActionType = "summarize" | "explain" | "expand" | "check" | "proofread" | "improve" | "mindMap";
 
 export type AiProposedElement = {
   kind: "note" | "text" | "rectangle" | "ellipse" | "diamond" | "triangle";

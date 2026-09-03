@@ -99,6 +99,17 @@ describe("BoardToolbar", () => {
     expect(onSetTextStyle).toHaveBeenCalledWith({ textAlign: "center" });
   });
 
+  it("sets alignment directly from the shapes menu for a selected shape", async () => {
+    const user = userEvent.setup();
+    const { onSetTextStyle } = renderToolbar({ hasSelection: true, selectedShapeKind: "rectangle", textStyle: { ...DEFAULT_TEXT_STYLE, textAlign: "center" } });
+
+    await user.click(screen.getByRole("button", { name: "Shapes" }));
+
+    expect(screen.getByRole("button", { name: "Center text" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Align text right" }));
+    expect(onSetTextStyle).toHaveBeenCalledWith({ textAlign: "right" });
+  });
+
   it("keeps the tool selected when the card is toggled shut", async () => {
     const user = userEvent.setup();
     const { onToolChange } = renderToolbar({ activeTool: "rectangle" });

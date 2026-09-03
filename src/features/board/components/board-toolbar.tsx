@@ -172,6 +172,13 @@ export function BoardToolbar({
           </ToolCardRow>
           <ToolCardSeparator />
           <ColorRow label={t("shapeColor")} onSelect={onSetColor} />
+          <ToolCardSeparator />
+          <ToolCardRow>
+            <ToolCardLabel>{t("textAlign")}</ToolCardLabel>
+            <IconAction label={t("textAlignLeft")} icon={AlignLeft} active={textStyle.textAlign === "left"} onClick={() => onSetTextStyle({ textAlign: "left" })} />
+            <IconAction label={t("textAlignCenter")} icon={AlignCenter} active={textStyle.textAlign === "center"} onClick={() => onSetTextStyle({ textAlign: "center" })} />
+            <IconAction label={t("textAlignRight")} icon={AlignRight} active={textStyle.textAlign === "right"} onClick={() => onSetTextStyle({ textAlign: "right" })} />
+          </ToolCardRow>
         </ToolCard>
       ) : null}
 

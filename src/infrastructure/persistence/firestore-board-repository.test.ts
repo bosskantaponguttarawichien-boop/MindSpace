@@ -31,15 +31,16 @@ describe("parseBoardDocument", () => {
   });
 
   it("accepts a valid persisted text style and rejects an invalid one", () => {
-    const board = (textStyle: unknown) => ({
+    const board = (textStyle: unknown, kind: "text" | "rectangle" = "text") => ({
       version: 1,
       id: "board:text-style",
       name: "Text style",
-      elements: [{ id: "element:text", kind: "text", x: 1, y: 2, width: 120, height: 48, text: "Heading", textStyle }],
+      elements: [{ id: "element:text", kind, x: 1, y: 2, width: 120, height: 48, text: "Heading", textStyle }],
       connections: [],
     });
 
     expect(parseBoardDocument(board({ fontSize: 32, fontWeight: "bold" }))).not.toBeNull();
+    expect(parseBoardDocument(board({ fontSize: 18, fontWeight: "normal", textAlign: "right" }, "rectangle"))).not.toBeNull();
     expect(parseBoardDocument(board({ fontSize: 19, fontWeight: "bold" }))).toBeNull();
     expect(parseBoardDocument(board({ fontSize: 32, fontWeight: "heavy" }))).toBeNull();
   });

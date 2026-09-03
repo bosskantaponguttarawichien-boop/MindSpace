@@ -41,7 +41,7 @@ test("exposes the core board tools", async ({ page }) => {
   }
 });
 
-test("creates a Konva shape and can undo it", async ({ page }) => {
+test("keeps the shape tool active for repeated placement and can undo", async ({ page }) => {
   await page.goto("/");
   const board = page.getByTestId("konva-board");
   await expect(board).toHaveAttribute("data-element-count", "5");
@@ -49,9 +49,13 @@ test("creates a Konva shape and can undo it", async ({ page }) => {
   await page.getByRole("button", { name: "Rectangle" }).click();
   await board.locator("canvas").first().click({ position: { x: 520, y: 270 } });
   await expect(board).toHaveAttribute("data-element-count", "6");
+  await expect(page.getByRole("button", { name: "Rectangle" })).toHaveAttribute("aria-pressed", "true");
+
+  await board.locator("canvas").first().click({ position: { x: 700, y: 320 } });
+  await expect(board).toHaveAttribute("data-element-count", "7");
 
   await page.getByRole("button", { name: "Undo" }).click();
-  await expect(board).toHaveAttribute("data-element-count", "5");
+  await expect(board).toHaveAttribute("data-element-count", "6");
 });
 
 test("uses keyboard tool shortcuts and temporarily pans while Space is held", async ({ page }) => {

@@ -23,7 +23,7 @@ function newNode(id: BoardElementId, x: number, y: number, text: string, default
     ellipse: { width: 200, height: 120 }, diamond: { width: 180, height: 140 }, triangle: { width: 180, height: 140 },
   };
   const { width, height } = dimensions[defaults.kind];
-  return { id, kind: defaults.kind, x, y, width, height, text, color: defaults.color, ...(defaults.kind === "text" ? { textStyle: defaults.textStyle } : {}) };
+  return { id, kind: defaults.kind, x, y, width, height, text, color: defaults.color, ...(defaults.kind === "note" ? {} : { textStyle: defaults.textStyle }) };
 }
 
 export function appendMindMapChild(document: BoardDocument, parentId: BoardElementId, id: BoardElementId, connectionId: `connection:${string}`, text = "New idea", defaults = DEFAULT_MIND_MAP_DEFAULTS): MindMapResult | null {

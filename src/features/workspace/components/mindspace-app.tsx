@@ -17,6 +17,7 @@ import type { BoardEngine, BoardExport } from "@/infrastructure/board-engine/boa
 import { usePersistedBoards } from "@/features/workspace/hooks/use-persisted-boards";
 import { useLocale } from "@/lib/i18n/locale-provider";
 import { useAccount } from "@/features/workspace/hooks/use-account";
+import { useVisualViewport } from "@/shared/hooks/use-visual-viewport";
 
 export function MindSpaceApp() {
   const { t, locale } = useLocale();
@@ -34,6 +35,7 @@ export function MindSpaceApp() {
   const [exportPreview, setExportPreview] = useState<BoardExport | null>(null);
   const [selectedIds, setSelectedIds] = useState<BoardElementId[]>([]);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  const mobileViewport = useVisualViewport();
   const activeBoard = boards.find((board) => board.id === activeBoardId);
 
   const aiChatState = useAiChat({
@@ -190,9 +192,13 @@ export function MindSpaceApp() {
       {/* Mobile AI Popup Container (Persistent to preserve background processing and conversation state) */}
       <div
         className={cn(
-          "fixed inset-0 z-50 flex flex-col justify-end p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:p-4 lg:hidden transition-[visibility] duration-300",
+          "fixed start-0 top-0 z-50 flex w-full flex-col justify-end p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:p-4 lg:hidden transition-[visibility] duration-300",
           mobileAiOpen ? "visible pointer-events-auto" : "invisible pointer-events-none delay-300"
         )}
+        style={mobileViewport ? {
+          height: `${mobileViewport.height}px`,
+          transform: `translateY(${mobileViewport.offsetTop}px)`,
+        } : { height: "100dvh" }}
         aria-hidden={!mobileAiOpen}
       >
         {/* Backdrop: Smooth fade in/out */}
@@ -206,7 +212,7 @@ export function MindSpaceApp() {
         {/* Popup Card: Smooth slide-up with subtle scale & spring-like curve */}
         <div
           className={cn(
-            "relative z-10 mx-auto flex h-[92dvh] max-h-[850px] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            "relative z-10 mx-auto flex h-full max-h-[850px] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
             mobileAiOpen
               ? "translate-y-0 scale-100 opacity-100"
               : "translate-y-8 scale-[0.97] opacity-0"

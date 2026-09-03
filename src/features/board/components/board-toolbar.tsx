@@ -164,16 +164,16 @@ export function BoardToolbar({
       ) : null}
 
       {openCard === "shape" ? (
-        <ToolCard label={t("shapes")}>
-          <ToolCardRow>
+        <ToolCard label={t("shapes")} className="flex-col items-stretch gap-2">
+          <ToolCardRow className="w-full overflow-x-auto touch-pan-x scrollbar-none">
             {shapeTools.map((tool) => (
               <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id || selectedShapeKind === tool.id} onClick={() => pickShapeTool(tool.id)} />
             ))}
           </ToolCardRow>
-          <ToolCardSeparator />
+          <Separator orientation="horizontal" />
           <ColorRow label={t("shapeColor")} onSelect={onSetColor} />
-          <ToolCardSeparator />
-          <ToolCardRow>
+          <Separator orientation="horizontal" />
+          <ToolCardRow className="w-full overflow-x-auto touch-pan-x scrollbar-none">
             <ToolCardLabel>{t("textAlign")}</ToolCardLabel>
             <IconAction label={t("textAlignLeft")} icon={AlignLeft} active={textStyle.textAlign === "left"} onClick={() => onSetTextStyle({ textAlign: "left" })} />
             <IconAction label={t("textAlignCenter")} icon={AlignCenter} active={textStyle.textAlign === "center"} onClick={() => onSetTextStyle({ textAlign: "center" })} />

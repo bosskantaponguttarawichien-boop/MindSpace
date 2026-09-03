@@ -14,6 +14,7 @@ export type BoardScope =
 
 const colors = new Set<string>(BOARD_COLORS);
 const kinds = new Set(["text", "note", "rectangle", "ellipse", "diamond", "triangle", "draw", "image"]);
+const textStyleKinds = new Set(["text", "rectangle", "ellipse", "diamond", "triangle"]);
 const textFontSizes = new Set<number>(TEXT_FONT_SIZES);
 
 function isBoardTextStyle(value: unknown): value is Partial<BoardTextStyle> {
@@ -35,7 +36,7 @@ function isBoardElement(value: unknown): value is BoardElement {
     (candidate.color === undefined || (typeof candidate.color === "string" && colors.has(candidate.color))) &&
     (candidate.points === undefined || (Array.isArray(candidate.points) && candidate.points.every((point) => typeof point === "number" && Number.isFinite(point)))) &&
     (candidate.assetUrl === undefined || (typeof candidate.assetUrl === "string" && /^https:\/\//.test(candidate.assetUrl))) &&
-    (candidate.textStyle === undefined || (candidate.kind === "text" && isBoardTextStyle(candidate.textStyle)))
+    (candidate.textStyle === undefined || (textStyleKinds.has(candidate.kind) && isBoardTextStyle(candidate.textStyle)))
   );
 }
 

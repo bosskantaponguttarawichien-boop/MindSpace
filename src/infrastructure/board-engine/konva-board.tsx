@@ -1078,8 +1078,14 @@ export function KonvaBoard({
     const element = created && elementColorRef.current ? { ...created, color: elementColorRef.current } : created;
     if (element) {
       commit({ ...documentRef.current, elements: [...documentRef.current.elements, element] });
-      setSelection([element.id]);
-      onToolChange("select");
+      const isShape = element.kind === "rectangle" || element.kind === "ellipse" || element.kind === "diamond" || element.kind === "triangle";
+      if (isShape) {
+        // Shapes are a repeated-placement tool: keep it active so the user can add several.
+        setSelection([]);
+      } else {
+        setSelection([element.id]);
+        onToolChange("select");
+      }
     }
   }
 

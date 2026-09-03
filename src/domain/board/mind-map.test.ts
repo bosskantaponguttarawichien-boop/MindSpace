@@ -13,6 +13,18 @@ describe("mind-map commands", () => {
     expect(result?.document.connections).toContainEqual({ id: "connection:root-child", fromId: root.id, toId: "element:child" });
   });
 
+  it("keeps an aligned shape's text style when it creates a child", () => {
+    const document = { ...createEmptyBoard(), elements: [root] };
+    const result = appendMindMapChild(document, root.id, "element:child", "connection:root-child", "", {
+      kind: "rectangle",
+      color: "blue",
+      textStyle: { fontSize: 18, fontWeight: "normal", textAlign: "right" },
+      connection: {},
+    });
+
+    expect(result?.node).toMatchObject({ kind: "rectangle", textStyle: { textAlign: "right" } });
+  });
+
   it("adds a sibling under the current node and keeps the same parent connection", () => {
     const child = { id: "element:child" as const, kind: "note" as const, x: 330, y: 20, width: 190, height: 110, text: "Child", color: "violet" as const };
     const document = { ...createEmptyBoard(), elements: [root, child], connections: [{ id: "connection:root-child" as const, fromId: root.id, toId: child.id }] };

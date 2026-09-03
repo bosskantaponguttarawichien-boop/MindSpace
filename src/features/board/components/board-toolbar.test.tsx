@@ -110,6 +110,17 @@ describe("BoardToolbar", () => {
     expect(onSetTextStyle).toHaveBeenCalledWith({ textAlign: "right" });
   });
 
+  it("stacks shape, colour, and alignment controls on mobile instead of clipping them", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ hasSelection: true, selectedShapeKind: "rectangle" });
+
+    await user.click(screen.getByRole("button", { name: "Shapes" }));
+
+    expect(screen.getByRole("group", { name: "Shapes" })).toHaveClass("flex-col", "items-stretch");
+    expect(screen.getByRole("button", { name: "Red" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Align text left" })).toBeInTheDocument();
+  });
+
   it("keeps the tool selected when the card is toggled shut", async () => {
     const user = userEvent.setup();
     const { onToolChange } = renderToolbar({ activeTool: "rectangle" });

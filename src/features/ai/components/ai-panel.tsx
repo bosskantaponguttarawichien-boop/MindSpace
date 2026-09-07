@@ -19,6 +19,7 @@ const actions: Array<{ label: AiActionType; icon: typeof Sparkles }> = [
   { label: "check", icon: CheckCircle2 },
   { label: "proofread", icon: ScanSearch },
   { label: "mindMap", icon: GitFork },
+  { label: "updateMindMap", icon: GitFork },
   { label: "explain", icon: CircleHelp },
   { label: "improve", icon: ScanSearch },
 ];

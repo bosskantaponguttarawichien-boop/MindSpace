@@ -256,7 +256,36 @@ export class MockAiProvider implements AiProvider {
       return { text, proposal, provider: "mock-ai", isMock: true };
     }
 
-    // Default or expand / mindMap -> provide an insightful proposal
+    if (params.action === "mindMap") {
+      const importedLines = lastUserMessage
+        .replace(/\n\n\[Requested action: mindMap\]\s*$/, "")
+        .split(/\r?\n|[•;]+/)
+        .map((line) => line.replace(/^[-*#\d.\s]+/, "").trim())
+        .filter((line) => line.length >= 3)
+        .slice(0, 8);
+      const rootText = importedLines[0] ?? (isThai ? "ข้อมูลที่นำเข้า" : "Imported data");
+      const childLines = importedLines.slice(1);
+      const proposal: AiProposal = {
+        id: `proposal:${crypto.randomUUID()}`,
+        title: isThai ? "Mind map จากข้อมูลที่วาง" : "Mind map from pasted data",
+        explanation: isThai
+          ? "นี่คือตัวอย่างโครงสร้างจากข้อมูลที่วางไว้ ตรวจสอบก่อนกด ยอมรับ เพื่อเพิ่มลงบอร์ด"
+          : "This is a preview derived from the pasted data. Review it before approving the board changes.",
+        elements: [
+          { kind: "rectangle", text: rootText, color: "indigo" },
+          ...childLines.map((text) => ({ kind: "note" as const, text, color: "teal" as const })),
+        ],
+        connections: childLines.map((_, index) => ({ fromIndex: 0, toIndex: index + 1 })),
+      };
+      return {
+        text: isThai ? "ผมสร้างตัวอย่าง Mind map จากข้อมูลที่วางให้แล้ว" : "I created a mind-map preview from your pasted data.",
+        proposal,
+        provider: "mock-ai",
+        isMock: true,
+      };
+    }
+
+    // Default or expand -> provide an insightful proposal
     const proposal: AiProposal = {
       id: `proposal:${crypto.randomUUID()}`,
       title: isThai ? "แตกกิ่งแนวคิดใหม่ 2 หัวข้อ" : "Expand with 2 Sub-topics",

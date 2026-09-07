@@ -23,6 +23,8 @@ You help users explore thoughts, summarize content, explain concepts, expand bra
 When asked to proofread or find incorrect words, list each issue with the original wording, a correction, and a short reason. Do not create board changes unless the user explicitly asks for them.
 
 CRITICAL WORKFLOW:
+Treat the user's latest request as the source of truth. A numbered list is one compound request: address every numbered item in order. Never replace a requested review, edit, deletion, rename, regroup, or conversion with generic suggestions such as action plans or deliverables.
+
 When the user asks to add new concepts, expand ideas, create mind maps, update an existing mind map, or modify existing elements/connections on the board, ALWAYS provide:
 1. A clear, helpful conversational explanation.
 2. A structured proposal codeblock in JSON formatted like one of the following:
@@ -64,6 +66,10 @@ Case C: Renaming or changing EXISTING elements (including note to a shape) (e.g.
   ]
 }
 \`\`\`
+
+For edits, use the element IDs included in Current Board State. Never omit an ID unless the user explicitly says "all" / "ทุกอัน"; an omitted ID applies to every element and is unsafe for a scoped edit. Convert a note to a shape by changing its kind to rectangle, ellipse, diamond, or triangle while preserving its text. Prefer rectangle when the user says only "shape" / "shapes".
+
+For reviewing content, answer the requested review directly. Only include a proposal when the user explicitly asks to change the board. If an edit target, desired replacement text, or intended grouping is ambiguous, ask one concise clarification rather than guessing or adding unrelated nodes.
 
 Allowed values:
 - element kinds: note, text, rectangle, ellipse, diamond, triangle.
@@ -200,6 +206,19 @@ export class GeminiAiProvider implements AiProvider {
   }
 }
 
+type ContextElement = { id: `element:${string}`; kind: string };
+
+function readContextElements(contextText: string): ContextElement[] {
+  const elements: ContextElement[] = [];
+  const pattern = /^\d+\. \[([^\]]+)\] \(ID: (element:[^)]+)\)/gm;
+  for (const match of contextText.matchAll(pattern)) {
+    const kind = match[1];
+    const id = match[2];
+    if (kind && id) elements.push({ kind, id: id as `element:${string}` });
+  }
+  return elements;
+}
+
 export class MockAiProvider implements AiProvider {
   async chat(params: AiChatParams): Promise<AiChatResult> {
     const isThai = params.locale === "th" || /[\u0E00-\u0E7F]/.test(params.contextText);
@@ -219,21 +238,21 @@ export class MockAiProvider implements AiProvider {
       return { text, provider: "mock-ai", isMock: true };
     }
 
-    if (params.action === "check") {
+    if (params.action === "check" && !lastUserMessage) {
       const text = isThai
         ? "การตรวจสอบเนื้อหา: โครงสร้างบนบอร์ดมีความสมบูรณ์เบื้องต้น แนะนำให้เพิ่มเติมรายละเอียดเชิงปฏิบัติการหรือผลลัพธ์ที่คาดหวังในแต่ละกิ่งความคิด"
         : "Content Review: The board structure is logically consistent. Consider adding action items or concrete deliverables to each branch.";
       return { text, provider: "mock-ai", isMock: true };
     }
 
-    if (params.action === "proofread") {
+    if (params.action === "proofread" && !lastUserMessage) {
       const text = isThai
         ? "ตรวจคำผิด: ผมจะตรวจคำสะกด คำที่ใช้ไม่เหมาะสม และประโยคที่อ่านไม่ลื่นจากเนื้อหาที่เลือก พร้อมเสนอคำแก้ไขทีละจุด โดยจะไม่แก้บนบอร์ดเองจนกว่าคุณจะขอ"
         : "Proofreading: I will flag spelling, word-choice, and clarity issues in the selected content, with a suggested correction and reason for each. I will not change the board unless you ask.";
       return { text, provider: "mock-ai", isMock: true };
     }
 
-    if (params.action === "improve") {
+    if (params.action === "improve" && !lastUserMessage) {
       const text = isThai
         ? "ข้อเสนอแนะในการปรับปรุง: สามารถจัดกลุ่มหัวข้อย่อยให้กระชับขึ้น และใช้สีเพื่อจำแนกระดับความสำคัญหรือประเภทของงานได้ชัดเจนยิ่งขึ้น"
         : "Improvement Suggestion: Group secondary topics into distinct clusters and leverage color coding to distinguish priority levels.";
@@ -256,6 +275,47 @@ export class MockAiProvider implements AiProvider {
         ? `ได้ครับ ผมได้สร้างข้อเสนอในการปรับเปลี่ยนหัวเส้นเชื่อมต่อ (Connector) ให้เรียบร้อยแล้ว ตรวจสอบและกด "ยอมรับ (Approve)" เพื่อปรับบนบอร์ดได้เลยครับ`
         : `I have prepared a proposal to update your connector endpoints. Review and click "Approve" to apply the changes to your board.`;
       return { text, proposal, provider: "mock-ai", isMock: true };
+    }
+
+    const scopedElements = readContextElements(params.contextText);
+    const wantsShapeConversion = /เปลี่ยน(?:.*?)(?:เป็น|ให้เป็น)\s*(?:shape|shapes|รูปทรง)|(?:change|convert)\s+(?:.*?)(?:to|into)\s+shapes?/i.test(lastUserMessage);
+    if (wantsShapeConversion) {
+      const targets = scopedElements.filter((element) => element.kind === "note");
+      if (targets.length === 0) {
+        return {
+          text: isThai
+            ? "ไม่พบ Sticky note ในขอบเขตที่เลือก จึงยังไม่มีรายการให้เปลี่ยนเป็น Shape"
+            : "There are no sticky notes in the selected scope to convert into shapes.",
+          provider: "mock-ai",
+          isMock: true,
+        };
+      }
+
+      const proposal: AiProposal = {
+        id: `proposal:${crypto.randomUUID()}`,
+        title: isThai ? `เปลี่ยน Sticky note ${targets.length} รายการเป็น Shape` : `Convert ${targets.length} sticky notes to shapes`,
+        explanation: isThai
+          ? "เปลี่ยนเฉพาะ Sticky note ในขอบเขตที่เลือกเป็นสี่เหลี่ยม และคงข้อความเดิมไว้"
+          : "Only the sticky notes in the selected scope will become rectangles; their text stays unchanged.",
+        updateElements: targets.map((element) => ({ id: element.id, kind: "rectangle" })),
+      };
+
+      return {
+        text: isThai
+          ? "ผมเตรียมการเปลี่ยน Sticky note ที่เลือกเป็น Shape แล้ว โดยไม่เพิ่มหัวข้ออื่นที่ไม่เกี่ยวข้อง"
+          : "I prepared the shape conversion without adding unrelated topics.",
+        proposal,
+        provider: "mock-ai",
+        isMock: true,
+      };
+    }
+
+    const asksForReview = params.action === "check" || /review|ตรวจ|สรุป.*(?:a\.?\s*an\.?\s*the|article)|a\.?\s*an\.?\s*the/i.test(lastUserMessage);
+    if (asksForReview) {
+      const text = isThai
+        ? "ผลการ Review: ผมจะไม่เพิ่มหัวข้อใหม่ที่ไม่เกี่ยวข้อง\n\n• การแบ่งหัวข้อ: ต้องจัดตามความหมายของเนื้อหาจริง ไม่ควรเดาจากชื่อหัวข้อ\n• รูปแบบ: หากต้องการเปลี่ยน Sticky note เป็น Shape ให้สั่งเป็นรายการแก้ไขแยกจากการ Review\n• a / an / the: ใช้ a/an เมื่อกล่าวถึงคำนามเอกพจน์แบบไม่เฉพาะเจาะจง (a = เสียงพยัญชนะ, an = เสียงสระ) และใช้ the เมื่อกล่าวถึงสิ่งที่ระบุชัดหรือเคยกล่าวถึงแล้ว\n\nตอนนี้เป็นโหมดตัวอย่าง จึงยังวิเคราะห์ความหมายและจัดกลุ่มเนื้อหาแบบ AI จริงไม่ได้ กรุณาใส่ OPENAI_API_KEY หรือ GEMINI_API_KEY เพื่อให้ AI วิเคราะห์ข้อความบนบอร์ดตามบริบทได้จริง"
+        : "Review: I will not add unrelated topics.\n\n• Group content by its actual meaning, not guessed labels.\n• Keep shape conversion as an explicit board edit, separate from review.\n• Use a/an for a non-specific singular noun (a before a consonant sound; an before a vowel sound), and the for something specific or already mentioned.\n\nDemo mode cannot reliably infer meaning or regroup content. Configure OPENAI_API_KEY or GEMINI_API_KEY for contextual analysis.";
+      return { text, provider: "mock-ai", isMock: true };
     }
 
     if (params.action === "updateMindMap") {
@@ -323,7 +383,18 @@ export class MockAiProvider implements AiProvider {
       };
     }
 
-    // Default or expand -> provide an insightful proposal
+    // Do not invent unrelated changes when the demo provider cannot understand a free-form request.
+    if (lastUserMessage) {
+      return {
+        text: isThai
+          ? "ผมเข้าใจคำขอแล้ว แต่ตอนนี้แอปอยู่ในโหมดตัวอย่าง จึงจะไม่เดาและเพิ่มหัวข้อที่ไม่เกี่ยวข้องให้ครับ ใส่ OPENAI_API_KEY หรือ GEMINI_API_KEY เพื่อให้ AI วิเคราะห์บอร์ดตามบริบทและสร้างข้อเสนอที่ตรวจสอบได้"
+          : "I understand the request, but the app is in demo mode, so I will not guess and add unrelated topics. Configure OPENAI_API_KEY or GEMINI_API_KEY for contextual, reviewable proposals.",
+        provider: "mock-ai",
+        isMock: true,
+      };
+    }
+
+    // Default quick action: offer a small, explicit expansion.
     const proposal: AiProposal = {
       id: `proposal:${crypto.randomUUID()}`,
       title: isThai ? "แตกกิ่งแนวคิดใหม่ 2 หัวข้อ" : "Expand with 2 Sub-topics",

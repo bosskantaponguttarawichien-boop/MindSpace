@@ -48,6 +48,7 @@ export type AiProposal = {
   connections?: AiProposedConnection[];
   updateConnections?: AiProposedConnectionUpdate[];
   updateElements?: AiProposedElementUpdate[];
+  deleteElementIds?: string[];
 };
 
 export type AiResponsePayload = {
@@ -161,8 +162,12 @@ export function validateProposal(raw: unknown): AiProposal | null {
     }
   }
 
-  // Must have at least one actionable item: new elements, connection updates, or element updates
-  if (validElements.length === 0 && validUpdateConnections.length === 0 && validUpdateElements.length === 0) {
+  const deleteElementIds = Array.isArray(candidate.deleteElementIds)
+    ? [...new Set(candidate.deleteElementIds.filter((id): id is string => typeof id === "string" && id.startsWith("element:")))].slice(0, 20)
+    : [];
+
+  // Must have at least one actionable item.
+  if (validElements.length === 0 && validUpdateConnections.length === 0 && validUpdateElements.length === 0 && deleteElementIds.length === 0) {
     return null;
   }
 
@@ -174,6 +179,7 @@ export function validateProposal(raw: unknown): AiProposal | null {
     connections: validConnections.length > 0 ? validConnections.slice(0, 30) : undefined,
     updateConnections: validUpdateConnections.length > 0 ? validUpdateConnections.slice(0, 30) : undefined,
     updateElements: validUpdateElements.length > 0 ? validUpdateElements.slice(0, 30) : undefined,
+    deleteElementIds: deleteElementIds.length > 0 ? deleteElementIds : undefined,
   };
 }
 

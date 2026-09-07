@@ -54,7 +54,7 @@ Case B: Modifying EXISTING connectors (e.g. "เปลี่ยนหัว conn
 }
 \`\`\`
 
-Case C: Modifying EXISTING elements (e.g. "เปลี่ยนสีการ์ด", "change element color"):
+Case C: Renaming or changing EXISTING elements (including note to a shape) (e.g. "เปลี่ยนสีการ์ด", "change element color"):
 \`\`\`json
 {
   "title": "เปลี่ยนสีองค์ประกอบ",

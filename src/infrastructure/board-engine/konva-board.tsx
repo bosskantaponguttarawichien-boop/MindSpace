@@ -567,7 +567,8 @@ export function KonvaBoard({
     const hasElements = Boolean(proposal.elements && proposal.elements.length > 0);
     const hasConnUpdates = Boolean(proposal.updateConnections && proposal.updateConnections.length > 0);
     const hasElemUpdates = Boolean(proposal.updateElements && proposal.updateElements.length > 0);
-    if (!hasElements && !hasConnUpdates && !hasElemUpdates) return;
+    const hasDeletes = Boolean(proposal.deleteElementIds && proposal.deleteElementIds.length > 0);
+    if (!hasElements && !hasConnUpdates && !hasElemUpdates && !hasDeletes) return;
     const doc = documentRef.current;
 
     const referenceId = (proposal.elements?.[0]?.relativeToId as BoardElementId | undefined) ?? selectionRef.current[0];
@@ -667,10 +668,11 @@ export function KonvaBoard({
       }
     }
 
+    const deletedIds = new Set(proposal.deleteElementIds as BoardElementId[] | undefined);
     const nextDoc: BoardDocument = {
       ...doc,
-      elements: [...updatedElements, ...newElements],
-      connections: [...updatedConnections, ...newConnections],
+      elements: [...updatedElements, ...newElements].filter((element) => !deletedIds.has(element.id)),
+      connections: [...updatedConnections, ...newConnections].filter((connection) => !deletedIds.has(connection.fromId) && !deletedIds.has(connection.toId)),
     };
 
     commit(nextDoc);

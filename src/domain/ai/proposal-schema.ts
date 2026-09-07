@@ -177,41 +177,42 @@ export function validateProposal(raw: unknown): AiProposal | null {
   };
 }
 
-export function parseAiResponse(raw: string): AiResponsePayload {
-  const proposalJsonRegex = /```(?:json|proposal)?\s*(\{[\s\S]*?"title"\s*:[\s\S]*?\})\s*```/;
-  const match = raw.match(proposalJsonRegex);
+/**
+ * Reads complete fenced JSON blocks instead of stopping at the first closing brace.
+ * AI mind-map proposals contain nested element/connection objects, so a non-greedy
+ * brace regex would silently discard otherwise valid proposals.
+ */
+function extractFencedJsonBlocks(raw: string): Array<{ fullBlock: string; json: string }> {
+  const blocks: Array<{ fullBlock: string; json: string }> = [];
+  const expression = /```(?:json|proposal)?\s*([\s\S]*?)\s*```/gi;
+  for (const match of raw.matchAll(expression)) {
+    const json = match[1]?.trim();
+    if (json) blocks.push({ fullBlock: match[0], json });
+  }
+  return blocks;
+}
 
-  if (match && match[1]) {
-    try {
-      const parsed = JSON.parse(match[1]);
-      const proposal = validateProposal(parsed);
-      if (proposal) {
-        const cleanText = raw.replace(match[0], "").trim();
-        return {
-          text: cleanText || proposal.explanation,
-          proposal,
-        };
-      }
-    } catch {
-      // JSON parse failed, treat entire response as conversational text
+function proposalFromJson(raw: string): AiProposal | null {
+  try {
+    return validateProposal(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+export function parseAiResponse(raw: string): AiResponsePayload {
+  for (const block of extractFencedJsonBlocks(raw)) {
+    const proposal = proposalFromJson(block.json);
+    if (proposal) {
+      const cleanText = raw.replace(block.fullBlock, "").trim();
+      return { text: cleanText || proposal.explanation, proposal };
     }
   }
 
-  // Try parsing the entire raw string if it starts with { and contains "title"
   const trimmed = raw.trim();
-  if (trimmed.startsWith("{") && trimmed.endsWith("}") && trimmed.includes('"title"')) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      const proposal = validateProposal(parsed);
-      if (proposal) {
-        return {
-          text: proposal.explanation,
-          proposal,
-        };
-      }
-    } catch {
-      // fallback
-    }
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    const proposal = proposalFromJson(trimmed);
+    if (proposal) return { text: proposal.explanation, proposal };
   }
 
   return { text: raw };

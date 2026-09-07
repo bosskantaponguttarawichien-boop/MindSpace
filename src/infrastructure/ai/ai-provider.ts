@@ -23,7 +23,7 @@ You help users explore thoughts, summarize content, explain concepts, expand bra
 When asked to proofread or find incorrect words, list each issue with the original wording, a correction, and a short reason. Do not create board changes unless the user explicitly asks for them.
 
 CRITICAL WORKFLOW:
-When the user asks to add new concepts, expand ideas, create mind maps, or modify existing elements/connections on the board, ALWAYS provide:
+When the user asks to add new concepts, expand ideas, create mind maps, update an existing mind map, or modify existing elements/connections on the board, ALWAYS provide:
 1. A clear, helpful conversational explanation.
 2. A structured proposal codeblock in JSON formatted like one of the following:
 
@@ -40,6 +40,8 @@ Case A: Proposing NEW nodes / connections (e.g. expand ideas, mind map):
   ]
 }
 \`\`\`
+
+For "updateMindMap", the user must select the parent/root node. Do not create a duplicate root. Create only the new elements, and connect every new branch using that selected element ID as `fromId`.
 
 Case B: Modifying EXISTING connectors (e.g. "เปลี่ยนหัว connector ทุกอันเป็นวงกลม", "change connector head to circle"):
 \`\`\`json
@@ -256,7 +258,72 @@ export class MockAiProvider implements AiProvider {
       return { text, proposal, provider: "mock-ai", isMock: true };
     }
 
-    // Default or expand / mindMap -> provide an insightful proposal
+    if (params.action === "updateMindMap") {
+      const selectedRootId = params.contextText.match(/\(ID: (element:[^)]+)\)/)?.[1];
+      const importedLines = lastUserMessage
+        .replace(/\n\n\[Requested action: updateMindMap\]\s*$/, "")
+        .split(/\r?\n|[•;]+/)
+        .map((line) => line.replace(/^[-*#\d.\s]+/, "").trim())
+        .filter((line) => line.length >= 3)
+        .slice(0, 8);
+
+      if (!selectedRootId) {
+        return {
+          text: isThai
+            ? "กรุณาเลือก node หลักของ Mind map ก่อน แล้วจึงกด อัปเดต Mind map"
+            : "Select the mind map node you want to extend, then choose Update map.",
+          provider: "mock-ai",
+          isMock: true,
+        };
+      }
+
+      const proposal: AiProposal = {
+        id: `proposal:${crypto.randomUUID()}`,
+        title: isThai ? "เพิ่มข้อมูลใน Mind map เดิม" : "Extend existing mind map",
+        explanation: isThai
+          ? "ข้อเสนอนี้จะเพิ่มเฉพาะกิ่งใหม่ใต้ node ที่เลือก และไม่สร้างหัวข้อหลักซ้ำ"
+          : "This proposal adds only new branches beneath the selected node and does not duplicate the root.",
+        elements: importedLines.map((text) => ({ kind: "note" as const, text, color: "teal" as const })),
+        connections: importedLines.map((_, index) => ({ fromId: selectedRootId, toIndex: index })),
+      };
+      return {
+        text: isThai ? "ผมเตรียมข้อเสนอเพื่ออัปเดต Mind map เดิมแล้ว" : "I prepared an update proposal for the existing mind map.",
+        proposal,
+        provider: "mock-ai",
+        isMock: true,
+      };
+    }
+
+    if (params.action === "mindMap") {
+      const importedLines = lastUserMessage
+        .replace(/\n\n\[Requested action: mindMap\]\s*$/, "")
+        .split(/\r?\n|[•;]+/)
+        .map((line) => line.replace(/^[-*#\d.\s]+/, "").trim())
+        .filter((line) => line.length >= 3)
+        .slice(0, 8);
+      const rootText = importedLines[0] ?? (isThai ? "ข้อมูลที่นำเข้า" : "Imported data");
+      const childLines = importedLines.slice(1);
+      const proposal: AiProposal = {
+        id: `proposal:${crypto.randomUUID()}`,
+        title: isThai ? "Mind map จากข้อมูลที่วาง" : "Mind map from pasted data",
+        explanation: isThai
+          ? "นี่คือตัวอย่างโครงสร้างจากข้อมูลที่วางไว้ ตรวจสอบก่อนกด ยอมรับ เพื่อเพิ่มลงบอร์ด"
+          : "This is a preview derived from the pasted data. Review it before approving the board changes.",
+        elements: [
+          { kind: "rectangle", text: rootText, color: "indigo" },
+          ...childLines.map((text) => ({ kind: "note" as const, text, color: "teal" as const })),
+        ],
+        connections: childLines.map((_, index) => ({ fromIndex: 0, toIndex: index + 1 })),
+      };
+      return {
+        text: isThai ? "ผมสร้างตัวอย่าง Mind map จากข้อมูลที่วางให้แล้ว" : "I created a mind-map preview from your pasted data.",
+        proposal,
+        provider: "mock-ai",
+        isMock: true,
+      };
+    }
+
+    // Default or expand -> provide an insightful proposal
     const proposal: AiProposal = {
       id: `proposal:${crypto.randomUUID()}`,
       title: isThai ? "แตกกิ่งแนวคิดใหม่ 2 หัวข้อ" : "Expand with 2 Sub-topics",

@@ -19,6 +19,7 @@ const actions: Array<{ label: AiActionType; icon: typeof Sparkles }> = [
   { label: "check", icon: CheckCircle2 },
   { label: "proofread", icon: ScanSearch },
   { label: "mindMap", icon: GitFork },
+  { label: "updateMindMap", icon: GitFork },
   { label: "explain", icon: CircleHelp },
   { label: "improve", icon: ScanSearch },
 ];
@@ -57,7 +58,7 @@ export function AiPanel({
     clearMessages,
   } = chat;
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -300,8 +301,9 @@ export function AiPanel({
         </div>
       ) : null}
 
-      {/* Input Area */}
+      {/* Paste data or ask a question. Choose Mind map to turn pasted data into a previewable proposal. */}
       <div className="border-t border-border p-3 sm:p-4">
+        <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">{t("mindMapPasteHint")}</p>
         <form
           className="flex items-center gap-2"
           onSubmit={(e) => {
@@ -309,21 +311,27 @@ export function AiPanel({
             handleSend();
           }}
         >
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={t("askAiPlaceholder")}
+            placeholder={t("pasteDataPlaceholder")}
+            aria-label={t("pasteDataPlaceholder")}
+            maxLength={16_000}
+            rows={3}
             disabled={loading}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                handleSend();
+              }
+            }}
             onFocus={() => {
-              // Keep the focused native control inside the visual viewport after
-              // iOS finishes resizing it for the on-screen keyboard.
               window.requestAnimationFrame(() => {
                 inputRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
               });
             }}
-            className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-base outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 lg:text-xs"
+            className="flex-1 resize-none rounded-xl border border-border bg-background px-3 py-2 text-base leading-relaxed outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 lg:text-xs"
           />
           <Button
             type="submit"

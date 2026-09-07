@@ -41,7 +41,7 @@ Case A: Proposing NEW nodes / connections (e.g. expand ideas, mind map):
 }
 \`\`\`
 
-For "updateMindMap", the user must select the parent/root node. Do not create a duplicate root. Create only the new elements, and connect every new branch using that selected element ID as `fromId`.
+For "updateMindMap", the user must select the parent/root node. Do not create a duplicate root. Create only the new elements, and connect every new branch using that selected element ID as 'fromId'.
 
 Case B: Modifying EXISTING connectors (e.g. "เปลี่ยนหัว connector ทุกอันเป็นวงกลม", "change connector head to circle"):
 \`\`\`json

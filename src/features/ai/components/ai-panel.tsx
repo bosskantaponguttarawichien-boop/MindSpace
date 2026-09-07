@@ -247,6 +247,16 @@ export function AiPanel({
                   </div>
                 ) : null}
 
+                {msg.proposal.deleteElementIds && msg.proposal.deleteElementIds.length > 0 ? (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {msg.proposal.deleteElementIds.map((id) => (
+                      <span key={id} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-[11px] font-medium text-destructive">
+                        Delete: {id}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
                 {/* Proposal Decision Actions */}
                 <div className="mt-3 flex items-center justify-end gap-2 pt-2 border-t border-border">
                   {msg.proposalStatus === "pending" ? (

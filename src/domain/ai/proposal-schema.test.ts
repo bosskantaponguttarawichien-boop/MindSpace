@@ -97,3 +97,29 @@ Let me know if you would like more details.`;
     expect(parsed.text).toContain("ได้ครับ");
   });
 });
+
+
+it("parses a fenced mind-map proposal with nested nodes and connections", () => {
+  const response = parseAiResponse(`Here is a preview.
+
+\`\`\`json
+{
+  "title": "Backend map",
+  "explanation": "Organize the imported notes",
+  "elements": [
+    { "kind": "rectangle", "text": "Backend", "color": "indigo" },
+    { "kind": "note", "text": "API", "color": "teal" },
+    { "kind": "note", "text": "Database", "color": "teal" }
+  ],
+  "connections": [
+    { "fromIndex": 0, "toIndex": 1 },
+    { "fromIndex": 0, "toIndex": 2 }
+  ]
+}
+\`\`\`
+`);
+
+  expect(response.text).toBe("Here is a preview.");
+  expect(response.proposal?.elements).toHaveLength(3);
+  expect(response.proposal?.connections).toHaveLength(2);
+});

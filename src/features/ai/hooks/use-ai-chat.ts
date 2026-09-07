@@ -63,11 +63,17 @@ export function useAiChat({
     if (!customPrompt) setInput("");
 
     const userMessageId = `msg:${crypto.randomUUID()}`;
-    const displayUserText = action ? `✦ ${t(action)}` : textToSend;
+    // Keep pasted source data in the message sent to the server. Previously, choosing
+    // “Mind map” replaced the input with its label, so the model never received it.
+    const messageContent = action
+      ? textToSend
+        ? `${textToSend}\n\n[Requested action: ${action}]`
+        : `✦ ${t(action)}`
+      : textToSend;
 
     const newMessages: ChatMessage[] = [
       ...messages,
-      { id: userMessageId, role: "user", content: displayUserText },
+      { id: userMessageId, role: "user", content: messageContent },
     ];
     setMessages(newMessages);
     setLoading(true);

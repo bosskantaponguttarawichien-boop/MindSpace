@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { OpenAiChatGptProvider, GeminiAiProvider, getAiProvider } from "@/infrastructure/ai/ai-provider";
+import { OpenAiChatGptProvider, GeminiAiProvider, MockAiProvider, getAiProvider } from "@/infrastructure/ai/ai-provider";
 
 describe("ai-provider", () => {
   beforeEach(() => {
@@ -115,5 +115,38 @@ Hope this helps!`,
     if (prevKey) process.env.GEMINI_API_KEY = prevKey;
     else delete process.env.GEMINI_API_KEY;
     if (prevOpenAi) process.env.OPENAI_API_KEY = prevOpenAi;
+  });
+
+  it("does not invent unrelated topics for a free-form request in demo mode", async () => {
+    const provider = new MockAiProvider();
+    const result = await provider.chat({
+      contextText: "Board Scope: User Selected Nodes\nTotal Elements: 1\n\nElements:\n1. [note] (ID: element:grammar) \"a an the\"",
+      messages: [{ role: "user", content: "Review this and group the topics correctly" }],
+      locale: "en",
+    });
+
+    expect(result.isMock).toBe(true);
+    expect(result.proposal).toBeUndefined();
+    expect(result.text).not.toContain("Action Plan");
+    expect(result.text).toContain("Demo mode");
+  });
+
+  it("converts only selected sticky notes to shapes in demo mode", async () => {
+    const provider = new MockAiProvider();
+    const result = await provider.chat({
+      contextText: [
+        "Board Scope: User Selected Nodes",
+        "Total Elements: 2",
+        "",
+        "Elements:",
+        "1. [note] (ID: element:first) \"First topic\"",
+        "2. [rectangle] (ID: element:second) \"Existing shape\"",
+      ].join("\n"),
+      messages: [{ role: "user", content: "Change selected notes to shapes" }],
+      locale: "en",
+    });
+
+    expect(result.proposal?.updateElements).toEqual([{ id: "element:first", kind: "rectangle" }]);
+    expect(result.proposal?.elements).toBeUndefined();
   });
 });

@@ -73,4 +73,36 @@ describe("parseBoardDocument", () => {
       connections: [],
     })).toBeNull();
   });
+
+  it("accepts table elements and rehydrates tableData when omitted", () => {
+    const doc = parseBoardDocument({
+      version: 1,
+      id: "board:table",
+      name: "Table",
+      elements: [
+        {
+          id: "element:table",
+          kind: "table",
+          x: 10,
+          y: 20,
+          width: 300,
+          height: 150,
+          rows: 2,
+          cols: 2,
+          text: "ColA | ColB\nVal1 | Val2",
+          color: "slate",
+        },
+      ],
+      connections: [],
+    });
+    expect(doc).not.toBeNull();
+    expect(doc?.elements[0]).toMatchObject({
+      rows: 2,
+      cols: 2,
+      tableData: [
+        ["ColA", "ColB"],
+        ["Val1", "Val2"],
+      ],
+    });
+  });
 });

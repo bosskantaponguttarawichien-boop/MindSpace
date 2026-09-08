@@ -13,7 +13,7 @@ export type BoardScope =
   | { kind: "shared"; workspaceId: string };
 
 const colors = new Set<string>(BOARD_COLORS);
-const kinds = new Set(["text", "note", "rectangle", "ellipse", "diamond", "triangle", "draw", "image"]);
+const kinds = new Set(["text", "note", "rectangle", "ellipse", "diamond", "triangle", "draw", "image", "table"]);
 const textStyleKinds = new Set(["text", "rectangle", "ellipse", "diamond", "triangle"]);
 const textFontSizes = new Set<number>(TEXT_FONT_SIZES);
 
@@ -36,6 +36,9 @@ function isBoardElement(value: unknown): value is BoardElement {
     (candidate.color === undefined || (typeof candidate.color === "string" && colors.has(candidate.color))) &&
     (candidate.points === undefined || (Array.isArray(candidate.points) && candidate.points.every((point) => typeof point === "number" && Number.isFinite(point)))) &&
     (candidate.assetUrl === undefined || (typeof candidate.assetUrl === "string" && /^https:\/\//.test(candidate.assetUrl))) &&
+    (candidate.rows === undefined || (typeof candidate.rows === "number" && Number.isFinite(candidate.rows))) &&
+    (candidate.cols === undefined || (typeof candidate.cols === "number" && Number.isFinite(candidate.cols))) &&
+    (candidate.tableData === undefined || (Array.isArray(candidate.tableData) && candidate.tableData.every((row) => Array.isArray(row) && row.every((cell) => typeof cell === "string")))) &&
     (candidate.textStyle === undefined || (textStyleKinds.has(candidate.kind) && isBoardTextStyle(candidate.textStyle)))
   );
 }
@@ -60,7 +63,29 @@ export function parseBoardDocument(value: unknown): BoardDocument | null {
     !candidate.connections.every(isBoardConnection)
   ) return null;
 
-  return candidate as BoardDocument;
+  const elements = candidate.elements.map((element) => {
+    if (element.kind === "table") {
+      const rows = Math.max(1, element.rows ?? 3);
+      const cols = Math.max(1, element.cols ?? 3);
+      const lines = (element.text || "").split("\n");
+      const tableData = Array.from({ length: rows }, (_, r) => {
+        const lineCells = lines[r] ? lines[r].split("|").map((cell) => cell.trim()) : [];
+        return Array.from({ length: cols }, (_, c) => lineCells[c] ?? "");
+      });
+      return {
+        ...element,
+        rows,
+        cols,
+        tableData: element.tableData ?? tableData,
+      };
+    }
+    return element;
+  });
+
+  return {
+    ...candidate,
+    elements,
+  } as BoardDocument;
 }
 
 function boardCollection(scope: BoardScope) {
@@ -101,8 +126,17 @@ function boardDocument(scope: BoardScope, boardId: string) {
 }
 
 export async function saveBoard(scope: BoardScope, board: StoredBoard) {
-  // Strip any undefined properties from elements and connections to prevent Firestore serialization errors
-  const sanitizedDocument = JSON.parse(JSON.stringify(board.document));
+  // Strip any undefined properties and nested arrays (tableData string[][]) to prevent Firestore serialization errors
+  const sanitizedDocument = JSON.parse(JSON.stringify(board.document)) as BoardDocument;
+  sanitizedDocument.elements = sanitizedDocument.elements.map((element) => {
+    if (element.kind === "table") {
+      const copy = { ...element };
+      delete copy.tableData;
+      return copy;
+    }
+    return element;
+  });
+
   await setDoc(boardDocument(scope, board.id), {
     name: board.name,
     document: sanitizedDocument,

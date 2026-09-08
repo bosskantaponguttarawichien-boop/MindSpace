@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndVertical, AlignLeft, AlignRight, AlignStartVertical, FileText, GitBranchPlus, ImagePlus, Palette, Pencil, RectangleHorizontal, Waypoints } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndVertical, AlignLeft, AlignRight, AlignStartVertical, Columns3, FileText, GitBranchPlus, ImagePlus, Minus, Palette, Pencil, RectangleHorizontal, Rows3, Waypoints } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { IconAction } from "@/components/ui/icon-action";
@@ -18,6 +18,7 @@ export function BoardToolbar({
   uploadingImage = false,
   activeTool,
   selectedShapeKind,
+  selectedElementKind,
   hasSelection = false,
   onToolChange,
   onSetShape,
@@ -27,11 +28,16 @@ export function BoardToolbar({
   onSetColor,
   onAlign,
   onUpdateConnection,
+  onAddTableRow,
+  onDeleteTableRow,
+  onAddTableCol,
+  onDeleteTableCol,
 }: {
   ready: boolean;
   uploadingImage?: boolean;
   activeTool: BoardTool;
   selectedShapeKind?: BoardTool | null;
+  selectedElementKind?: string | null;
   hasSelection?: boolean;
   onToolChange: (tool: BoardTool) => void;
   onSetShape?: (shape: BoardTool) => void;
@@ -41,6 +47,10 @@ export function BoardToolbar({
   onSetColor: (color: BoardColor) => void;
   onAlign: (alignment: "left" | "center" | "right" | "top" | "middle" | "bottom") => void;
   onUpdateConnection?: (patch: Partial<BoardConnection>) => void;
+  onAddTableRow?: () => void;
+  onDeleteTableRow?: () => void;
+  onAddTableCol?: () => void;
+  onDeleteTableCol?: () => void;
 }) {
   const { t } = useLocale();
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -115,6 +125,15 @@ export function BoardToolbar({
           <IconAction label={t("importImage")} icon={ImagePlus} disabled={!ready || uploadingImage} onClick={onImportImage} />
           <IconAction label={t("importPdf")} icon={FileText} disabled={!ready} onClick={onImportPdf} />
         </div>
+        {selectedElementKind === "table" ? (
+          <div className="flex items-center gap-0.5">
+            <Separator orientation="vertical" className="mx-1 h-6" />
+            <IconAction label={t("addRow")} icon={Rows3} disabled={!ready} onClick={onAddTableRow} />
+            <IconAction label={t("deleteRow")} icon={Minus} disabled={!ready} onClick={onDeleteTableRow} />
+            <IconAction label={t("addCol")} icon={Columns3} disabled={!ready} onClick={onAddTableCol} />
+            <IconAction label={t("deleteCol")} icon={Minus} disabled={!ready} onClick={onDeleteTableCol} />
+          </div>
+        ) : null}
         <div className="flex items-center gap-0.5">
           <Separator orientation="vertical" className="mx-1 h-6" />
           <IconAction label={t("addChildNode")} icon={GitBranchPlus} disabled={!ready} onClick={onAddChildNode} />

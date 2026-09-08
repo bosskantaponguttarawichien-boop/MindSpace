@@ -5,6 +5,7 @@ export type BoardTool =
   | "hand"
   | "text"
   | "note"
+  | "table"
   | "rectangle"
   | "ellipse"
   | "diamond"
@@ -33,5 +34,9 @@ export type BoardEngine = {
   alignSelection: (alignment: "left" | "center" | "right" | "top" | "middle" | "bottom") => void;
   updateSelectedConnection: (patch: Partial<BoardConnection>) => void;
   setConnectionDefaults: (patch: Partial<BoardConnection>) => void;
+  addTableRow: (elementId?: string, rowIndex?: number) => void;
+  deleteTableRow: (elementId?: string, rowIndex?: number) => void;
+  addTableCol: (elementId?: string, colIndex?: number) => void;
+  deleteTableCol: (elementId?: string, colIndex?: number) => void;
 };
 

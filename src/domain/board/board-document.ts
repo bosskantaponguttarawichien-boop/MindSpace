@@ -27,7 +27,7 @@ export type BoardConnectionId = `connection:${string}`;
 
 export type BoardElement = {
   id: BoardElementId;
-  kind: "text" | "note" | "rectangle" | "ellipse" | "diamond" | "triangle" | "draw" | "image";
+  kind: "text" | "note" | "rectangle" | "ellipse" | "diamond" | "triangle" | "draw" | "image" | "table";
   x: number;
   y: number;
   width: number;
@@ -36,6 +36,9 @@ export type BoardElement = {
   color?: BoardColor;
   points?: number[];
   assetUrl?: string;
+  rows?: number;
+  cols?: number;
+  tableData?: string[][];
 };
 
 export type ConnectionStyle = "end" | "both" | "start" | "none";

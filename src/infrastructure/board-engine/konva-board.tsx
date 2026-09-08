@@ -70,6 +70,26 @@ function nextElement(tool: BoardTool, x: number, y: number): BoardElement | null
   const id = createElementId();
   if (tool === "text") return { id, kind: "text", x, y, width: 220, height: 54, text: "New idea", color: "grey" };
   if (tool === "note") return { id, kind: "note", x, y, width: 190, height: 170, text: "New note", color: "yellow" };
+  if (tool === "table") {
+    const defaultData = [
+      ["Header 1", "Header 2", "Header 3"],
+      ["Item A", "10", "OK"],
+      ["Item B", "20", "Done"],
+    ];
+    return {
+      id,
+      kind: "table",
+      x,
+      y,
+      width: 300,
+      height: 150,
+      rows: 3,
+      cols: 3,
+      tableData: defaultData,
+      text: defaultData.map((row) => row.join(" | ")).join("\n"),
+      color: "slate",
+    };
+  }
   if (tool === "rectangle") return { id, kind: "rectangle", x, y, width: 220, height: 120, text: "New concept", color: "violet" };
   if (tool === "ellipse") return { id, kind: "ellipse", x, y, width: 200, height: 120, text: "New concept", color: "blue" };
   if (tool === "diamond") return { id, kind: "diamond", x, y, width: 180, height: 140, text: "Decision", color: "yellow" };
@@ -115,6 +135,119 @@ function BoardImage({ element }: { element: BoardElement }) {
     : <Rect width={element.width} height={element.height} fill="#e2e8f0" stroke="#94a3b8" strokeWidth={2} cornerRadius={12} />;
 }
 
+function BoardTable({
+  element,
+  colors,
+  onCellDblClick,
+}: {
+  element: BoardElement;
+  colors: { fill: string; stroke: string; text: string };
+  onCellDblClick: (r: number, c: number, text: string) => void;
+}) {
+  const rows = Math.max(1, element.rows ?? 3);
+  const cols = Math.max(1, element.cols ?? 3);
+  const cellWidth = element.width / cols;
+  const cellHeight = element.height / rows;
+
+  const data: string[][] = useMemo(() => {
+    if (element.tableData && element.tableData.length > 0) {
+      return element.tableData;
+    }
+    const lines = (element.text || "").split("\n");
+    return Array.from({ length: rows }, (_, r) => {
+      const lineCells = lines[r] ? lines[r].split("|").map((cell) => cell.trim()) : [];
+      return Array.from({ length: cols }, (_, c) => lineCells[c] ?? "");
+    });
+  }, [element.tableData, element.text, rows, cols]);
+
+  const vLines: number[] = [];
+  for (let c = 1; c < cols; c++) {
+    vLines.push(c * cellWidth);
+  }
+
+  const hLines: number[] = [];
+  for (let r = 1; r < rows; r++) {
+    hLines.push(r * cellHeight);
+  }
+
+  return (
+    <Group>
+      <Rect
+        width={element.width}
+        height={element.height}
+        fill="#ffffff"
+        stroke={colors.stroke}
+        strokeWidth={1.5}
+        cornerRadius={6}
+        shadowColor="#0f172a"
+        shadowOpacity={0.06}
+        shadowBlur={6}
+        shadowOffsetY={2}
+        perfectDrawEnabled={false}
+      />
+      <Rect
+        x={0}
+        y={0}
+        width={element.width}
+        height={cellHeight}
+        fill={colors.stroke}
+        opacity={0.12}
+        cornerRadius={[6, 6, 0, 0]}
+        perfectDrawEnabled={false}
+      />
+      {vLines.map((x, i) => (
+        <Line
+          key={`v-${i}`}
+          points={[x, 0, x, element.height]}
+          stroke={colors.stroke}
+          strokeWidth={1}
+          opacity={0.35}
+        />
+      ))}
+      {hLines.map((y, i) => (
+        <Line
+          key={`h-${i}`}
+          points={[0, y, element.width, y]}
+          stroke={colors.stroke}
+          strokeWidth={i === 0 ? 1.5 : 1}
+          opacity={i === 0 ? 0.6 : 0.3}
+        />
+      ))}
+      {data.slice(0, rows).flatMap((row, r) =>
+        row.slice(0, cols).map((cellText, c) => (
+          <Group
+            key={`cell-${r}-${c}`}
+            x={c * cellWidth}
+            y={r * cellHeight}
+            width={cellWidth}
+            height={cellHeight}
+            onDblClick={(event) => {
+              event.cancelBubble = true;
+              onCellDblClick(r, c, cellText);
+            }}
+          >
+            <Rect width={cellWidth} height={cellHeight} fill="transparent" />
+            <Text
+              width={cellWidth}
+              height={cellHeight}
+              text={cellText}
+              padding={6}
+              fill="#0f172a"
+              fontFamily="Geist, Noto Sans Thai, sans-serif"
+              fontSize={Math.max(11, Math.min(14, cellHeight * 0.35))}
+              fontStyle={r === 0 ? "bold" : "normal"}
+              lineHeight={1.25}
+              verticalAlign="middle"
+              align="center"
+              wrap="word"
+            />
+          </Group>
+        ))
+      )}
+    </Group>
+  );
+}
+
 export function KonvaBoard({
   initialDocument,
   onDocumentChange,
@@ -128,7 +261,7 @@ export function KonvaBoard({
   activeTool: BoardTool;
   onToolChange: (tool: BoardTool) => void;
   onReady: (engine: BoardEngine) => void;
-  onSelectionChange?: (info: { selectedShapeKind: BoardTool | null; hasSelection: boolean }) => void;
+  onSelectionChange?: (info: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: BoardElement["kind"] | null }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -161,7 +294,7 @@ export function KonvaBoard({
   const [selection, setSelection] = useState<BoardElementId[]>([]);
   const [connectorStart, setConnectorStart] = useState<BoardElementId | null>(null);
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ id: BoardElementId; value: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: BoardElementId; value: string; row?: number; col?: number } | null>(null);
   const [viewport, setViewport] = useState(INITIAL_VIEWPORT);
   const [isCoarsePointer, setIsCoarsePointer] = useState(() => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches);
   const [size, setSize] = useState<Size>({ width: 900, height: 650 });
@@ -241,9 +374,10 @@ export function KonvaBoard({
       const shapeKinds: BoardTool[] = ["rectangle", "ellipse", "diamond", "triangle"];
       const selectedElements = documentRef.current.elements.filter((element) => selection.includes(element.id));
       const shapeElement = selectedElements.find((element) => shapeKinds.includes(element.kind as BoardTool));
-      onSelectionChangeRef.current?.({ selectedShapeKind: shapeElement ? (shapeElement.kind as BoardTool) : null, hasSelection });
+      const selectedElementKind = selectedElements.length === 1 && selectedElements[0] ? selectedElements[0].kind : null;
+      onSelectionChangeRef.current?.({ selectedShapeKind: shapeElement ? (shapeElement.kind as BoardTool) : null, hasSelection, selectedElementKind });
     } else {
-      onSelectionChangeRef.current?.({ selectedShapeKind: null, hasSelection });
+      onSelectionChangeRef.current?.({ selectedShapeKind: null, hasSelection, selectedElementKind: null });
     }
   }, [selection, selectedConnection, document]);
 
@@ -626,6 +760,124 @@ export function KonvaBoard({
     });
   }, [commit]);
 
+  const addTableRow = useCallback((elementId?: string, rowIndex?: number) => {
+    const targetId = (elementId ?? selectionRef.current[0]) as BoardElementId | undefined;
+    if (!targetId) return;
+    const target = documentRef.current.elements.find((el) => el.id === targetId && el.kind === "table");
+    if (!target) return;
+
+    const rows = Math.max(1, target.rows ?? 3);
+    const cols = Math.max(1, target.cols ?? 3);
+    const insertIdx = rowIndex ?? rows;
+
+    const currentData: string[][] = target.tableData ?? (target.text || "").split("\n").map((l) => l.split("|").map((c) => c.trim()));
+    const filledData = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => currentData[r]?.[c] ?? ""));
+
+    filledData.splice(insertIdx, 0, Array.from({ length: cols }, () => ""));
+
+    const nextRows = rows + 1;
+    const rowHeight = target.height / rows;
+    const nextHeight = target.height + rowHeight;
+    const nextText = filledData.map((r) => r.join(" | ")).join("\n");
+
+    commit({
+      ...documentRef.current,
+      elements: documentRef.current.elements.map((el) =>
+        el.id === targetId ? { ...el, rows: nextRows, height: nextHeight, tableData: filledData, text: nextText } : el
+      ),
+    });
+  }, [commit]);
+
+  const deleteTableRow = useCallback((elementId?: string, rowIndex?: number) => {
+    const targetId = (elementId ?? selectionRef.current[0]) as BoardElementId | undefined;
+    if (!targetId) return;
+    const target = documentRef.current.elements.find((el) => el.id === targetId && el.kind === "table");
+    if (!target) return;
+
+    const rows = Math.max(1, target.rows ?? 3);
+    if (rows <= 1) return;
+    const cols = Math.max(1, target.cols ?? 3);
+    const removeIdx = rowIndex ?? rows - 1;
+
+    const currentData: string[][] = target.tableData ?? (target.text || "").split("\n").map((l) => l.split("|").map((c) => c.trim()));
+    const filledData = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => currentData[r]?.[c] ?? ""));
+
+    filledData.splice(removeIdx, 1);
+
+    const nextRows = rows - 1;
+    const rowHeight = target.height / rows;
+    const nextHeight = Math.max(36, target.height - rowHeight);
+    const nextText = filledData.map((r) => r.join(" | ")).join("\n");
+
+    commit({
+      ...documentRef.current,
+      elements: documentRef.current.elements.map((el) =>
+        el.id === targetId ? { ...el, rows: nextRows, height: nextHeight, tableData: filledData, text: nextText } : el
+      ),
+    });
+  }, [commit]);
+
+  const addTableCol = useCallback((elementId?: string, colIndex?: number) => {
+    const targetId = (elementId ?? selectionRef.current[0]) as BoardElementId | undefined;
+    if (!targetId) return;
+    const target = documentRef.current.elements.find((el) => el.id === targetId && el.kind === "table");
+    if (!target) return;
+
+    const rows = Math.max(1, target.rows ?? 3);
+    const cols = Math.max(1, target.cols ?? 3);
+    const insertIdx = colIndex ?? cols;
+
+    const currentData: string[][] = target.tableData ?? (target.text || "").split("\n").map((l) => l.split("|").map((c) => c.trim()));
+    const filledData = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => currentData[r]?.[c] ?? ""));
+
+    for (let r = 0; r < rows; r++) {
+      filledData[r]?.splice(insertIdx, 0, "");
+    }
+
+    const nextCols = cols + 1;
+    const colWidth = target.width / cols;
+    const nextWidth = target.width + colWidth;
+    const nextText = filledData.map((r) => r.join(" | ")).join("\n");
+
+    commit({
+      ...documentRef.current,
+      elements: documentRef.current.elements.map((el) =>
+        el.id === targetId ? { ...el, cols: nextCols, width: nextWidth, tableData: filledData, text: nextText } : el
+      ),
+    });
+  }, [commit]);
+
+  const deleteTableCol = useCallback((elementId?: string, colIndex?: number) => {
+    const targetId = (elementId ?? selectionRef.current[0]) as BoardElementId | undefined;
+    if (!targetId) return;
+    const target = documentRef.current.elements.find((el) => el.id === targetId && el.kind === "table");
+    if (!target) return;
+
+    const rows = Math.max(1, target.rows ?? 3);
+    const cols = Math.max(1, target.cols ?? 3);
+    if (cols <= 1) return;
+    const removeIdx = colIndex ?? cols - 1;
+
+    const currentData: string[][] = target.tableData ?? (target.text || "").split("\n").map((l) => l.split("|").map((c) => c.trim()));
+    const filledData = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => currentData[r]?.[c] ?? ""));
+
+    for (let r = 0; r < rows; r++) {
+      filledData[r]?.splice(removeIdx, 1);
+    }
+
+    const nextCols = cols - 1;
+    const colWidth = target.width / cols;
+    const nextWidth = Math.max(48, target.width - colWidth);
+    const nextText = filledData.map((r) => r.join(" | ")).join("\n");
+
+    commit({
+      ...documentRef.current,
+      elements: documentRef.current.elements.map((el) =>
+        el.id === targetId ? { ...el, cols: nextCols, width: nextWidth, tableData: filledData, text: nextText } : el
+      ),
+    });
+  }, [commit]);
+
   const engine = useMemo<BoardEngine>(() => ({
     undo,
     redo,
@@ -644,7 +896,11 @@ export function KonvaBoard({
     alignSelection,
     updateSelectedConnection,
     setConnectionDefaults,
-  }), [addChildNode, addImage, alignSelection, copySelection, deleteSelection, duplicateSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionShape, undo, updateSelectedConnection, zoomAtCenter, zoomToFit]);
+    addTableRow,
+    deleteTableRow,
+    addTableCol,
+    deleteTableCol,
+  }), [addChildNode, addImage, addTableCol, addTableRow, alignSelection, copySelection, deleteTableCol, deleteTableRow, deleteSelection, duplicateSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionShape, undo, updateSelectedConnection, zoomAtCenter, zoomToFit]);
 
   useEffect(() => onReadyRef.current(engine), [engine]);
 
@@ -912,11 +1168,49 @@ export function KonvaBoard({
   function finishEditing() {
     if (!editing) return;
     const element = documentRef.current.elements.find((candidate) => candidate.id === editing.id);
-    if (element && element.text !== editing.value) {
-      commit({
-        ...documentRef.current,
-        elements: documentRef.current.elements.map((candidate) => candidate.id === editing.id ? { ...candidate, text: editing.value } : candidate),
-      });
+    if (element) {
+      if (editing.row !== undefined && editing.col !== undefined && element.kind === "table") {
+        const rows = Math.max(1, element.rows ?? 3);
+        const cols = Math.max(1, element.cols ?? 3);
+        const currentData: string[][] = element.tableData ?? (element.text || "").split("\n").map((l) => l.split("|").map((c) => c.trim()));
+        const filledData = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => currentData[r]?.[c] ?? ""));
+
+        const targetRow = filledData[editing.row];
+        if (targetRow) {
+          targetRow[editing.col] = editing.value;
+        }
+        const nextText = filledData.map((row) => row.join(" | ")).join("\n");
+
+        commit({
+          ...documentRef.current,
+          elements: documentRef.current.elements.map((candidate) =>
+            candidate.id === editing.id ? { ...candidate, tableData: filledData, text: nextText } : candidate
+          ),
+        });
+      } else if (element.text !== editing.value) {
+        let updateProps: Partial<BoardElement> = { text: editing.value };
+        if (element.kind === "table") {
+          const lines = editing.value.split("\n");
+          const tableData = lines.map((line) => line.split("|").map((cell) => cell.trim()));
+          const rows = Math.max(1, tableData.length);
+          const cols = Math.max(1, ...tableData.map((row) => row.length));
+          const normalizedData = tableData.map((row) => {
+            const padded = [...row];
+            while (padded.length < cols) padded.push("");
+            return padded;
+          });
+          updateProps = {
+            text: editing.value,
+            rows,
+            cols,
+            tableData: normalizedData,
+          };
+        }
+        commit({
+          ...documentRef.current,
+          elements: documentRef.current.elements.map((candidate) => candidate.id === editing.id ? { ...candidate, ...updateProps } : candidate),
+        });
+      }
     }
     setEditing(null);
   }
@@ -1055,6 +1349,8 @@ export function KonvaBoard({
               >
                 {element.kind === "image"
                   ? <BoardImage element={element} />
+                  : element.kind === "table"
+                    ? <BoardTable element={element} colors={colors} onCellDblClick={(r, c, text) => setEditing({ id: element.id, value: text, row: r, col: c })} />
                   : element.kind === "ellipse"
                   ? <Ellipse x={element.width / 2} y={element.height / 2} radiusX={element.width / 2} radiusY={element.height / 2} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />
                   : element.kind === "diamond"
@@ -1103,33 +1399,157 @@ export function KonvaBoard({
                   : element.kind === "text"
                     ? null
                     : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} cornerRadius={16} shadowColor="#475569" shadowOpacity={isCoarsePointer ? 0 : 0.12} shadowBlur={isCoarsePointer ? 0 : 10} shadowOffsetY={4} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
-                {element.kind === "image" ? null : <Text text={element.text} width={element.width} height={element.height} padding={element.kind === "text" ? 0 : 18} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={element.kind === "text" ? 18 : 16} fontStyle={element.kind === "text" ? "normal" : "bold"} lineHeight={1.35} verticalAlign={element.kind === "note" ? "top" : "middle"} align={element.kind === "text" || element.kind === "note" ? "left" : "center"} wrap="word" />}
+                {element.kind === "image" || element.kind === "table" ? null : <Text text={element.text} width={element.width} height={element.height} padding={element.kind === "text" ? 0 : 18} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={element.kind === "text" ? 18 : 16} fontStyle={element.kind === "text" ? "normal" : "bold"} lineHeight={1.35} verticalAlign={element.kind === "note" ? "top" : "middle"} align={element.kind === "text" || element.kind === "note" ? "left" : "center"} wrap="word" />}
               </Group>
             );
           })}
           <Transformer ref={transformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={(oldBox, newBox) => newBox.width < 48 || newBox.height < 36 ? oldBox : newBox} />
         </Layer>
       </Stage>
-      {editing && editingElement ? (
-        <textarea
-          autoFocus
-          aria-label={t("editElement")}
-          className="absolute z-20 resize-none rounded-md border-2 border-primary bg-background/95 p-3 text-sm shadow-xl outline-none"
-          style={{
-            left: viewport.x + editingElement.x * viewport.scale,
-            top: viewport.y + editingElement.y * viewport.scale,
-            width: Math.max(140, editingElement.width * viewport.scale),
-            height: Math.max(60, editingElement.height * viewport.scale),
-          }}
-          value={editing.value}
-          onChange={(event) => setEditing({ ...editing, value: event.target.value })}
-          onBlur={finishEditing}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") setEditing(null);
-            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") event.currentTarget.blur();
-          }}
-        />
-      ) : null}
+      {(() => {
+        if (!editing || !editingElement) return null;
+        const isCellEdit = editing.row !== undefined && editing.col !== undefined && editingElement.kind === "table";
+        const cols = Math.max(1, editingElement.cols ?? 3);
+        const rows = Math.max(1, editingElement.rows ?? 3);
+        const cellWidth = editingElement.width / cols;
+        const cellHeight = editingElement.height / rows;
+        const cellX = isCellEdit ? editingElement.x + (editing.col! * cellWidth) : editingElement.x;
+        const cellY = isCellEdit ? editingElement.y + (editing.row! * cellHeight) : editingElement.y;
+        const editWidth = isCellEdit ? cellWidth : editingElement.width;
+        const editHeight = isCellEdit ? cellHeight : editingElement.height;
+
+        return (
+          <textarea
+            autoFocus
+            aria-label={t("editElement")}
+            className="absolute z-20 resize-none rounded-md border-2 border-primary bg-background/95 p-2 text-sm shadow-xl outline-none"
+            style={{
+              left: viewport.x + cellX * viewport.scale,
+              top: viewport.y + cellY * viewport.scale,
+              width: Math.max(isCellEdit ? 48 : 140, editWidth * viewport.scale),
+              height: Math.max(isCellEdit ? 32 : 60, editHeight * viewport.scale),
+            }}
+            value={editing.value}
+            onChange={(event) => setEditing({ ...editing, value: event.target.value })}
+            onBlur={finishEditing}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setEditing(null);
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                finishEditing();
+              }
+            }}
+          />
+        );
+      })()}
+      {(() => {
+        const selectedTable = selection.length === 1 ? document.elements.find((el) => el.id === selection[0] && el.kind === "table") : undefined;
+        if (!selectedTable) return null;
+        const cols = Math.max(1, selectedTable.cols ?? 3);
+        const rows = Math.max(1, selectedTable.rows ?? 3);
+        const cellWidth = selectedTable.width / cols;
+        const cellHeight = selectedTable.height / rows;
+
+        return (
+          <>
+            {/* Floating Column Controls (Right Edge) */}
+            <div
+              className="absolute z-20 flex items-center gap-1"
+              style={{
+                left: viewport.x + (selectedTable.x + selectedTable.width + 8) * viewport.scale,
+                top: viewport.y + (selectedTable.y + selectedTable.height / 2 - 14) * viewport.scale,
+              }}
+            >
+              <button
+                type="button"
+                title={t("addCol")}
+                className="flex h-7 items-center justify-center rounded-md border border-border bg-background/95 px-2 text-xs font-semibold shadow-md transition-transform hover:scale-105 active:scale-95"
+                onClick={() => addTableCol(selectedTable.id)}
+              >
+                + Col
+              </button>
+              {cols > 1 ? (
+                <button
+                  type="button"
+                  title={t("deleteCol")}
+                  className="flex h-7 items-center justify-center rounded-md border border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100 px-2 text-xs font-semibold shadow-md transition-transform hover:scale-105 active:scale-95"
+                  onClick={() => deleteTableCol(selectedTable.id)}
+                >
+                  - Col
+                </button>
+              ) : null}
+            </div>
+
+            {/* Floating Row Controls (Bottom Edge) */}
+            <div
+              className="absolute z-20 flex items-center gap-1"
+              style={{
+                left: viewport.x + (selectedTable.x + selectedTable.width / 2 - 40) * viewport.scale,
+                top: viewport.y + (selectedTable.y + selectedTable.height + 8) * viewport.scale,
+              }}
+            >
+              <button
+                type="button"
+                title={t("addRow")}
+                className="flex h-7 items-center justify-center rounded-md border border-border bg-background/95 px-2 text-xs font-semibold shadow-md transition-transform hover:scale-105 active:scale-95"
+                onClick={() => addTableRow(selectedTable.id)}
+              >
+                + Row
+              </button>
+              {rows > 1 ? (
+                <button
+                  type="button"
+                  title={t("deleteRow")}
+                  className="flex h-7 items-center justify-center rounded-md border border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100 px-2 text-xs font-semibold shadow-md transition-transform hover:scale-105 active:scale-95"
+                  onClick={() => deleteTableRow(selectedTable.id)}
+                >
+                  - Row
+                </button>
+              ) : null}
+            </div>
+
+            {/* Per-column top delete handles */}
+            {cols > 1 ? Array.from({ length: cols }, (_, c) => {
+              const colCenterX = selectedTable.x + (c + 0.5) * cellWidth;
+              return (
+                <button
+                  key={`del-col-${c}`}
+                  type="button"
+                  title={`${t("deleteCol")} ${c + 1}`}
+                  className="absolute z-20 flex h-5 w-5 items-center justify-center rounded-full border border-rose-300 bg-rose-50 text-xs font-bold text-rose-600 shadow transition-transform hover:scale-110 active:scale-95"
+                  style={{
+                    left: viewport.x + colCenterX * viewport.scale - 10,
+                    top: viewport.y + (selectedTable.y - 24) * viewport.scale,
+                  }}
+                  onClick={() => deleteTableCol(selectedTable.id, c)}
+                >
+                  -
+                </button>
+              );
+            }) : null}
+
+            {/* Per-row left delete handles */}
+            {rows > 1 ? Array.from({ length: rows }, (_, r) => {
+              const rowCenterY = selectedTable.y + (r + 0.5) * cellHeight;
+              return (
+                <button
+                  key={`del-row-${r}`}
+                  type="button"
+                  title={`${t("deleteRow")} ${r + 1}`}
+                  className="absolute z-20 flex h-5 w-5 items-center justify-center rounded-full border border-rose-300 bg-rose-50 text-xs font-bold text-rose-600 shadow transition-transform hover:scale-110 active:scale-95"
+                  style={{
+                    left: viewport.x + (selectedTable.x - 24) * viewport.scale,
+                    top: viewport.y + rowCenterY * viewport.scale - 10,
+                  }}
+                  onClick={() => deleteTableRow(selectedTable.id, r)}
+                >
+                  -
+                </button>
+              );
+            }) : null}
+          </>
+        );
+      })()}
     </div>
   );
 }

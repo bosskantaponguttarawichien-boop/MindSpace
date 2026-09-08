@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronRight, Circle, Diamond, Dot, Eraser, Hand, Minus, MoreHorizontal, MousePointer2, Pencil, RectangleHorizontal, StickyNote, Triangle, Type } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronRight, Circle, Diamond, Dot, Eraser, Hand, Minus, MoreHorizontal, MousePointer2, Pencil, RectangleHorizontal, StickyNote, Table, Triangle, Type } from "lucide-react";
 import type { BoardColor, ConnectionHeadType, ConnectionLineStyle, ConnectionStyle } from "@/domain/board/board-document";
 import type { BoardTool } from "@/infrastructure/board-engine/board-engine";
 import type { MessageKey } from "@/lib/i18n/messages";
@@ -13,6 +13,7 @@ export const pointerTools: ToolButton[] = [
 export const contentTools: ToolButton[] = [
   { id: "text", label: "text", icon: Type, shortcut: "T" },
   { id: "note", label: "note", icon: StickyNote, shortcut: "N" },
+  { id: "table", label: "table", icon: Table, shortcut: "B" },
 ];
 
 export const shapeTools: ToolButton[] = [

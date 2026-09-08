@@ -169,4 +169,25 @@ describe("BoardToolbar", () => {
     expect(screen.getByRole("button", { name: "Draw and erase" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Sticky note" })).toBeDisabled();
   });
+
+  it("selects the table tool when the table button is clicked", async () => {
+    const user = userEvent.setup();
+    const { onToolChange } = renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Table" }));
+    expect(onToolChange).toHaveBeenCalledWith("table");
+  });
+
+  it("shows table row and col action buttons when a table is selected", async () => {
+    const user = userEvent.setup();
+    const onAddTableRow = vi.fn();
+    const onAddTableCol = vi.fn();
+    renderToolbar({ selectedElementKind: "table", onAddTableRow, onAddTableCol });
+
+    await user.click(screen.getByRole("button", { name: "Add row" }));
+    expect(onAddTableRow).toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Add column" }));
+    expect(onAddTableCol).toHaveBeenCalled();
+  });
 });

@@ -37,4 +37,29 @@ describe("sameBoardDocument", () => {
 
     expect(sameBoardDocument(board(), recoloured)).toBe(false);
   });
+
+  it("handles table elements with rows, cols, and tableData", () => {
+    const tableBoard = board({
+      elements: [
+        {
+          id: "element:table",
+          kind: "table",
+          x: 10,
+          y: 10,
+          width: 300,
+          height: 150,
+          text: "H1 | H2\nA | B",
+          rows: 2,
+          cols: 2,
+          tableData: [
+            ["H1", "H2"],
+            ["A", "B"],
+          ],
+        },
+      ],
+    });
+
+    const echoed = JSON.parse(JSON.stringify(tableBoard)) as BoardDocument;
+    expect(sameBoardDocument(tableBoard, echoed)).toBe(true);
+  });
 });

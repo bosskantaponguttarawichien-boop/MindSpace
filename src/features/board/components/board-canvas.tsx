@@ -37,7 +37,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
   const { t } = useLocale();
   const [engine, setEngine] = useState<BoardEngine | null>(null);
   const [activeTool, setActiveTool] = useState<BoardTool>("select");
-  const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean }>({ selectedShapeKind: null, hasSelection: false });
+  const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null }>({ selectedShapeKind: null, hasSelection: false, selectedElementKind: null });
   const [uploadingImage, setUploadingImage] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -113,6 +113,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
         uploadingImage={uploadingImage}
         activeTool={activeTool}
         selectedShapeKind={selectionState.selectedShapeKind}
+        selectedElementKind={selectionState.selectedElementKind}
         hasSelection={selectionState.hasSelection}
         onToolChange={setActiveTool}
         onSetShape={(shape) => engine?.setSelectionShape(shape)}
@@ -122,6 +123,10 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
         onSetColor={(color) => engine?.setSelectionColor(color)}
         onAlign={(alignment) => engine?.alignSelection(alignment)}
         onUpdateConnection={(patch) => { engine?.setConnectionDefaults(patch); engine?.updateSelectedConnection(patch); }}
+        onAddTableRow={() => engine?.addTableRow()}
+        onDeleteTableRow={() => engine?.deleteTableRow()}
+        onAddTableCol={() => engine?.addTableCol()}
+        onDeleteTableCol={() => engine?.deleteTableCol()}
       />
       <ZoomControls engine={engine} />
       {uploadingImage ? <div className="pointer-events-none absolute bottom-4 end-4 z-30 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur" role="status">{t("imageUploading")}</div> : null}

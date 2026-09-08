@@ -18,6 +18,8 @@ A change is done only when every applicable item is true.
 - [ ] No secrets, generated artifacts, debug code, or private user data are included.
 - [ ] Primary interaction is keyboard accessible with visible focus and accessible names.
 - [ ] Destructive and AI-originated changes have suitable preview/confirmation.
+- [ ] Account linking, authorization, sharing/revocation, history restoration, and AI use have an explicit audit and recovery path appropriate to Phase 6.
+- [ ] Telemetry and operational logs are minimized and proven not to contain board content, prompts, file bytes, or secrets.
 
 ## Verification
 
@@ -27,6 +29,8 @@ A change is done only when every applicable item is true.
 - [ ] `test` passes.
 - [ ] `build` passes.
 - [ ] Relevant end-to-end flow passes when available.
+- [ ] Firebase Emulator Rules tests prove allowed and denied access, including revoked and cross-workspace cases.
+- [ ] Backup restore and incident/release procedures have been rehearsed or explicitly recorded as unavailable for a non-production environment.
 - [ ] Harness validation passes when contract files changed.
 - [ ] Final diff is reviewed for scope, data loss, privacy, security, and accessibility.
 

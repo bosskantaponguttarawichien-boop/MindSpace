@@ -91,4 +91,15 @@ describe("WorkspaceSidebar", () => {
     renderSidebar();
     expect(document.querySelector('img[src*="mindspace-192"]')).not.toBeNull();
   });
+
+  it("calls onToggleSidebar when the collapse button is clicked", async () => {
+    const user = userEvent.setup();
+    const onToggleSidebar = vi.fn();
+    renderSidebar({ onToggleSidebar });
+
+    const collapseBtn = screen.getByRole("button", { name: "Collapse sidebar" });
+    await user.click(collapseBtn);
+    expect(onToggleSidebar).toHaveBeenCalledTimes(1);
+  });
 });
+

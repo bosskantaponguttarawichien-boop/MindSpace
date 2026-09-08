@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: "MindSpace — Personal knowledge board",
   description: "An infinite board for connecting ideas and building knowledge.",
   applicationName: "MindSpace",
-  appleWebApp: { capable: true, title: "MindSpace", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "MindSpace", statusBarStyle: "black-translucent" },
   icons: {
     apple: "/icons/apple-touch-icon.png",
     icon: [

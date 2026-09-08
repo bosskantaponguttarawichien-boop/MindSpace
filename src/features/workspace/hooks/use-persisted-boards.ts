@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createEmptyBoard } from "@/domain/board/sample-board";
 import type { BoardDocument } from "@/domain/board/board-document";
+import type { Account } from "@/domain/auth/account";
 import { getAnonymousUser } from "@/infrastructure/auth/firebase-anonymous-auth";
 import { deleteBoard as deleteRemoteBoard, saveBoard, subscribeToBoards, type BoardScope, type StoredBoard } from "@/infrastructure/persistence/firestore-board-repository";
 import { deleteBoardImages, uploadBoardImage, type UploadedImage } from "@/infrastructure/files/firebase-board-images";
@@ -37,7 +38,7 @@ async function copyToClipboard(value: string) {
   }
 }
 
-export function usePersistedBoards() {
+export function usePersistedBoards(identity?: Account | null) {
   const [boards, setBoards] = useState<StoredBoard[]>([]);
   const [activeBoardId, setActiveBoardId] = useState("");
   const [syncStatus, setSyncStatus] = useState<BoardSyncStatus>("connecting");
@@ -48,6 +49,9 @@ export function usePersistedBoards() {
   const boardsRef = useRef<StoredBoard[]>([]);
   const deletedIdsRef = useRef(new Set<string>());
   const savingNoticeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const identityUid = identity?.uid;
+  const hasSuppliedIdentity = identity !== undefined;
+  const isWaitingForIdentity = identity === null;
 
   const nextBoardName = `Untitled board ${boards.length + 1}`;
 
@@ -86,8 +90,14 @@ export function usePersistedBoards() {
 
     async function connect() {
       try {
-        const user = await getAnonymousUser();
+        if (isWaitingForIdentity) return;
+        const user = hasSuppliedIdentity ? { uid: identityUid! } : await getAnonymousUser();
         if (cancelled) return;
+        if (hasSuppliedIdentity) {
+          // Do not briefly render the previous account's board while switching identities.
+          commitBoards([]);
+          setActiveBoardId("");
+        }
         const scope: BoardScope = workspaceId ? { kind: "shared", workspaceId } : { kind: "personal", uid: user.uid };
         scopeRef.current = scope;
         queue = createBoardSaveQueue({ save: (board) => saveBoard(scope, board), onChange: applySaveState });
@@ -138,7 +148,7 @@ export function usePersistedBoards() {
       // Queued edits outlive the subscription: tearing the hook down must still write them.
       void queue?.flush();
     };
-  }, [applySaveState, commitBoards, workspaceId]);
+  }, [applySaveState, commitBoards, hasSuppliedIdentity, identityUid, isWaitingForIdentity, workspaceId]);
 
   useEffect(() => {
     const flushWhenHidden = () => {

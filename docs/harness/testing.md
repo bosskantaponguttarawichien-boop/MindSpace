@@ -19,7 +19,13 @@ Keep a small set of critical Phase 1 flows:
 3. Create/move/delete, then undo and redo the sequence.
 4. Use the primary flow by keyboard.
 
-Later phases add save/reload, multi-device sync, files, and AI preview/approve only when those features enter scope.
+Phase 6 adds these production-critical flows:
+
+1. Link eligible anonymous data to an account and retain access after a new authenticated session.
+2. Invite an editor and viewer; prove that a viewer cannot mutate, a revoked user loses access, and another workspace is denied.
+3. Create a board revision, preview it, restore it only after confirmation, and verify recovery/undo behavior.
+4. Edit offline, reconnect, and exercise the visible recovery/conflict path.
+5. Make an AI request as an authorized user, then verify an over-limit request gets a recoverable response without recording private context.
 
 ## Rules
 
@@ -28,8 +34,10 @@ Later phases add save/reload, multi-device sync, files, and AI preview/approve o
 - Mock only owned boundaries; do not mock the subject under test.
 - Use deterministic clocks, IDs, sample data, and network responses.
 - Tests do not call real auth, storage, database, or AI services by default.
+- Run Firebase Emulator Security Rules tests for every permission, revocation, and cross-workspace behavior. Emulator fixtures use synthetic identities and board content only.
+- Monitoring tests assert structured metadata and explicitly assert the absence of board text, prompts, file bytes, credentials, and raw provider responses.
 - Flaky tests are defects; fix or quarantine with an owner and follow-up.
 
 ## Standard gate
 
-Once scaffolded, package scripts expose at least `lint`, `typecheck`, `test`, and `build`. Add an end-to-end command with the first browser flow. CI runs the same commands as local development.
+Once scaffolded, package scripts expose at least `lint`, `typecheck`, `test`, and `build`. Add an end-to-end command with the first browser flow. CI runs the same commands as local development and includes Firebase Emulator Rules tests before release.

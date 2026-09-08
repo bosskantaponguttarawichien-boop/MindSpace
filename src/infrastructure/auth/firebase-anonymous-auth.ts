@@ -16,9 +16,8 @@ export async function getAnonymousUser(): Promise<User> {
 
   signInPromise ??= signInAnonymously(auth)
     .then(({ user }) => user)
-    .catch((error: unknown) => {
+    .finally(() => {
       signInPromise = null;
-      throw error;
     });
 
   return signInPromise;

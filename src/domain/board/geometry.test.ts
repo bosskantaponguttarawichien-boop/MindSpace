@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BoardElement } from "@/domain/board/board-document";
-import { elementCenter, getConnectionEndpoints, getShapeIntersection } from "@/domain/board/geometry";
+import { boundsFromPoints, elementBounds, elementCenter, getConnectionEndpoints, getShapeIntersection, isElementContainedByBounds } from "@/domain/board/geometry";
 
 describe("geometry", () => {
   it("calculates element center correctly", () => {
@@ -14,6 +14,32 @@ describe("geometry", () => {
       text: "",
     };
     expect(elementCenter(element)).toEqual({ x: 200, y: 250 });
+  });
+
+  it("finds rectangular selection bounds and only includes fully covered elements", () => {
+    const selection = boundsFromPoints({ x: 40, y: 30 }, { x: 240, y: 180 });
+    const contained: BoardElement = { id: "element:contained", kind: "note", x: 60, y: 50, width: 120, height: 100, text: "" };
+    const intersecting: BoardElement = { id: "element:intersecting", kind: "note", x: 200, y: 50, width: 120, height: 100, text: "" };
+
+    expect(selection).toEqual({ x: 40, y: 30, width: 200, height: 150 });
+    expect(isElementContainedByBounds(contained, selection)).toBe(true);
+    expect(isElementContainedByBounds(intersecting, selection)).toBe(false);
+  });
+
+  it("uses a drawing's stroke points instead of its placeholder geometry for selection", () => {
+    const drawing: BoardElement = {
+      id: "element:drawing",
+      kind: "draw",
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      text: "",
+      points: [80, 60, 150, 120, 220, 90],
+    };
+
+    expect(elementBounds(drawing)).toEqual({ x: 80, y: 60, width: 140, height: 60 });
+    expect(isElementContainedByBounds(drawing, { x: 70, y: 50, width: 160, height: 80 })).toBe(true);
   });
 
   it("calculates rectangle boundary intersection", () => {
@@ -130,4 +156,3 @@ describe("geometry", () => {
     expect(end.y).toBeCloseTo(50);
   });
 });
-

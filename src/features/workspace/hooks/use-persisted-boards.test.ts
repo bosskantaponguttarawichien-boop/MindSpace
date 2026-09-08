@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createEmptyBoard } from "@/domain/board/sample-board";
 import type { BoardDocument } from "@/domain/board/board-document";
+import type { Account } from "@/domain/auth/account";
 import type { StoredBoard } from "@/infrastructure/persistence/firestore-board-repository";
 
 type Snapshot = (boards: StoredBoard[]) => void;
@@ -90,5 +91,17 @@ describe("usePersistedBoards", () => {
 
     expect(mocks.saveBoard).toHaveBeenCalledTimes(1);
     expect(mocks.saveBoard.mock.calls[0]?.[1].document.elements[0]?.text).toBe("two");
+  });
+
+  it("keeps the board subscription when an anonymous identity is linked to the same UID", async () => {
+    const anonymousAccount: Account = { uid: "user-1", email: null, isAnonymous: true };
+    const { rerender } = renderHook(
+      ({ identity }: { identity: Account }) => usePersistedBoards(identity),
+      { initialProps: { identity: anonymousAccount } },
+    );
+    await waitFor(() => expect(mocks.subscribeToBoards).toHaveBeenCalledTimes(1));
+
+    rerender({ identity: { uid: "user-1", email: "ada@example.com", isAnonymous: false } });
+    expect(mocks.subscribeToBoards).toHaveBeenCalledTimes(1);
   });
 });

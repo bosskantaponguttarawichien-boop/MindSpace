@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
 import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, textStyleFor, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
-import { boundsFromPoints, getConnectionEndpoints, isElementContainedByBounds, type Bounds } from "@/domain/board/geometry";
+import { boundsFromPoints, getConnectionEndpoints, getConnectionPathPoints, isElementContainedByBounds, type Bounds } from "@/domain/board/geometry";
 import { appendMindMapChild, appendMindMapSibling, layoutMindMap, type MindMapDefaults } from "@/domain/board/mind-map";
 import { parseMarkdown } from "@/domain/board/markdown";
 import type { BoardEngine, BoardExport, BoardTool } from "@/infrastructure/board-engine/board-engine";
@@ -331,7 +331,7 @@ export function KonvaBoard({
   const pastRef = useRef<BoardDocument[]>([]);
   const futureRef = useRef<BoardDocument[]>([]);
   const clipboardRef = useRef<BoardDocument | null>(null);
-  const connectionDefaultsRef = useRef<Partial<Pick<BoardConnection, "style" | "lineStyle" | "headType" | "color">>>({});
+  const connectionDefaultsRef = useRef<Partial<Pick<BoardConnection, "style" | "lineStyle" | "headType" | "pathStyle" | "color">>>({});
   const elementColorRef = useRef<BoardColor | null>(null);
   const gestureStartRef = useRef<BoardDocument | null>(null);
   const elementGestureActiveRef = useRef(false);
@@ -512,7 +512,7 @@ export function KonvaBoard({
       const toEl = connection.toId === movedId ? { ...to, x, y } : to;
       const { start, end } = getConnectionEndpoints(fromEl, toEl);
       const arrow = arrowRefs.current.get(connection.id);
-      arrow?.points([start.x, start.y, end.x, end.y]);
+      arrow?.points(getConnectionPathPoints(connection.pathStyle, start, end));
       arrow?.getLayer()?.batchDraw();
     }
   }, []);
@@ -675,6 +675,18 @@ export function KonvaBoard({
     setViewport({ x: (currentSize.width - (maxX + minX) * scale) / 2, y: (currentSize.height - (maxY + minY) * scale) / 2, scale });
   }, []);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const frame = requestAnimationFrame(() => {
+      if (documentRef.current.elements.length === 0) return;
+      const rect = container.getBoundingClientRect();
+      sizeRef.current = { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
+      zoomToFit();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [zoomToFit]);
+
   const addImage = useCallback((image: { url: string; width: number; height: number }) => {
     const maxWidth = 420;
     const maxHeight = 320;
@@ -757,6 +769,7 @@ export function KonvaBoard({
             style: conn.style ?? "end",
             lineStyle: conn.lineStyle ?? "solid",
             headType: conn.headType ?? "arrow",
+            pathStyle: conn.pathStyle ?? "straight",
           });
         }
       }
@@ -768,6 +781,7 @@ export function KonvaBoard({
         style: "end",
         lineStyle: "solid",
         headType: "arrow",
+        pathStyle: "straight",
       });
     }
 
@@ -781,6 +795,7 @@ export function KonvaBoard({
             ...(update.headType !== undefined ? { headType: update.headType } : {}),
             ...(update.style !== undefined ? { style: update.style } : {}),
             ...(update.lineStyle !== undefined ? { lineStyle: update.lineStyle } : {}),
+            ...(update.pathStyle !== undefined ? { pathStyle: update.pathStyle } : {}),
             ...(update.color !== undefined ? { color: update.color } : {}),
           };
         });
@@ -848,12 +863,13 @@ export function KonvaBoard({
   }, []);
 
   const setConnectionDefaults = useCallback((patch: Partial<BoardConnection>) => {
-    const { style, lineStyle, headType, color } = patch;
+    const { style, lineStyle, headType, pathStyle, color } = patch;
     connectionDefaultsRef.current = {
       ...connectionDefaultsRef.current,
       ...(style === undefined ? {} : { style }),
       ...(lineStyle === undefined ? {} : { lineStyle }),
       ...(headType === undefined ? {} : { headType }),
+      ...(pathStyle === undefined ? {} : { pathStyle }),
       ...(color === undefined ? {} : { color }),
     };
   }, []);
@@ -1563,17 +1579,21 @@ export function KonvaBoard({
               pointerLength = 14;
               pointerWidth = 10;
             }
-            const dx = end.x - start.x;
-            const dy = end.y - start.y;
-            const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+            const pathStyle = connection.pathStyle ?? "straight";
+            const points = getConnectionPathPoints(pathStyle, start, end);
             const isCustomMarker = headType === "circle" || headType === "diamond";
+            // Markers rotate to the path's local end/start segment, not the overall start-end vector,
+            // so curved and elbow connectors still point their circle/diamond heads along the line.
+            const endAngleDeg = (Math.atan2(points[points.length - 1]! - points[points.length - 3]!, points[points.length - 2]! - points[points.length - 4]!) * 180) / Math.PI;
+            const startAngleDeg = (Math.atan2(points[1]! - points[3]!, points[0]! - points[2]!) * 180) / Math.PI;
             return (
               <Group key={connection.id}>
                 <Arrow
                   name={connection.id}
                   hitStrokeWidth={18}
                   ref={(node) => { if (node) arrowRefs.current.set(connection.id, node); else arrowRefs.current.delete(connection.id); }}
-                  points={[start.x, start.y, end.x, end.y]}
+                  points={points}
+                  tension={pathStyle === "curved" ? 0.5 : 0}
                   stroke={strokeColor}
                   fill={strokeColor}
                   strokeWidth={isSelected ? 4 : 2}
@@ -1588,8 +1608,8 @@ export function KonvaBoard({
                 />
                 {headType === "circle" && pointerAtEnding ? <Ellipse x={end.x} y={end.y} radiusX={6} radiusY={6} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
                 {headType === "circle" && pointerAtBeginning ? <Ellipse x={start.x} y={start.y} radiusX={6} radiusY={6} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
-                {headType === "diamond" && pointerAtEnding ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={end.x} y={end.y} rotation={angleDeg} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
-                {headType === "diamond" && pointerAtBeginning ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={start.x} y={start.y} rotation={angleDeg + 180} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
+                {headType === "diamond" && pointerAtEnding ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={end.x} y={end.y} rotation={endAngleDeg} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
+                {headType === "diamond" && pointerAtBeginning ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={start.x} y={start.y} rotation={startAngleDeg + 180} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
               </Group>
             );
           })}

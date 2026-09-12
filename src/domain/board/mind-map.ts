@@ -7,7 +7,7 @@ export type MindMapDefaults = {
   kind: MindMapNodeKind;
   color: NonNullable<BoardElement["color"]>;
   textStyle: BoardTextStyle;
-  connection: Partial<Pick<BoardConnection, "style" | "lineStyle" | "headType" | "color">>;
+  connection: Partial<Pick<BoardConnection, "style" | "lineStyle" | "headType" | "pathStyle" | "color">>;
 };
 
 const DEFAULT_MIND_MAP_DEFAULTS: MindMapDefaults = {

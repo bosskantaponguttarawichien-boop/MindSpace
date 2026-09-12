@@ -64,6 +64,7 @@ export function textStyleFor(element: Pick<BoardElement, "textStyle">): BoardTex
 export type ConnectionStyle = "end" | "both" | "start" | "none";
 export type ConnectionLineStyle = "solid" | "dashed" | "dotted";
 export type ConnectionHeadType = "arrow" | "triangle" | "circle" | "diamond";
+export type ConnectionPathStyle = "straight" | "curved" | "elbow";
 
 export type BoardConnection = {
   id: BoardConnectionId;
@@ -72,6 +73,7 @@ export type BoardConnection = {
   style?: ConnectionStyle;
   lineStyle?: ConnectionLineStyle;
   headType?: ConnectionHeadType;
+  pathStyle?: ConnectionPathStyle;
   color?: BoardColor;
 };
 

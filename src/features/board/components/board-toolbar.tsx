@@ -5,10 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import { IconAction } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
 import { ColorRow, OptionRow, ToolCard, ToolCardLabel, ToolCardRow, ToolCardSeparator } from "@/features/board/components/tool-card";
-import { connectionEnds, connectionHeadTypes, connectionLineStyles, contentTools, inkTools, pointerTools, shapeTools } from "@/features/board/components/toolbar-groups";
+import { connectionEnds, connectionHeadTypes, connectionLineStyles, connectionPathStyles, contentTools, inkTools, pointerTools, shapeTools } from "@/features/board/components/toolbar-groups";
 import { useLocale } from "@/lib/i18n/locale-provider";
 import type { BoardTool } from "@/infrastructure/board-engine/board-engine";
-import { TEXT_FONT_SIZES, type BoardColor, type BoardConnection, type BoardTextFontSize, type BoardTextStyle, type ConnectionHeadType, type ConnectionLineStyle, type ConnectionStyle } from "@/domain/board/board-document";
+import { TEXT_FONT_SIZES, type BoardColor, type BoardConnection, type BoardTextFontSize, type BoardTextStyle, type ConnectionHeadType, type ConnectionLineStyle, type ConnectionPathStyle, type ConnectionStyle } from "@/domain/board/board-document";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 type ToolCardId = "text" | "shape" | "connector" | "ink" | "color";
@@ -70,7 +70,7 @@ export function BoardToolbar({
   const [openCard, setOpenCard] = useState<ToolCardId | null>(null);
   const [lastShapeTool, setLastShapeTool] = useState<BoardTool>("rectangle");
   const [lastInkTool, setLastInkTool] = useState<BoardTool>("draw");
-  const [connection, setConnection] = useState<{ style: ConnectionStyle; lineStyle: ConnectionLineStyle; headType: ConnectionHeadType }>({ style: "end", lineStyle: "solid", headType: "arrow" });
+  const [connection, setConnection] = useState<{ style: ConnectionStyle; lineStyle: ConnectionLineStyle; headType: ConnectionHeadType; pathStyle: ConnectionPathStyle }>({ style: "end", lineStyle: "solid", headType: "arrow", pathStyle: "straight" });
 
   useEffect(() => {
     if (!openCard) return;
@@ -204,6 +204,9 @@ export function BoardToolbar({
       {openCard === "connector" ? (
         <ToolCard label={t("connectorOptions")} className="flex-col items-stretch gap-2">
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:overflow-x-auto sm:scrollbar-none">
+            <OptionRow label={t("pathStyle")} options={connectionPathStyles} value={connection.pathStyle} onSelect={(pathStyle) => applyConnection({ pathStyle })} />
+            <Separator orientation="horizontal" className="sm:hidden" />
+            <Separator orientation="vertical" className="mx-0.5 hidden h-6 sm:block" />
             <OptionRow label={t("connectionStyle")} options={connectionEnds} value={connection.style} onSelect={(style) => applyConnection({ style })} />
             <Separator orientation="horizontal" className="sm:hidden" />
             <Separator orientation="vertical" className="mx-0.5 hidden h-6 sm:block" />

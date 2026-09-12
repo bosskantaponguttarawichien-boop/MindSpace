@@ -40,6 +40,24 @@ describe("proposal-schema", () => {
     expect(validated?.updateConnections?.[0]?.headType).toBe("circle");
   });
 
+  it("validates a proposal with a connector pathStyle (e.g. curved or elbow)", () => {
+    const raw = {
+      title: "Change connector shape",
+      explanation: "Add a curved connector and switch existing ones to an elbow shape",
+      connections: [
+        { fromId: "elem-1", toIndex: 0, pathStyle: "curved" },
+      ],
+      updateConnections: [
+        { pathStyle: "elbow" },
+      ],
+    };
+
+    const validated = validateProposal(raw);
+    expect(validated).not.toBeNull();
+    expect(validated?.connections?.[0]?.pathStyle).toBe("curved");
+    expect(validated?.updateConnections?.[0]?.pathStyle).toBe("elbow");
+  });
+
   it("rejects proposals without any elements or updates", () => {
     const raw = {
       title: "Empty proposal",

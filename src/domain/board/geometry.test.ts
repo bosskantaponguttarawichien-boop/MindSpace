@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BoardElement } from "@/domain/board/board-document";
-import { boundsFromPoints, elementBounds, elementCenter, getConnectionEndpoints, getShapeIntersection, isElementContainedByBounds } from "@/domain/board/geometry";
+import { boundsFromPoints, elementBounds, elementCenter, getConnectionEndpoints, getConnectionPathPoints, getShapeIntersection, isElementContainedByBounds } from "@/domain/board/geometry";
 
 describe("geometry", () => {
   it("calculates element center correctly", () => {
@@ -154,5 +154,24 @@ describe("geometry", () => {
     // rectB center (250, 50), left edge is x=200. Padded end: 200 - 16 = 184
     expect(end.x).toBeCloseTo(184);
     expect(end.y).toBeCloseTo(50);
+  });
+
+  it("builds a straight two-point path by default", () => {
+    expect(getConnectionPathPoints(undefined, { x: 0, y: 0 }, { x: 100, y: 50 })).toEqual([0, 0, 100, 50]);
+    expect(getConnectionPathPoints("straight", { x: 0, y: 0 }, { x: 100, y: 50 })).toEqual([0, 0, 100, 50]);
+  });
+
+  it("bends an elbow path at the horizontal midpoint", () => {
+    const points = getConnectionPathPoints("elbow", { x: 0, y: 0 }, { x: 100, y: 200 });
+    expect(points).toEqual([0, 0, 50, 0, 50, 200, 100, 200]);
+  });
+
+  it("bows a curved path's midpoint away from the straight line, keeping its endpoints", () => {
+    const points = getConnectionPathPoints("curved", { x: 0, y: 0 }, { x: 100, y: 0 });
+    expect(points).toHaveLength(6);
+    expect([points[0], points[1]]).toEqual([0, 0]);
+    expect([points[4], points[5]]).toEqual([100, 0]);
+    expect(points[2]).toBeCloseTo(50);
+    expect(points[3]).not.toBe(0);
   });
 });

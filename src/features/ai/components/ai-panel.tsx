@@ -221,6 +221,7 @@ export function AiPanel({
                         className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium"
                       >
                         <span className="font-semibold text-primary">Connector:</span>
+                        {update.pathStyle ? <span>shape → {update.pathStyle}</span> : null}
                         {update.headType ? <span>head → {update.headType}</span> : null}
                         {update.style ? <span>style → {update.style}</span> : null}
                         {update.lineStyle ? <span>line → {update.lineStyle}</span> : null}

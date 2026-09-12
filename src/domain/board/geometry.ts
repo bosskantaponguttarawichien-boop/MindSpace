@@ -1,4 +1,4 @@
-import type { BoardElement } from "@/domain/board/board-document";
+import type { BoardElement, ConnectionPathStyle } from "@/domain/board/board-document";
 
 export type Point = { x: number; y: number };
 export type Bounds = { x: number; y: number; width: number; height: number };
@@ -153,4 +153,25 @@ export function getConnectionEndpoints(
       y: rawEnd.y - unitY * gap,
     },
   };
+}
+
+/** Builds the polyline points for a connector's path shape, for Konva's Arrow/Line points prop. */
+export function getConnectionPathPoints(pathStyle: ConnectionPathStyle | undefined, start: Point, end: Point): number[] {
+  if (pathStyle === "elbow") {
+    const midX = (start.x + end.x) / 2;
+    return [start.x, start.y, midX, start.y, midX, end.y, end.x, end.y];
+  }
+
+  if (pathStyle === "curved") {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    // Bow the midpoint perpendicular to the line so tension can smooth it into a curve.
+    const offset = Math.min(60, dist * 0.25);
+    const midX = (start.x + end.x) / 2 - (dy / dist) * offset;
+    const midY = (start.y + end.y) / 2 + (dx / dist) * offset;
+    return [start.x, start.y, midX, midY, end.x, end.y];
+  }
+
+  return [start.x, start.y, end.x, end.y];
 }

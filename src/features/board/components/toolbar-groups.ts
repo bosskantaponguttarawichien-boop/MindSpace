@@ -1,5 +1,5 @@
-import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronRight, Circle, Diamond, Dot, Eraser, Hand, Minus, MoreHorizontal, MousePointer2, Pencil, RectangleHorizontal, StickyNote, Table, Triangle, Type } from "lucide-react";
-import type { BoardColor, ConnectionHeadType, ConnectionLineStyle, ConnectionStyle } from "@/domain/board/board-document";
+import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronRight, Circle, CornerDownRight, Diamond, Dot, Eraser, Hand, Minus, MoreHorizontal, MousePointer2, Pencil, RectangleHorizontal, Slash, Spline, StickyNote, Table, Triangle, Type } from "lucide-react";
+import type { BoardColor, ConnectionHeadType, ConnectionLineStyle, ConnectionPathStyle, ConnectionStyle } from "@/domain/board/board-document";
 import type { BoardTool } from "@/infrastructure/board-engine/board-engine";
 import type { MessageKey } from "@/lib/i18n/messages";
 
@@ -48,6 +48,12 @@ export const connectionHeadTypes: ConnectionOption<ConnectionHeadType>[] = [
   { value: "triangle", label: "headTriangle", icon: Triangle },
   { value: "circle", label: "headCircle", icon: Circle },
   { value: "diamond", label: "headDiamond", icon: Diamond },
+];
+
+export const connectionPathStyles: ConnectionOption<ConnectionPathStyle>[] = [
+  { value: "straight", label: "pathStraight", icon: Slash },
+  { value: "curved", label: "pathCurved", icon: Spline },
+  { value: "elbow", label: "pathElbow", icon: CornerDownRight },
 ];
 
 export const colorClasses: Record<BoardColor, string> = {

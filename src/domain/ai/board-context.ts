@@ -20,6 +20,7 @@ export type BoardAiConnectionSummary = {
   headType?: string;
   style?: string;
   lineStyle?: string;
+  pathStyle?: string;
 };
 
 export type BoardAiContext = {
@@ -66,6 +67,7 @@ export function extractBoardContext(
       headType: conn.headType ?? "arrow",
       style: conn.style ?? "end",
       lineStyle: conn.lineStyle ?? "solid",
+      pathStyle: conn.pathStyle ?? "straight",
     }));
 
   return {
@@ -96,7 +98,7 @@ export function formatContextForPrompt(context: BoardAiContext): string {
     for (const conn of context.connections) {
       const fromLabel = conn.fromText ? `"${conn.fromText}"` : conn.fromId;
       const toLabel = conn.toText ? `"${conn.toText}"` : conn.toId;
-      lines.push(`- (ID: ${conn.id}) ${fromLabel} -> ${toLabel} [head: ${conn.headType}, style: ${conn.style}]`);
+      lines.push(`- (ID: ${conn.id}) ${fromLabel} -> ${toLabel} [shape: ${conn.pathStyle}, head: ${conn.headType}, style: ${conn.style}]`);
     }
   }
 

@@ -77,6 +77,7 @@ Allowed values:
 - connector headType: arrow, triangle, circle, diamond.
 - connector style: end, both, start, none.
 - connector lineStyle: solid, dashed, dotted.
+- connector pathStyle: straight, curved, elbow.
 
 Keep explanations helpful and concise. Respond in the language used in the prompt/context (Thai if Thai is used, English otherwise).`;
 

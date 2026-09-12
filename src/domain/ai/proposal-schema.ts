@@ -3,6 +3,7 @@ import type {
   BoardElement,
   ConnectionHeadType,
   ConnectionLineStyle,
+  ConnectionPathStyle,
   ConnectionStyle,
 } from "@/domain/board/board-document";
 
@@ -23,6 +24,7 @@ export type AiProposedConnection = {
   style?: ConnectionStyle;
   lineStyle?: ConnectionLineStyle;
   headType?: ConnectionHeadType;
+  pathStyle?: ConnectionPathStyle;
 };
 
 export type AiProposedConnectionUpdate = {
@@ -30,6 +32,7 @@ export type AiProposedConnectionUpdate = {
   headType?: ConnectionHeadType;
   style?: ConnectionStyle;
   lineStyle?: ConnectionLineStyle;
+  pathStyle?: ConnectionPathStyle;
   color?: BoardColor;
 };
 
@@ -61,6 +64,7 @@ const VALID_COLORS = new Set<BoardColor>(["violet", "yellow", "blue", "green", "
 const VALID_HEAD_TYPES = new Set<ConnectionHeadType>(["arrow", "triangle", "circle", "diamond"]);
 const VALID_STYLES = new Set<ConnectionStyle>(["end", "both", "start", "none"]);
 const VALID_LINE_STYLES = new Set<ConnectionLineStyle>(["solid", "dashed", "dotted"]);
+const VALID_PATH_STYLES = new Set<ConnectionPathStyle>(["straight", "curved", "elbow"]);
 
 export function validateProposal(raw: unknown): AiProposal | null {
   if (!raw || typeof raw !== "object") return null;
@@ -111,7 +115,10 @@ export function validateProposal(raw: unknown): AiProposal | null {
       const lineStyle = typeof conn.lineStyle === "string" && VALID_LINE_STYLES.has(conn.lineStyle as ConnectionLineStyle)
         ? (conn.lineStyle as ConnectionLineStyle)
         : undefined;
-      validConnections.push({ fromIndex, toIndex, fromId, toId, headType, style, lineStyle });
+      const pathStyle = typeof conn.pathStyle === "string" && VALID_PATH_STYLES.has(conn.pathStyle as ConnectionPathStyle)
+        ? (conn.pathStyle as ConnectionPathStyle)
+        : undefined;
+      validConnections.push({ fromIndex, toIndex, fromId, toId, headType, style, lineStyle, pathStyle });
     }
   }
 
@@ -131,12 +138,15 @@ export function validateProposal(raw: unknown): AiProposal | null {
       const lineStyle = typeof update.lineStyle === "string" && VALID_LINE_STYLES.has(update.lineStyle as ConnectionLineStyle)
         ? (update.lineStyle as ConnectionLineStyle)
         : undefined;
+      const pathStyle = typeof update.pathStyle === "string" && VALID_PATH_STYLES.has(update.pathStyle as ConnectionPathStyle)
+        ? (update.pathStyle as ConnectionPathStyle)
+        : undefined;
       const color = typeof update.color === "string" && VALID_COLORS.has(update.color as BoardColor)
         ? (update.color as BoardColor)
         : undefined;
 
-      if (headType || style || lineStyle || color) {
-        validUpdateConnections.push({ id, headType, style, lineStyle, color });
+      if (headType || style || lineStyle || pathStyle || color) {
+        validUpdateConnections.push({ id, headType, style, lineStyle, pathStyle, color });
       }
     }
   }

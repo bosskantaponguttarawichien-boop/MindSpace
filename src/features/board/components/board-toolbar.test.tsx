@@ -197,11 +197,14 @@ describe("BoardToolbar", () => {
     await user.click(screen.getByRole("button", { name: "Connector" }));
     await user.click(screen.getByRole("button", { name: "Diamond marker" }));
     await user.click(screen.getByRole("button", { name: "Dashed line" }));
+    await user.click(screen.getByRole("button", { name: "Curved" }));
 
     expect(onUpdateConnection).toHaveBeenCalledWith({ headType: "diamond" });
     expect(onUpdateConnection).toHaveBeenCalledWith({ lineStyle: "dashed" });
+    expect(onUpdateConnection).toHaveBeenCalledWith({ pathStyle: "curved" });
     expect(screen.getByRole("button", { name: "Diamond marker" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Dashed line" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Curved" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("sets the connector colour through the connector card", async () => {

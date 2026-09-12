@@ -675,6 +675,18 @@ export function KonvaBoard({
     setViewport({ x: (currentSize.width - (maxX + minX) * scale) / 2, y: (currentSize.height - (maxY + minY) * scale) / 2, scale });
   }, []);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const frame = requestAnimationFrame(() => {
+      if (documentRef.current.elements.length === 0) return;
+      const rect = container.getBoundingClientRect();
+      sizeRef.current = { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
+      zoomToFit();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [zoomToFit]);
+
   const addImage = useCallback((image: { url: string; width: number; height: number }) => {
     const maxWidth = 420;
     const maxHeight = 320;

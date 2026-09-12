@@ -1,4 +1,4 @@
-import type { BoardElement, ConnectionPathStyle } from "@/domain/board/board-document";
+import type { BoardElement, BoardElementId, ConnectionPathStyle } from "@/domain/board/board-document";
 
 export type Point = { x: number; y: number };
 export type Bounds = { x: number; y: number; width: number; height: number };
@@ -174,4 +174,85 @@ export function getConnectionPathPoints(pathStyle: ConnectionPathStyle | undefin
   }
 
   return [start.x, start.y, end.x, end.y];
+}
+
+export type ConnectionAxis = "horizontal" | "vertical";
+
+/**
+ * Shared anchor on `from`'s boundary, aimed at the centroid of all its elbow-connected targets
+ * instead of any single one, so sibling connections leave the shape from the same point.
+ */
+export function getSharedConnectionStart(from: BoardElement, targets: BoardElement[], gap = 16): Point {
+  const fromCenter = elementCenter(from);
+  if (targets.length === 0) return fromCenter;
+
+  const centroid = {
+    x: targets.reduce((sum, target) => sum + elementCenter(target).x, 0) / targets.length,
+    y: targets.reduce((sum, target) => sum + elementCenter(target).y, 0) / targets.length,
+  };
+  const rawStart = getShapeIntersection(from, centroid);
+  const dx = rawStart.x - fromCenter.x;
+  const dy = rawStart.y - fromCenter.y;
+  const dist = Math.hypot(dx, dy) || 1;
+
+  return { x: rawStart.x + (dx / dist) * gap, y: rawStart.y + (dy / dist) * gap };
+}
+
+/** Whether the shared trunk leaves `from` through its left/right edge (then splits vertically) or its top/bottom edge (then splits horizontally). */
+export function getConnectionAxis(from: BoardElement, start: Point): ConnectionAxis {
+  const center = elementCenter(from);
+  const rx = Math.max(1, from.width / 2);
+  const ry = Math.max(1, from.height / 2);
+  const xRatio = Math.abs(start.x - center.x) / rx;
+  const yRatio = Math.abs(start.y - center.y) / ry;
+  return xRatio >= yRatio ? "horizontal" : "vertical";
+}
+
+function getTreeBranchCoordinate(axis: ConnectionAxis, start: Point, ends: Point[]): number {
+  if (axis === "horizontal") {
+    const meanEndX = ends.reduce((sum, end) => sum + end.x, 0) / ends.length;
+    return (start.x + meanEndX) / 2;
+  }
+  const meanEndY = ends.reduce((sum, end) => sum + end.y, 0) / ends.length;
+  return (start.y + meanEndY) / 2;
+}
+
+function getTreeBranchPoints(axis: ConnectionAxis, start: Point, branchCoord: number, end: Point): number[] {
+  if (axis === "horizontal") {
+    return [start.x, start.y, branchCoord, start.y, branchCoord, end.y, end.x, end.y];
+  }
+  return [start.x, start.y, start.x, branchCoord, end.x, branchCoord, end.x, end.y];
+}
+
+/**
+ * Elbow paths for every connection sharing `fromId`, merged into one trunk from a shared start
+ * point that then splits toward each target — instead of each connection routing independently
+ * from its own point on `from`'s boundary.
+ */
+export function getGroupedElbowPaths(
+  fromId: BoardElementId,
+  connections: { id: string; toId: BoardElementId }[],
+  resolveElement: (id: BoardElementId) => BoardElement | undefined,
+  gap = 16,
+): Map<string, { start: Point; end: Point; points: number[] }> {
+  const result = new Map<string, { start: Point; end: Point; points: number[] }>();
+  const from = resolveElement(fromId);
+  if (!from) return result;
+
+  const resolved = connections
+    .map((connection) => ({ connection, to: resolveElement(connection.toId) }))
+    .filter((entry): entry is { connection: { id: string; toId: BoardElementId }; to: BoardElement } => !!entry.to);
+  if (resolved.length === 0) return result;
+
+  const start = getSharedConnectionStart(from, resolved.map((entry) => entry.to), gap);
+  const axis = getConnectionAxis(from, start);
+  const ends = resolved.map((entry) => getConnectionEndpoints(from, entry.to, gap).end);
+  const branchCoord = getTreeBranchCoordinate(axis, start, ends);
+
+  resolved.forEach((entry, index) => {
+    const end = ends[index]!;
+    result.set(entry.connection.id, { start, end, points: getTreeBranchPoints(axis, start, branchCoord, end) });
+  });
+
+  return result;
 }

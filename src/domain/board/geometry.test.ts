@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BoardElement } from "@/domain/board/board-document";
-import { boundsFromPoints, elementBounds, elementCenter, getConnectionEndpoints, getConnectionPathPoints, getShapeIntersection, isElementContainedByBounds } from "@/domain/board/geometry";
+import { boundsFromPoints, elementBounds, elementCenter, getConnectionEndpoints, getConnectionPathPoints, getGroupedElbowPaths, getShapeIntersection, isElementContainedByBounds } from "@/domain/board/geometry";
 
 describe("geometry", () => {
   it("calculates element center correctly", () => {
@@ -173,5 +173,53 @@ describe("geometry", () => {
     expect([points[4], points[5]]).toEqual([100, 0]);
     expect(points[2]).toBeCloseTo(50);
     expect(points[3]).not.toBe(0);
+  });
+
+  it("merges elbow siblings leaving a source's side edge into one trunk before splitting", () => {
+    const from: BoardElement = { id: "element:from", kind: "rectangle", x: 0, y: 0, width: 100, height: 100, text: "" };
+    const to1: BoardElement = { id: "element:to1", kind: "rectangle", x: 300, y: -60, width: 100, height: 100, text: "" };
+    const to2: BoardElement = { id: "element:to2", kind: "rectangle", x: 300, y: 60, width: 100, height: 100, text: "" };
+    const elements = new Map([from, to1, to2].map((element) => [element.id, element]));
+
+    const paths = getGroupedElbowPaths(
+      from.id,
+      [{ id: "connection:c1", toId: to1.id }, { id: "connection:c2", toId: to2.id }],
+      (id) => elements.get(id),
+      0,
+    );
+
+    const c1 = paths.get("connection:c1");
+    const c2 = paths.get("connection:c2");
+    expect(c1?.start).toEqual({ x: 100, y: 50 });
+    expect(c2?.start).toEqual(c1?.start);
+    // Same trunk segment (start -> branch point) for both siblings; they only diverge after it.
+    expect(c1?.points.slice(0, 4)).toEqual([100, 50, 200, 50]);
+    expect(c2?.points.slice(0, 4)).toEqual(c1?.points.slice(0, 4));
+    expect(c1?.points).toEqual([100, 50, 200, 50, 200, 0, 300, 0]);
+    expect(c2?.points).toEqual([100, 50, 200, 50, 200, 100, 300, 100]);
+  });
+
+  it("merges elbow siblings leaving a source's top/bottom edge into a vertical trunk, like a tree diagram", () => {
+    const from: BoardElement = { id: "element:from", kind: "rectangle", x: 0, y: 0, width: 200, height: 100, text: "" };
+    const to1: BoardElement = { id: "element:to1", kind: "rectangle", x: -100, y: 250, width: 100, height: 100, text: "" };
+    const to2: BoardElement = { id: "element:to2", kind: "rectangle", x: 200, y: 250, width: 100, height: 100, text: "" };
+    const elements = new Map([from, to1, to2].map((element) => [element.id, element]));
+
+    const paths = getGroupedElbowPaths(
+      from.id,
+      [{ id: "connection:c1", toId: to1.id }, { id: "connection:c2", toId: to2.id }],
+      (id) => elements.get(id),
+      0,
+    );
+
+    const c1 = paths.get("connection:c1");
+    const c2 = paths.get("connection:c2");
+    expect(c1?.start).toEqual({ x: 100, y: 100 });
+    expect(c2?.start).toEqual(c1?.start);
+    // Trunk drops straight down from the shared start to the branch row before splitting sideways.
+    expect(c1?.points.slice(0, 4)).toEqual([100, 100, 100, 175]);
+    expect(c2?.points.slice(0, 4)).toEqual(c1?.points.slice(0, 4));
+    expect(c1?.points).toEqual([100, 100, 100, 175, -20, 175, -20, 250]);
+    expect(c2?.points).toEqual([100, 100, 100, 175, 220, 175, 220, 250]);
   });
 });

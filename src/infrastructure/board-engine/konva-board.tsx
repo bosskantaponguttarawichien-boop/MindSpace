@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
 import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, textStyleFor, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
-import { boundsFromPoints, getConnectionEndpoints, getConnectionPathPoints, isElementContainedByBounds, type Bounds } from "@/domain/board/geometry";
+import { boundsFromPoints, getConnectionEndpoints, getConnectionPathPoints, getGroupedElbowPaths, isElementContainedByBounds, type Bounds } from "@/domain/board/geometry";
 import { appendMindMapChild, appendMindMapSibling, layoutMindMap, type MindMapDefaults, type MindMapLayoutDirection } from "@/domain/board/mind-map";
 import { parseMarkdown } from "@/domain/board/markdown";
 import type { BoardEngine, BoardExport, BoardTool } from "@/infrastructure/board-engine/board-engine";
@@ -503,17 +503,40 @@ export function KonvaBoard({
   }, [cancelPendingMove, updateElement]);
 
   const updateConnectedArrows = useCallback((movedId: BoardElementId, x: number, y: number) => {
+    const resolveElement = (id: BoardElementId): BoardElement | undefined => {
+      const element = documentRef.current.elements.find((candidate) => candidate.id === id);
+      if (!element) return undefined;
+      return id === movedId ? { ...element, x, y } : element;
+    };
+
+    // Elbow connections are handled per shared-fromId group below, since a moved element can shift
+    // every sibling's trunk/branch point, not just the connections touching it directly.
+    const elbowGroupIds = new Set<BoardElementId>();
     for (const connection of documentRef.current.connections) {
       if (connection.fromId !== movedId && connection.toId !== movedId) continue;
-      const from = documentRef.current.elements.find((element) => element.id === connection.fromId);
-      const to = documentRef.current.elements.find((element) => element.id === connection.toId);
+      if ((connection.pathStyle ?? "straight") === "elbow") {
+        elbowGroupIds.add(connection.fromId);
+        continue;
+      }
+      const from = resolveElement(connection.fromId);
+      const to = resolveElement(connection.toId);
       if (!from || !to) continue;
-      const fromEl = connection.fromId === movedId ? { ...from, x, y } : from;
-      const toEl = connection.toId === movedId ? { ...to, x, y } : to;
-      const { start, end } = getConnectionEndpoints(fromEl, toEl);
+      const { start, end } = getConnectionEndpoints(from, to);
       const arrow = arrowRefs.current.get(connection.id);
       arrow?.points(getConnectionPathPoints(connection.pathStyle, start, end));
       arrow?.getLayer()?.batchDraw();
+    }
+
+    for (const fromId of elbowGroupIds) {
+      const siblings = documentRef.current.connections.filter(
+        (connection) => connection.fromId === fromId && (connection.pathStyle ?? "straight") === "elbow",
+      );
+      const paths = getGroupedElbowPaths(fromId, siblings, resolveElement);
+      for (const [connectionId, { points }] of paths) {
+        const arrow = arrowRefs.current.get(connectionId);
+        arrow?.points(points);
+        arrow?.getLayer()?.batchDraw();
+      }
     }
   }, []);
 
@@ -1458,6 +1481,20 @@ export function KonvaBoard({
   const elementMap = new Map(document.elements.map((element) => [element.id, element]));
   const editingElement = editing ? elementMap.get(editing.id) : undefined;
 
+  // Elbow connections sharing a source are merged into one trunk that splits toward each target,
+  // so they're grouped by fromId and solved together rather than routed independently per pair.
+  const elbowGroups = new Map<BoardElementId, BoardConnection[]>();
+  for (const connection of document.connections) {
+    if ((connection.pathStyle ?? "straight") !== "elbow") continue;
+    const group = elbowGroups.get(connection.fromId);
+    if (group) group.push(connection); else elbowGroups.set(connection.fromId, [connection]);
+  }
+  const elbowPaths = new Map(
+    Array.from(elbowGroups.entries()).flatMap(([fromId, group]) =>
+      Array.from(getGroupedElbowPaths(fromId, group, (id) => elementMap.get(id))),
+    ),
+  );
+
   function documentWithEditingText() {
     if (!editing) return documentRef.current;
     return {
@@ -1560,7 +1597,8 @@ export function KonvaBoard({
             const from = elementMap.get(connection.fromId);
             const to = elementMap.get(connection.toId);
             if (!from || !to) return null;
-            const { start, end } = getConnectionEndpoints(from, to);
+            const groupedPath = elbowPaths.get(connection.id);
+            const { start, end } = groupedPath ?? getConnectionEndpoints(from, to);
             const isSelected = selectedConnection === connection.id;
             const colorKey = connection.color;
             const strokeColor = isSelected ? "#7c3aed" : colorKey ? COLORS[colorKey].stroke : "#64748b";
@@ -1580,7 +1618,7 @@ export function KonvaBoard({
               pointerWidth = 10;
             }
             const pathStyle = connection.pathStyle ?? "straight";
-            const points = getConnectionPathPoints(pathStyle, start, end);
+            const points = groupedPath ? groupedPath.points : getConnectionPathPoints(pathStyle, start, end);
             const isCustomMarker = headType === "circle" || headType === "diamond";
             // Markers rotate to the path's local end/start segment, not the overall start-end vector,
             // so curved and elbow connectors still point their circle/diamond heads along the line.

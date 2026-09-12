@@ -5,13 +5,14 @@ import { useEffect, useRef, useState } from "react";
 import { IconAction } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
 import { ColorRow, OptionRow, ToolCard, ToolCardLabel, ToolCardRow, ToolCardSeparator } from "@/features/board/components/tool-card";
-import { connectionEnds, connectionHeadTypes, connectionLineStyles, connectionPathStyles, contentTools, inkTools, pointerTools, shapeTools } from "@/features/board/components/toolbar-groups";
+import { connectionEnds, connectionHeadTypes, connectionLineStyles, connectionPathStyles, contentTools, inkTools, mindMapLayoutDirections, pointerTools, shapeTools } from "@/features/board/components/toolbar-groups";
 import { useLocale } from "@/lib/i18n/locale-provider";
 import type { BoardTool } from "@/infrastructure/board-engine/board-engine";
 import { TEXT_FONT_SIZES, type BoardColor, type BoardConnection, type BoardTextFontSize, type BoardTextStyle, type ConnectionHeadType, type ConnectionLineStyle, type ConnectionPathStyle, type ConnectionStyle } from "@/domain/board/board-document";
+import type { MindMapLayoutDirection } from "@/domain/board/mind-map";
 import type { MessageKey } from "@/lib/i18n/messages";
 
-type ToolCardId = "text" | "shape" | "connector" | "ink" | "color";
+type ToolCardId = "text" | "shape" | "connector" | "ink" | "layout" | "color";
 
 const textSizeLabels: Record<BoardTextFontSize, MessageKey> = {
   14: "textSize14",
@@ -57,7 +58,7 @@ export function BoardToolbar({
   onImportImage: () => void;
   onImportPdf: () => void;
   onAddChildNode: () => void;
-  onLayoutMindMap: () => void;
+  onLayoutMindMap: (direction?: MindMapLayoutDirection) => void;
   onSetColor: (color: BoardColor) => void;
   onUpdateConnection?: (patch: Partial<BoardConnection>) => void;
   onAddTableRow?: () => void;
@@ -70,6 +71,7 @@ export function BoardToolbar({
   const [openCard, setOpenCard] = useState<ToolCardId | null>(null);
   const [lastShapeTool, setLastShapeTool] = useState<BoardTool>("rectangle");
   const [lastInkTool, setLastInkTool] = useState<BoardTool>("draw");
+  const [lastMindMapDirection, setLastMindMapDirection] = useState<MindMapLayoutDirection>("horizontal");
   const [connection, setConnection] = useState<{ style: ConnectionStyle; lineStyle: ConnectionLineStyle; headType: ConnectionHeadType; pathStyle: ConnectionPathStyle }>({ style: "end", lineStyle: "solid", headType: "arrow", pathStyle: "straight" });
 
   useEffect(() => {
@@ -111,6 +113,11 @@ export function BoardToolbar({
   function applyConnection(patch: Partial<BoardConnection>) {
     setConnection((current) => ({ ...current, ...patch }));
     onUpdateConnection?.(patch);
+  }
+
+  function applyMindMapLayout(direction: MindMapLayoutDirection) {
+    setLastMindMapDirection(direction);
+    onLayoutMindMap(direction);
   }
 
   return (
@@ -157,7 +164,7 @@ export function BoardToolbar({
         <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-1 h-6" />
           <IconAction label={t("addChildNode")} icon={GitBranchPlus} disabled={!ready} onClick={onAddChildNode} />
-          <IconAction label={t("autoLayout")} icon={Spline} disabled={!ready} onClick={onLayoutMindMap} />
+          <IconAction label={t("autoLayout")} icon={Spline} expandable expanded={openCard === "layout"} disabled={!ready} onClick={() => { onLayoutMindMap(lastMindMapDirection); toggleCard("layout"); }} />
           <IconAction label={t("changeColor")} icon={Palette} expandable expanded={openCard === "color"} disabled={!ready} onClick={() => toggleCard("color")} />
         </div>
       </div>
@@ -216,6 +223,12 @@ export function BoardToolbar({
             <OptionRow label={t("lineStyle")} options={connectionLineStyles} value={connection.lineStyle} onSelect={(lineStyle) => applyConnection({ lineStyle })} />
           </div>
           <ColorRow label={t("connectionColor")} onSelect={(color) => applyConnection({ color })} />
+        </ToolCard>
+      ) : null}
+
+      {openCard === "layout" ? (
+        <ToolCard label={t("layoutOptions")} className="flex-col items-stretch gap-2">
+          <OptionRow label={t("layoutDirection")} options={mindMapLayoutDirections} value={lastMindMapDirection} onSelect={applyMindMapLayout} />
         </ToolCard>
       ) : null}
 

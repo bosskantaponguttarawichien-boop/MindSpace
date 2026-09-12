@@ -44,4 +44,16 @@ describe("mind-map commands", () => {
     expect(laidOut.elements.find((element) => element.id === second.id)?.x).toBe(root.x + 300);
     expect(laidOut.elements.find((element) => element.id === second.id)?.y).toBeGreaterThan(laidOut.elements.find((element) => element.id === first.id)?.y ?? 0);
   });
+
+  it("lays out a tree-direction root with children below it, connected by elbow lines", () => {
+    const first = { id: "element:first" as const, kind: "note" as const, x: 0, y: 0, width: 190, height: 110, text: "First", color: "violet" as const };
+    const second = { id: "element:second" as const, kind: "note" as const, x: 0, y: 0, width: 190, height: 110, text: "Second", color: "violet" as const };
+    const document = { ...createEmptyBoard(), elements: [root, first, second], connections: [{ id: "connection:one" as const, fromId: root.id, toId: first.id }, { id: "connection:two" as const, fromId: root.id, toId: second.id }] };
+
+    const laidOut = layoutMindMap(document, root.id, "tree");
+    expect(laidOut.elements.find((element) => element.id === first.id)?.y).toBe(root.y + 200);
+    expect(laidOut.elements.find((element) => element.id === second.id)?.y).toBe(root.y + 200);
+    expect(laidOut.elements.find((element) => element.id === second.id)?.x).toBeGreaterThan(laidOut.elements.find((element) => element.id === first.id)?.x ?? 0);
+    expect(laidOut.connections.every((connection) => connection.pathStyle === "elbow")).toBe(true);
+  });
 });

@@ -207,6 +207,21 @@ describe("BoardToolbar", () => {
     expect(screen.getByRole("button", { name: "Curved" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("runs the mind map layout with the last picked direction and lets you switch it", async () => {
+    const user = userEvent.setup();
+    const { onLayoutMindMap } = renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Arrange mind map" }));
+    expect(onLayoutMindMap).toHaveBeenCalledWith("horizontal");
+
+    await user.click(screen.getByRole("button", { name: "Tree" }));
+    expect(onLayoutMindMap).toHaveBeenCalledWith("tree");
+    expect(screen.getByRole("button", { name: "Tree" })).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: "Arrange mind map" }));
+    expect(onLayoutMindMap).toHaveBeenLastCalledWith("tree");
+  });
+
   it("sets the connector colour through the connector card", async () => {
     const user = userEvent.setup();
     const { onUpdateConnection, onSetColor } = renderToolbar();

@@ -134,7 +134,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
         onImportImage={() => inputRef.current?.click()}
         onImportPdf={() => pdfInputRef.current?.click()}
         onAddChildNode={() => engine?.addChildNode()}
-        onLayoutMindMap={() => engine?.layoutMindMap()}
+        onLayoutMindMap={(direction) => engine?.layoutMindMap(direction)}
         onSetColor={(color) => engine?.setSelectionColor(color)}
         onUpdateConnection={(patch) => { engine?.setConnectionDefaults(patch); engine?.updateSelectedConnection(patch); }}
         onAddTableRow={() => engine?.addTableRow()}

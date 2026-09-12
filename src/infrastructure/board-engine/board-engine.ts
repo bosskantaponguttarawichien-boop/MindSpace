@@ -1,4 +1,5 @@
 import type { BoardColor, BoardConnection, BoardTextStyle } from "@/domain/board/board-document";
+import type { MindMapLayoutDirection } from "@/domain/board/mind-map";
 import type { AiProposal } from "@/domain/ai/proposal-schema";
 
 export type BoardTool =
@@ -30,7 +31,7 @@ export type BoardEngine = {
   addImage: (image: { url: string; width: number; height: number }) => void;
   renderExport: () => BoardExport | null;
   addChildNode: () => void;
-  layoutMindMap: () => void;
+  layoutMindMap: (direction?: MindMapLayoutDirection) => void;
   setSelectionColor: (color: BoardColor) => void;
   setSelectionShape: (shape: BoardTool) => void;
   setSelectionTextStyle: (patch: Partial<BoardTextStyle>) => void;

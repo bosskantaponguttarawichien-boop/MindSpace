@@ -7,7 +7,7 @@ import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Stage, T
 import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, textStyleFor, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
 import { boundsFromPoints, getConnectionEndpoints, getConnectionPathPoints, isElementContainedByBounds, type Bounds } from "@/domain/board/geometry";
-import { appendMindMapChild, appendMindMapSibling, layoutMindMap, type MindMapDefaults } from "@/domain/board/mind-map";
+import { appendMindMapChild, appendMindMapSibling, layoutMindMap, type MindMapDefaults, type MindMapLayoutDirection } from "@/domain/board/mind-map";
 import { parseMarkdown } from "@/domain/board/markdown";
 import type { BoardEngine, BoardExport, BoardTool } from "@/infrastructure/board-engine/board-engine";
 import type { AiProposal } from "@/domain/ai/proposal-schema";
@@ -966,9 +966,9 @@ export function KonvaBoard({
     if (parentId) addMindMapNode("child", parentId);
   }, [addMindMapNode]);
 
-  const arrangeMindMap = useCallback(() => {
+  const arrangeMindMap = useCallback((direction: MindMapLayoutDirection = "horizontal") => {
     const rootId = selectionRef.current[0];
-    const next = layoutMindMap(documentRef.current, rootId);
+    const next = layoutMindMap(documentRef.current, rootId, direction);
     if (next !== documentRef.current) commit(next);
   }, [commit]);
 

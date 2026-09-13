@@ -7,6 +7,7 @@ import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Stage, T
 import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, textStyleFor, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
 import { boundsFromPoints, getConnectionEndpoints, getConnectionPathPoints, getGroupedElbowPaths, isElementContainedByBounds, type Bounds } from "@/domain/board/geometry";
+import { expandSelectionWithGroups, groupElements, ungroupElements } from "@/domain/board/grouping";
 import { appendMindMapChild, appendMindMapSibling, layoutMindMap, type MindMapDefaults, type MindMapLayoutDirection } from "@/domain/board/mind-map";
 import { parseMarkdown } from "@/domain/board/markdown";
 import type { BoardEngine, BoardExport, BoardTool } from "@/infrastructure/board-engine/board-engine";
@@ -335,13 +336,13 @@ export function KonvaBoard({
   const elementColorRef = useRef<BoardColor | null>(null);
   const gestureStartRef = useRef<BoardDocument | null>(null);
   const elementGestureActiveRef = useRef(false);
-  const dragPreviewRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
+  const dragPreviewRef = useRef<Map<BoardElementId, { x: number; y: number }>>(new Map());
   const arrowRefs = useRef(new Map<string, Konva.Arrow>());
   const drawStartRef = useRef<{ id: BoardElementId; document: BoardDocument } | null>(null);
   const eraseStartRef = useRef<BoardDocument | null>(null);
   const selectionMarqueeStartRef = useRef<SelectionMarqueeStart | null>(null);
   const moveFrameRef = useRef<number | null>(null);
-  const pendingMoveRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
+  const pendingMoveRef = useRef<Map<BoardElementId, { x: number; y: number }>>(new Map());
   const drawFrameRef = useRef<number | null>(null);
   const pendingDrawPointRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
   const wheelFrameRef = useRef<number | null>(null);
@@ -468,8 +469,12 @@ export function KonvaBoard({
     onDocumentChangeRef.current(next);
   }, []);
 
-  const updateElement = useCallback((id: BoardElementId, patch: Partial<BoardElement>, historical = false) => {
-    const next = { ...documentRef.current, elements: documentRef.current.elements.map((element) => element.id === id ? { ...element, ...patch } : element) };
+  const updateElements = useCallback((patches: { id: BoardElementId; patch: Partial<BoardElement> }[], historical = false) => {
+    const patchMap = new Map(patches.map((entry) => [entry.id, entry.patch]));
+    const next = { ...documentRef.current, elements: documentRef.current.elements.map((element) => {
+      const patch = patchMap.get(element.id);
+      return patch ? { ...element, ...patch } : element;
+    }) };
     if (historical && gestureStartRef.current) {
       pastRef.current.push(gestureStartRef.current);
       futureRef.current = [];
@@ -478,12 +483,16 @@ export function KonvaBoard({
     replaceDocument(next);
   }, [replaceDocument]);
 
+  const updateElement = useCallback((id: BoardElementId, patch: Partial<BoardElement>, historical = false) => {
+    updateElements([{ id, patch }], historical);
+  }, [updateElements]);
+
   const cancelPendingMove = useCallback(() => {
     if (moveFrameRef.current !== null) {
       window.cancelAnimationFrame(moveFrameRef.current);
       moveFrameRef.current = null;
     }
-    pendingMoveRef.current = null;
+    pendingMoveRef.current = new Map();
   }, []);
 
   useEffect(() => {
@@ -494,13 +503,17 @@ export function KonvaBoard({
       elementGestureActiveRef.current = false;
       cancelPendingMove();
       const preview = dragPreviewRef.current;
-      if (!preview) return;
-      shapeRefs.current.get(preview.id)?.clearCache();
-      updateElement(preview.id, { x: preview.x, y: preview.y }, true);
+      dragPreviewRef.current = new Map();
+      if (preview.size === 0) return;
+      const patches = [...preview].map(([id, position]) => {
+        shapeRefs.current.get(id)?.clearCache();
+        return { id, patch: position };
+      });
+      updateElements(patches, true);
     }
     window.addEventListener("blur", finishInterruptedGesture);
     return () => window.removeEventListener("blur", finishInterruptedGesture);
-  }, [cancelPendingMove, updateElement]);
+  }, [cancelPendingMove, updateElements]);
 
   const updateConnectedArrows = useCallback((movedId: BoardElementId, x: number, y: number) => {
     const resolveElement = (id: BoardElementId): BoardElement | undefined => {
@@ -540,16 +553,18 @@ export function KonvaBoard({
     }
   }, []);
 
-  const scheduleMove = useCallback((id: BoardElementId, x: number, y: number) => {
-    pendingMoveRef.current = { id, x, y };
+  const scheduleMove = useCallback((moves: { id: BoardElementId; x: number; y: number }[]) => {
+    for (const move of moves) pendingMoveRef.current.set(move.id, { x: move.x, y: move.y });
     if (moveFrameRef.current !== null) return;
     moveFrameRef.current = window.requestAnimationFrame(() => {
       moveFrameRef.current = null;
       const pending = pendingMoveRef.current;
-      pendingMoveRef.current = null;
-      if (!pending) return;
-      dragPreviewRef.current = pending;
-      updateConnectedArrows(pending.id, pending.x, pending.y);
+      pendingMoveRef.current = new Map();
+      if (pending.size === 0) return;
+      for (const [id, position] of pending) {
+        dragPreviewRef.current.set(id, position);
+        updateConnectedArrows(id, position.x, position.y);
+      }
     });
   }, [updateConnectedArrows]);
 
@@ -622,6 +637,19 @@ export function KonvaBoard({
       connections: documentRef.current.connections.filter((connection) => !ids.has(connection.fromId) && !ids.has(connection.toId)),
     });
     setSelection([]);
+  }, [commit]);
+
+  const groupSelection = useCallback(() => {
+    const groupId = `group:${crypto.randomUUID()}`;
+    const elements = groupElements(documentRef.current.elements, selectionRef.current, groupId);
+    if (elements === documentRef.current.elements) return;
+    commit({ ...documentRef.current, elements });
+  }, [commit]);
+
+  const ungroupSelection = useCallback(() => {
+    const elements = ungroupElements(documentRef.current.elements, selectionRef.current);
+    if (elements === documentRef.current.elements) return;
+    commit({ ...documentRef.current, elements });
   }, [commit]);
 
   const duplicateSelection = useCallback(() => {
@@ -1117,6 +1145,8 @@ export function KonvaBoard({
     undo,
     redo,
     deleteSelection,
+    groupSelection,
+    ungroupSelection,
     duplicateSelection,
     copySelection,
     pasteClipboard,
@@ -1137,7 +1167,7 @@ export function KonvaBoard({
     addTableCol,
     deleteTableCol,
     applyProposal,
-  }), [addChildNode, addImage, addTableCol, addTableRow, applyProposal, arrangeMindMap, copySelection, deleteTableCol, deleteTableRow, deleteSelection, duplicateSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionShape, setSelectionTextStyle, undo, updateSelectedConnection, zoomAtCenter, zoomToFit]);
+  }), [addChildNode, addImage, addTableCol, addTableRow, applyProposal, arrangeMindMap, copySelection, deleteTableCol, deleteTableRow, deleteSelection, duplicateSelection, groupSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionShape, setSelectionTextStyle, undo, ungroupSelection, updateSelectedConnection, zoomAtCenter, zoomToFit]);
 
   useEffect(() => onReadyRef.current(engine), [engine]);
 
@@ -1167,6 +1197,9 @@ export function KonvaBoard({
       } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
         event.preventDefault();
         duplicateSelection();
+      } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "g") {
+        event.preventDefault();
+        if (event.shiftKey) ungroupSelection(); else groupSelection();
       } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
         event.preventDefault();
         copySelection();
@@ -1194,7 +1227,7 @@ export function KonvaBoard({
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", clearSpacePan);
     };
-  }, [copySelection, deleteSelection, duplicateSelection, onToolChange, pasteClipboard, redo, undo]);
+  }, [copySelection, deleteSelection, duplicateSelection, groupSelection, onToolChange, pasteClipboard, redo, ungroupSelection, undo]);
 
   function applyViewport(next: Viewport) {
     viewportRef.current = next;
@@ -1230,7 +1263,10 @@ export function KonvaBoard({
     if (effectiveTool === "eraser" || effectiveTool === "hand") return;
     clearLongPress();
     longPressTimerRef.current = window.setTimeout(() => {
-      setSelection((current) => current.includes(id) ? current.filter((selectedId) => selectedId !== id) : [...current, id]);
+      const groupMembers = expandSelectionWithGroups([id], documentRef.current.elements);
+      setSelection((current) => current.includes(id)
+        ? current.filter((selectedId) => !groupMembers.includes(selectedId))
+        : [...new Set([...current, ...groupMembers])]);
       onToolChange("select");
       longPressTimerRef.current = null;
     }, 450);
@@ -1337,9 +1373,10 @@ export function KonvaBoard({
       return true;
     }
 
-    const selectedIds = documentRef.current.elements
+    const containedIds = documentRef.current.elements
       .filter((element) => isElementContainedByBounds(element, bounds))
       .map((element) => element.id);
+    const selectedIds = expandSelectionWithGroups(containedIds, documentRef.current.elements);
     setSelectedConnection(null);
     setSelection((current) => start.additive ? [...new Set([...current, ...selectedIds])] : selectedIds);
     return true;
@@ -1439,10 +1476,14 @@ export function KonvaBoard({
     }
     if (effectiveTool !== "select") return;
     setSelectedConnection(null);
-    const next = event.evt.shiftKey
-      ? selection.includes(id) ? selection.filter((selectedId) => selectedId !== id) : [...selection, id]
-      : [id];
-    setSelection(next);
+    const groupMembers = expandSelectionWithGroups([id], documentRef.current.elements);
+    if (!event.evt.shiftKey) {
+      setSelection(groupMembers);
+      return;
+    }
+    setSelection(selection.includes(id)
+      ? selection.filter((selectedId) => !groupMembers.includes(selectedId))
+      : [...new Set([...selection, ...groupMembers])]);
   }
 
   function handleWheel(event: KonvaEventObject<WheelEvent>) {
@@ -1687,13 +1728,15 @@ export function KonvaBoard({
                   elementGestureActiveRef.current = true;
                   event.target.cache();
                 }}
-                onDragMove={(event) => scheduleMove(element.id, event.target.x(), event.target.y())}
+                onDragMove={(event) => {
+                  scheduleMove([{ id: element.id, x: event.target.x(), y: event.target.y() }]);
+                }}
                 onDragEnd={(event) => {
                   cancelPendingMove();
-                  dragPreviewRef.current = null;
+                  dragPreviewRef.current = new Map();
                   elementGestureActiveRef.current = false;
                   event.target.clearCache();
-                  updateElement(element.id, { x: event.target.x(), y: event.target.y() }, true);
+                  updateElements([{ id: element.id, patch: { x: event.target.x(), y: event.target.y() } }], true);
                 }}
                 onTransformStart={(event) => {
                   gestureStartRef.current = cloneDocument(documentRef.current);

@@ -55,6 +55,8 @@ export type BoardElement = {
   tableData?: string[][];
   // Older boards predate alignment, so persisted styles remain additive.
   textStyle?: Partial<BoardTextStyle>;
+  // Older boards predate grouping, so this remains additive/absent.
+  groupId?: string;
 };
 
 export function textStyleFor(element: Pick<BoardElement, "textStyle">): BoardTextStyle {

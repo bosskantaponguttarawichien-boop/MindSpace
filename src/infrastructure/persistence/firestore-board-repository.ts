@@ -39,7 +39,8 @@ function isBoardElement(value: unknown): value is BoardElement {
     (candidate.rows === undefined || (typeof candidate.rows === "number" && Number.isFinite(candidate.rows))) &&
     (candidate.cols === undefined || (typeof candidate.cols === "number" && Number.isFinite(candidate.cols))) &&
     (candidate.tableData === undefined || (Array.isArray(candidate.tableData) && candidate.tableData.every((row) => Array.isArray(row) && row.every((cell) => typeof cell === "string")))) &&
-    (candidate.textStyle === undefined || (textStyleKinds.has(candidate.kind) && isBoardTextStyle(candidate.textStyle)))
+    (candidate.textStyle === undefined || (textStyleKinds.has(candidate.kind) && isBoardTextStyle(candidate.textStyle))) &&
+    (candidate.groupId === undefined || typeof candidate.groupId === "string")
   );
 }
 

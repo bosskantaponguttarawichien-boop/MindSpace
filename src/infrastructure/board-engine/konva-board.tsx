@@ -88,7 +88,7 @@ function boardBounds(elements: BoardElement[]) {
 function nextElement(tool: BoardTool, x: number, y: number, textStyle: BoardTextStyle): BoardElement | null {
   const id = createElementId();
   if (tool === "text") return { id, kind: "text", x, y, width: 220, height: 54, text: "New idea", color: "grey", textStyle };
-  if (tool === "note") return { id, kind: "note", x, y, width: 190, height: 170, text: "New note", color: "yellow" };
+  if (tool === "note") return { id, kind: "note", x, y, width: 190, height: 170, text: "New note", color: "yellow", textStyle };
   if (tool === "table") {
     const defaultData = [
       ["Header 1", "Header 2", "Header 3"],
@@ -117,13 +117,19 @@ function nextElement(tool: BoardTool, x: number, y: number, textStyle: BoardText
 }
 
 function supportsTextStyle(element: BoardElement) {
-  return element.kind === "text" || element.kind === "rectangle" || element.kind === "ellipse" || element.kind === "diamond" || element.kind === "triangle";
+  return element.kind === "text" || element.kind === "note" || element.kind === "rectangle" || element.kind === "ellipse" || element.kind === "diamond" || element.kind === "triangle";
 }
 
 function effectiveTextStyleFor(element: Pick<BoardElement, "kind" | "textStyle">): BoardTextStyle {
   const style = textStyleFor(element);
   const isLegacyShape = element.kind === "rectangle" || element.kind === "ellipse" || element.kind === "diamond" || element.kind === "triangle";
-  return isLegacyShape && element.textStyle?.textAlign === undefined ? { ...style, textAlign: "center" } : style;
+  if (isLegacyShape && element.textStyle?.textAlign === undefined) {
+    return { ...style, textAlign: "center" };
+  }
+  if (element.kind === "note" && element.textStyle?.fontSize === undefined) {
+    return { ...style, fontSize: 16 };
+  }
+  return style;
 }
 
 function BoardTable({
@@ -282,25 +288,51 @@ function MarkdownText({ element, color }: { element: BoardElement; color: string
   const isStructured = lines.length > 1 || lines.some((line) => line.kind !== "paragraph");
   const padding = element.kind === "text" ? 0 : 18;
   const textStyle = effectiveTextStyleFor(element);
-  const defaultFontSize = element.kind === "text" ? textStyle.fontSize : 16;
-  // Shapes read like notes: start at the top and use consistent inner padding.
-  const startY = padding;
+  const defaultFontSize = supportsTextStyle(element) ? textStyle.fontSize : 16;
   const availableWidth = Math.max(20, element.width - padding * 2);
+
+  const lineHeights = lines.map((line) => {
+    const fontSize = element.kind === "text" || line.kind !== "heading" ? defaultFontSize : ({ 1: 24, 2: 20, 3: 18 }[line.level ?? 3]);
+    const prefix = line.kind === "bullet" ? "• " : line.kind === "task" ? `${line.checked ? "☑" : "☐"} ` : line.kind === "quote" ? "│ " : "";
+    const totalLength = (prefix + line.text).length;
+    const charsPerLine = Math.max(1, Math.floor(availableWidth / (fontSize * 0.55)));
+    const estimatedLines = Math.max(1, Math.ceil(totalLength / charsPerLine));
+    return { fontSize, prefix, height: fontSize * 1.45 * estimatedLines };
+  });
+
+  const totalTextHeight = lineHeights.reduce((sum, item) => sum + item.height, 0);
+  const verticalAlign = textStyle.verticalAlign ?? "top";
+  let startY = padding;
+  if (element.kind !== "text") {
+    const availableHeight = Math.max(0, element.height - padding * 2);
+    if (verticalAlign === "middle") {
+      startY = Math.max(padding, padding + (availableHeight - totalTextHeight) / 2);
+    } else if (verticalAlign === "bottom") {
+      startY = Math.max(padding, element.height - padding - totalTextHeight);
+    }
+  }
 
   return (
     <Group listening={false}>
       {lines.map((line, index) => {
-        const fontSize = element.kind === "text" || line.kind !== "heading" ? defaultFontSize : ({ 1: 24, 2: 20, 3: 18 }[line.level ?? 3]);
-        const prefix = line.kind === "bullet" ? "• " : line.kind === "task" ? `${line.checked ? "☑" : "☐"} ` : line.kind === "quote" ? "│ " : "";
-        const lineY = startY + lines.slice(0, index).reduce((offset, previous) => {
-          const prevFontSize = element.kind === "text" || previous.kind !== "heading" ? defaultFontSize : ({ 1: 24, 2: 20, 3: 18 }[previous.level ?? 3]);
-          const prevPrefix = previous.kind === "bullet" ? "• " : previous.kind === "task" ? `${previous.checked ? "☑" : "☐"} ` : previous.kind === "quote" ? "│ " : "";
-          const totalLength = (prevPrefix + previous.text).length;
-          const charsPerLine = Math.max(1, Math.floor(availableWidth / (prevFontSize * 0.55)));
-          const estimatedLines = Math.max(1, Math.ceil(totalLength / charsPerLine));
-          return offset + prevFontSize * 1.45 * estimatedLines;
-        }, 0);
-        return <Text key={`${line.kind}-${index}`} text={`${prefix}${line.text}`} x={padding} y={lineY} width={availableWidth} fill={color} fontFamily={line.kind === "code" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "Geist, Noto Sans Thai, sans-serif"} fontSize={fontSize} fontStyle={(supportsTextStyle(element) && textStyle.fontWeight === "bold") || line.bold || line.kind === "heading" ? "bold" : "normal"} lineHeight={1.35} align={supportsTextStyle(element) ? textStyle.textAlign : element.kind === "note" || isStructured ? "left" : "center"} wrap="word" />;
+        const item = lineHeights[index]!;
+        const lineY = startY + lineHeights.slice(0, index).reduce((offset, prev) => offset + prev.height, 0);
+        return (
+          <Text
+            key={`${line.kind}-${index}`}
+            text={`${item.prefix}${line.text}`}
+            x={padding}
+            y={lineY}
+            width={availableWidth}
+            fill={color}
+            fontFamily={line.kind === "code" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "Geist, Noto Sans Thai, sans-serif"}
+            fontSize={item.fontSize}
+            fontStyle={(supportsTextStyle(element) && textStyle.fontWeight === "bold") || line.bold || line.kind === "heading" ? "bold" : "normal"}
+            lineHeight={1.35}
+            align={supportsTextStyle(element) ? textStyle.textAlign : element.kind === "note" || isStructured ? "left" : "center"}
+            wrap="word"
+          />
+        );
       })}
     </Group>
   );
@@ -321,7 +353,7 @@ export function KonvaBoard({
   textStyle: BoardTextStyle;
   onToolChange: (tool: BoardTool) => void;
   onReady: (engine: BoardEngine) => void;
-  onSelectionChange?: (info: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: BoardElement["kind"] | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }) => void;
+  onSelectionChange?: (info: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: BoardElement["kind"] | "connector" | "shape" | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -439,16 +471,21 @@ export function KonvaBoard({
       const shapeKinds: BoardTool[] = ["rectangle", "ellipse", "diamond", "triangle"];
       const selectedElements = documentRef.current.elements.filter((element) => selection.includes(element.id));
       const shapeElement = selectedElements.find((element) => shapeKinds.includes(element.kind as BoardTool));
-      const selectedElementKind = selectedElements.length === 1 && selectedElements[0] ? selectedElements[0].kind : null;
+      const allShapes = selectedElements.length > 0 && selectedElements.every((el) => shapeKinds.includes(el.kind as BoardTool));
+      const selectedElementKind = selectedElements.length === 1 && selectedElements[0] ? selectedElements[0].kind : allShapes ? "shape" : null;
       const selectedTextElements = selectedElements.filter(supportsTextStyle);
       const firstTextStyle = selectedTextElements[0] ? effectiveTextStyleFor(selectedTextElements[0]) : null;
       const selectedTextStyle = firstTextStyle && selectedTextElements.every((element) => {
         const style = effectiveTextStyleFor(element);
-        return style.fontSize === firstTextStyle.fontSize && style.fontWeight === firstTextStyle.fontWeight && style.textAlign === firstTextStyle.textAlign;
+        return style.fontSize === firstTextStyle.fontSize &&
+          style.fontWeight === firstTextStyle.fontWeight &&
+          style.textAlign === firstTextStyle.textAlign &&
+          (style.verticalAlign ?? "top") === (firstTextStyle.verticalAlign ?? "top");
       }) ? firstTextStyle : null;
       onSelectionChangeRef.current?.({ selectedShapeKind: shapeElement ? (shapeElement.kind as BoardTool) : null, hasSelection, selectedElementKind, selectedTextStyle, selectedIds: selection });
     } else {
-      onSelectionChangeRef.current?.({ selectedShapeKind: null, hasSelection, selectedElementKind: null, selectedTextStyle: null, selectedIds: [] });
+      const isConnectionSelected = selectedConnection !== null;
+      onSelectionChangeRef.current?.({ selectedShapeKind: null, hasSelection: isConnectionSelected, selectedElementKind: isConnectionSelected ? "connector" : null, selectedTextStyle: null, selectedIds: [] });
     }
   }, [selection, selectedConnection, document]);
 
@@ -981,7 +1018,12 @@ export function KonvaBoard({
       if (!supportsTextStyle(element) || !ids.has(element.id)) return element;
       const currentTextStyle = effectiveTextStyleFor(element);
       const nextTextStyle = { ...currentTextStyle, ...patch };
-      if (nextTextStyle.fontSize === currentTextStyle.fontSize && nextTextStyle.fontWeight === currentTextStyle.fontWeight && nextTextStyle.textAlign === currentTextStyle.textAlign) return element;
+      if (
+        nextTextStyle.fontSize === currentTextStyle.fontSize &&
+        nextTextStyle.fontWeight === currentTextStyle.fontWeight &&
+        nextTextStyle.textAlign === currentTextStyle.textAlign &&
+        (nextTextStyle.verticalAlign ?? "top") === (currentTextStyle.verticalAlign ?? "top")
+      ) return element;
       changed = true;
       return { ...element, textStyle: nextTextStyle };
     });
@@ -1413,14 +1455,8 @@ export function KonvaBoard({
     const element = created && elementColorRef.current ? { ...created, color: elementColorRef.current } : created;
     if (element) {
       commit({ ...documentRef.current, elements: [...documentRef.current.elements, element] });
-      const isShape = element.kind === "rectangle" || element.kind === "ellipse" || element.kind === "diamond" || element.kind === "triangle";
-      if (isShape) {
-        // Shapes are a repeated-placement tool: keep it active so the user can add several.
-        setSelection([]);
-      } else {
-        setSelection([element.id]);
-        onToolChange("select");
-      }
+      setSelection([element.id]);
+      onToolChange("select");
     }
   }
 

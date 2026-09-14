@@ -31,7 +31,7 @@ describe("parseBoardDocument", () => {
   });
 
   it("accepts a valid persisted text style and rejects an invalid one", () => {
-    const board = (textStyle: unknown, kind: "text" | "rectangle" = "text") => ({
+    const board = (textStyle: unknown, kind: "text" | "rectangle" | "note" = "text") => ({
       version: 1,
       id: "board:text-style",
       name: "Text style",
@@ -41,8 +41,12 @@ describe("parseBoardDocument", () => {
 
     expect(parseBoardDocument(board({ fontSize: 32, fontWeight: "bold" }))).not.toBeNull();
     expect(parseBoardDocument(board({ fontSize: 18, fontWeight: "normal", textAlign: "right" }, "rectangle"))).not.toBeNull();
+    expect(parseBoardDocument(board({ fontSize: 18, fontWeight: "normal", textAlign: "center", verticalAlign: "middle" }, "rectangle"))).not.toBeNull();
+    expect(parseBoardDocument(board({ fontSize: 18, fontWeight: "normal", verticalAlign: "bottom" }, "rectangle"))).not.toBeNull();
+    expect(parseBoardDocument(board({ fontSize: 24, fontWeight: "bold", textAlign: "center" }, "note"))).not.toBeNull();
     expect(parseBoardDocument(board({ fontSize: 19, fontWeight: "bold" }))).toBeNull();
     expect(parseBoardDocument(board({ fontSize: 32, fontWeight: "heavy" }))).toBeNull();
+    expect(parseBoardDocument(board({ fontSize: 18, fontWeight: "normal", verticalAlign: "diagonal" }))).toBeNull();
   });
 
   it("accepts every board colour and rejects an unknown one", () => {

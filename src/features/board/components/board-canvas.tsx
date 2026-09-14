@@ -37,7 +37,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
   const { t } = useLocale();
   const [engine, setEngine] = useState<BoardEngine | null>(null);
   const [activeTool, setActiveTool] = useState<BoardTool>("select");
-  const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null }>({ selectedShapeKind: null, hasSelection: false, selectedElementKind: null, selectedTextStyle: null });
+  const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }>({ selectedShapeKind: null, hasSelection: false, selectedElementKind: null, selectedTextStyle: null, selectedIds: [] });
   const [textStyle, setTextStyle] = useState<BoardTextStyle>(DEFAULT_TEXT_STYLE);
   const [uploadingImage, setUploadingImage] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -55,7 +55,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
     onEngineReadyRef.current(readyEngine);
   }, []);
 
-  const handleSelectionChange = useCallback((next: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }) => {
+  const handleSelectionChange = useCallback((next: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }) => {
     setSelectionState(next);
     if (next.selectedTextStyle) setTextStyle(next.selectedTextStyle);
     if (next.selectedIds && onSelectionIdsChange) onSelectionIdsChange(next.selectedIds);
@@ -127,6 +127,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
         textStyle={textStyle}
         selectedShapeKind={selectionState.selectedShapeKind}
         selectedElementKind={selectionState.selectedElementKind}
+        selectedIds={selectionState.selectedIds}
         hasSelection={selectionState.hasSelection}
         onToolChange={setActiveTool}
         onSetShape={(shape) => engine?.setSelectionShape(shape)}

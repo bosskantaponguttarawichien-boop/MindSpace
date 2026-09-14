@@ -98,7 +98,6 @@ export function MindSpaceApp() {
             onRenameBoard={renameBoard}
             onDeleteBoard={deleteBoard}
             onSelectBoard={selectBoard}
-            onToggleSidebar={handleToggleSidebar}
           />
         }
         topbar={

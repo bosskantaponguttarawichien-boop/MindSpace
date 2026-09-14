@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Cloud, MoreHorizontal, PanelLeftClose, Pencil, Plus, Trash2 } from "lucide-react";
+import { Cloud, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -21,7 +21,6 @@ export function WorkspaceSidebar({
   onRenameBoard,
   onDeleteBoard,
   onSelectBoard,
-  onToggleSidebar,
 }: {
   boards: BoardSummary[];
   activeBoardId: string;
@@ -30,7 +29,6 @@ export function WorkspaceSidebar({
   onRenameBoard: (id: string, name: string) => void;
   onDeleteBoard: (id: string) => void;
   onSelectBoard: (id: string) => void;
-  onToggleSidebar?: () => void;
 }) {
   const { t } = useLocale();
   const [nameDialog, setNameDialog] = useState<NameDialog | null>(null);
@@ -56,19 +54,6 @@ export function WorkspaceSidebar({
           <Image src="/icons/mindspace-192.png" alt="" width={32} height={32} className="size-8 rounded-xl shadow-sm" priority />
           <span className="text-[15px] font-bold tracking-tight">{t("appName")}</span>
         </div>
-        {onToggleSidebar ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground hover:text-foreground"
-            aria-label={t("collapseSidebar")}
-            title={t("collapseSidebar")}
-            onClick={onToggleSidebar}
-          >
-            <PanelLeftClose className="size-4" />
-          </Button>
-        ) : null}
       </div>
       <div className="px-4 pb-5">
         <Button className="w-full justify-start gap-2" onClick={() => setNameDialog({ board: null, value: nextBoardName })}>

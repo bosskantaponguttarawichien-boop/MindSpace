@@ -1,7 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { IconAction } from "@/components/ui/icon-action";
+import { type ReactNode, useEffect, useState } from "react";
+import { IconAction, SubToolContext } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
 import { BOARD_COLORS, type BoardColor } from "@/domain/board/board-document";
 import { colorClasses, colorLabels, type ConnectionOption } from "@/features/board/components/toolbar-groups";
@@ -10,7 +10,15 @@ import { cn } from "@/lib/utils";
 
 export function ToolCard({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
-    <div className={cn("pointer-events-auto flex max-w-[calc(100vw-1rem)] items-center gap-1.5 overflow-x-auto rounded-2xl border border-border bg-background/95 p-2.5 shadow-lg backdrop-blur scrollbar-none sm:max-w-full sm:rounded-xl sm:p-2", className)} role="group" aria-label={label}>
+    <div
+      className={cn(
+        "pointer-events-auto flex max-w-[calc(100vw-1rem)] items-center gap-1.5 overflow-x-auto rounded-2xl border border-border bg-background/95 p-2.5 shadow-lg backdrop-blur scrollbar-none animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200 ease-out sm:max-w-full sm:rounded-xl sm:p-2",
+        "[&_button[aria-pressed='true']]:bg-primary [&_button[aria-pressed='true']]:text-primary-foreground [&_button[aria-pressed='true']:hover]:bg-primary/90",
+        className
+      )}
+      role="group"
+      aria-label={label}
+    >
       {children}
     </div>
   );
@@ -28,9 +36,66 @@ export function ToolCardSeparator() {
   return <Separator orientation="vertical" className="mx-0.5 h-6" />;
 }
 
-/** A subtly-tinted cluster of sub-tool buttons, inserted inline into the toolbar row right after the tool that owns them. */
-export function SubToolGroup({ children }: { children: ReactNode }) {
-  return <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-muted/60 p-0.5">{children}</div>;
+/** A smoothly expanding and collapsing horizontal container for SubToolGroup. */
+export function CollapsibleSubTools({ open, children }: { open: boolean; children: ReactNode }) {
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [closing, setClosing] = useState(false);
+  const [displayChildren, setDisplayChildren] = useState<ReactNode>(open ? children : null);
+
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setClosing(false);
+      setDisplayChildren(children);
+    } else {
+      setClosing(true);
+    }
+  }
+
+  useEffect(() => {
+    if (!closing) return;
+    const timer = setTimeout(() => {
+      setClosing(false);
+      setDisplayChildren(null);
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [closing]);
+
+  if (!open && !closing && !displayChildren) return null;
+
+  return (
+    <div
+      aria-hidden={closing ? "true" : undefined}
+      className={cn(
+        "shrink-0 overflow-hidden",
+        closing ? "animate-subtools-out pointer-events-none" : "animate-subtools-in"
+      )}
+    >
+      {open ? children : displayChildren}
+    </div>
+  );
+}
+
+/** A tinted cluster of sub-tool buttons, inserted inline into the toolbar row right after the tool that owns them. */
+export function SubToolGroup({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <SubToolContext.Provider value={true}>
+      <div
+        className={cn(
+          "flex h-9 shrink-0 items-center gap-0.5 rounded-full p-0.5 border shadow-xs transition-colors",
+          "bg-primary/10 border-primary/20",
+          "[&_button]:!size-8 [&_button]:shrink-0",
+          "[&_button]:text-primary/90 dark:[&_button]:text-primary",
+          "[&_button:hover]:bg-primary/15 [&_button:hover]:text-primary",
+          "[&_button[aria-pressed='true']]:bg-primary [&_button[aria-pressed='true']]:text-primary-foreground [&_button[aria-pressed='true']:hover]:bg-primary/90",
+          "[&_button[aria-expanded='true']]:bg-primary [&_button[aria-expanded='true']]:text-primary-foreground [&_button[aria-expanded='true']:hover]:bg-primary/90",
+          className
+        )}
+      >
+        {children}
+      </div>
+    </SubToolContext.Provider>
+  );
 }
 
 export function OptionRow<TValue extends string>({ label, options, value, disabled, onSelect }: { label?: string; options: ConnectionOption<TValue>[]; value?: TValue; disabled?: boolean; onSelect: (value: TValue) => void }) {

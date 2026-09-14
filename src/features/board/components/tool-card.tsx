@@ -17,6 +17,18 @@ export function ToolCard({ label, className, children }: { label: string; classN
   );
 }
 
+export type AnchoredCardPosition = { top: number; left: number; maxWidth: number; maxHeight: number };
+
+/** Positions a card beside the trigger button that opened it (flips/clamps to stay on screen) instead of centering it under the whole toolbar. */
+export function AnchoredCard({ position, children }: { position: AnchoredCardPosition | null; children: ReactNode }) {
+  if (!position) return null;
+  return (
+    <div className="fixed z-40 overflow-y-auto" style={{ top: position.top, left: position.left, width: position.maxWidth, maxHeight: position.maxHeight }}>
+      {children}
+    </div>
+  );
+}
+
 export function ToolCardRow({ className, children }: { className?: string; children: ReactNode }) {
   return <div className={cn("flex items-center gap-1.5", className)}>{children}</div>;
 }

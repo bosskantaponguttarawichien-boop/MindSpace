@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BoardToolbar } from "@/features/board/components/board-toolbar";
-import { BOARD_COLORS, DEFAULT_TEXT_STYLE } from "@/domain/board/board-document";
+import { DEFAULT_TEXT_STYLE } from "@/domain/board/board-document";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -61,6 +61,7 @@ describe("BoardToolbar", () => {
     expect(textTool).toHaveAttribute("aria-expanded", "false");
     await user.click(textTool);
     await user.click(screen.getByRole("button", { name: "Bold" }));
+    await user.click(screen.getByRole("button", { name: "Text size" }));
     await user.click(screen.getByRole("button", { name: "24 px" }));
 
     expect(screen.getByRole("group", { name: "Text formatting" })).toBeInTheDocument();
@@ -86,6 +87,8 @@ describe("BoardToolbar", () => {
     await user.click(screen.getByRole("button", { name: "Text" }));
 
     expect(screen.getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: "Text size" }));
     expect(screen.getByRole("button", { name: "32 px" })).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -94,9 +97,21 @@ describe("BoardToolbar", () => {
     const { onSetTextStyle } = renderToolbar({ activeTool: "text" });
 
     await user.click(screen.getByRole("button", { name: "Text" }));
+    await user.click(screen.getByRole("button", { name: "Alignment" }));
     await user.click(screen.getByRole("button", { name: "Center text" }));
 
     expect(onSetTextStyle).toHaveBeenCalledWith({ textAlign: "center" });
+  });
+
+  it("sets the text colour from the text card", async () => {
+    const user = userEvent.setup();
+    const { onSetColor } = renderToolbar({ activeTool: "text" });
+
+    await user.click(screen.getByRole("button", { name: "Text" }));
+    await user.click(screen.getByRole("button", { name: "Text color" }));
+    await user.click(screen.getByRole("button", { name: "Red" }));
+
+    expect(onSetColor).toHaveBeenCalledWith("red");
   });
 
   it("sets alignment directly from the shapes menu for a selected shape", async () => {
@@ -104,19 +119,26 @@ describe("BoardToolbar", () => {
     const { onSetTextStyle } = renderToolbar({ hasSelection: true, selectedShapeKind: "rectangle", textStyle: { ...DEFAULT_TEXT_STYLE, textAlign: "center" } });
 
     await user.click(screen.getByRole("button", { name: "Shapes" }));
+    await user.click(screen.getByRole("button", { name: "Alignment" }));
 
     expect(screen.getByRole("button", { name: "Center text" })).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: "Align text right" }));
     expect(onSetTextStyle).toHaveBeenCalledWith({ textAlign: "right" });
   });
 
-  it("stacks shape, colour, and alignment controls on mobile instead of clipping them", async () => {
+  it("keeps shape color and alignment collapsed until their heading is tapped", async () => {
     const user = userEvent.setup();
     renderToolbar({ hasSelection: true, selectedShapeKind: "rectangle" });
 
     await user.click(screen.getByRole("button", { name: "Shapes" }));
 
     expect(screen.getByRole("group", { name: "Shapes" })).toHaveClass("flex-col", "items-stretch");
+    expect(screen.queryByRole("button", { name: "Red" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Align text left" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Shape color" }));
+    await user.click(screen.getByRole("button", { name: "Alignment" }));
+
     expect(screen.getByRole("button", { name: "Red" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Align text left" })).toBeInTheDocument();
   });
@@ -190,13 +212,31 @@ describe("BoardToolbar", () => {
     expect(screen.queryByRole("group", { name: "Shapes" })).toBeNull();
   });
 
+  it("keeps connector option groups collapsed until their heading is tapped", async () => {
+    const user = userEvent.setup();
+    renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Connector" }));
+
+    expect(screen.queryByRole("button", { name: "Dashed line" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Line style" })).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(screen.getByRole("button", { name: "Line style" }));
+
+    expect(screen.getByRole("button", { name: "Dashed line" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Line style" })).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("applies connector options and marks the chosen one", async () => {
     const user = userEvent.setup();
     const { onUpdateConnection } = renderToolbar();
 
     await user.click(screen.getByRole("button", { name: "Connector" }));
+    await user.click(screen.getByRole("button", { name: "Head type" }));
     await user.click(screen.getByRole("button", { name: "Diamond marker" }));
+    await user.click(screen.getByRole("button", { name: "Line style" }));
     await user.click(screen.getByRole("button", { name: "Dashed line" }));
+    await user.click(screen.getByRole("button", { name: "Connector shape" }));
     await user.click(screen.getByRole("button", { name: "Curved" }));
 
     expect(onUpdateConnection).toHaveBeenCalledWith({ headType: "diamond" });
@@ -227,47 +267,28 @@ describe("BoardToolbar", () => {
     const { onUpdateConnection, onSetColor } = renderToolbar();
 
     await user.click(screen.getByRole("button", { name: "Connector" }));
+    await user.click(screen.getByRole("button", { name: "Line color" }));
     await user.click(screen.getByRole("button", { name: "Red" }));
 
     expect(onUpdateConnection).toHaveBeenCalledWith({ color: "red" });
     expect(onSetColor).not.toHaveBeenCalled();
   });
 
-  it("opens a colour card outside the toolbar and applies a colour", async () => {
-    const user = userEvent.setup();
-    const { onSetColor } = renderToolbar();
-
-    expect(screen.queryByRole("group", { name: "Change color" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Change color" }));
-
-    const palette = screen.getByRole("group", { name: "Change color" });
-    expect(palette).not.toContainElement(screen.getByRole("toolbar", { name: "Board tools" }));
-    expect(screen.getAllByRole("button", { name: /^(Violet|Purple|Indigo|Blue|Sky blue|Cyan|Teal|Emerald|Green|Lime|Yellow|Amber|Orange|Red|Rose|Pink|Fuchsia|Slate|Grey)$/ })).toHaveLength(BOARD_COLORS.length);
-
-    await user.click(screen.getByRole("button", { name: "Red" }));
-    await user.click(screen.getByRole("button", { name: "Teal" }));
-
-    expect(onSetColor).toHaveBeenNthCalledWith(1, "red");
-    expect(onSetColor).toHaveBeenNthCalledWith(2, "teal");
-    expect(screen.getByRole("group", { name: "Change color" })).toBeInTheDocument();
-  });
-
-  it("closes the colour card from its toolbar button", async () => {
-    const user = userEvent.setup();
+  it("has no standalone change-color button — color lives inside each tool's own card", () => {
     renderToolbar();
 
-    await user.click(screen.getByRole("button", { name: "Change color" }));
-    await user.click(screen.getByRole("button", { name: "Change color" }));
-
-    expect(screen.queryByRole("group", { name: "Change color" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Change color" })).toBeNull();
   });
 
-  it("calls onSetShape when a shape tool is picked", async () => {
+  it("keeps the shape type picker collapsed until tapped", async () => {
     const user = userEvent.setup();
     const onSetShape = vi.fn();
     renderToolbar({ selectedShapeKind: "ellipse", onSetShape });
 
     await user.click(screen.getByRole("button", { name: "Shapes" }));
+    expect(screen.queryByRole("button", { name: "Diamond" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Shape type" }));
     await user.click(screen.getByRole("button", { name: "Diamond" }));
 
     expect(onSetShape).toHaveBeenCalledWith("diamond");
@@ -298,11 +319,41 @@ describe("BoardToolbar", () => {
     expect(onToolChange).toHaveBeenCalledWith("table");
   });
 
+  it("opens the note card with formatting and color, both collapsed by default", async () => {
+    const user = userEvent.setup();
+    const { onSetColor } = renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Sticky note" }));
+
+    expect(screen.getByRole("group", { name: "Sticky note" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Center text" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Red" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Note color" }));
+    await user.click(screen.getByRole("button", { name: "Red" }));
+
+    expect(onSetColor).toHaveBeenCalledWith("red");
+  });
+
+  it("hides table row/col actions until a table is selected, but keeps color and alignment available", async () => {
+    const user = userEvent.setup();
+    renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Table" }));
+
+    expect(screen.queryByRole("button", { name: "Table actions" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Table color" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Alignment" })).toBeInTheDocument();
+  });
+
   it("shows table row and col action buttons when a table is selected", async () => {
     const user = userEvent.setup();
     const onAddTableRow = vi.fn();
     const onAddTableCol = vi.fn();
-    renderToolbar({ selectedElementKind: "table", onAddTableRow, onAddTableCol });
+    renderToolbar({ hasSelection: true, selectedElementKind: "table", onAddTableRow, onAddTableCol });
+
+    await user.click(screen.getByRole("button", { name: "Table" }));
+    await user.click(screen.getByRole("button", { name: "Table actions" }));
 
     await user.click(screen.getByRole("button", { name: "Add row" }));
     expect(onAddTableRow).toHaveBeenCalled();

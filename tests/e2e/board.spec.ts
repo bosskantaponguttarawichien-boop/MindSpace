@@ -86,6 +86,7 @@ test("creates, formats, and edits a styled text element", async ({ page }) => {
 
   await page.getByRole("button", { name: "Text" }).click();
   await page.getByRole("button", { name: "Bold" }).click();
+  await page.getByRole("button", { name: "Text size" }).click();
   await page.getByRole("button", { name: "24 px" }).click();
   await canvas.click({ position: { x: 520, y: 420 } });
   await expect(board).toHaveAttribute("data-element-count", "6");

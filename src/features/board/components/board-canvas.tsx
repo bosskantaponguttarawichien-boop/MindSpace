@@ -141,6 +141,8 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
         onDeleteTableRow={() => engine?.deleteTableRow()}
         onAddTableCol={() => engine?.addTableCol()}
         onDeleteTableCol={() => engine?.deleteTableCol()}
+        onDuplicateSelection={() => engine?.duplicateSelection()}
+        onDeleteSelection={() => engine?.deleteSelection()}
       />
       <ZoomControls engine={engine} />
       {uploadingImage ? <div className="pointer-events-none absolute bottom-20 end-3 sm:bottom-4 sm:end-4 z-30 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur" role="status">{t("imageUploading")}</div> : null}

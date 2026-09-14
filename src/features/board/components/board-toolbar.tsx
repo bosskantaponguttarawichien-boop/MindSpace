@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignCenter, AlignLeft, AlignRight, Bold, Columns3, FileText, GitBranchPlus, ImagePlus, Minus, Palette, Pencil, RectangleHorizontal, Rows3, Spline, Waypoints } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Bold, Columns3, Copy, FileText, GitBranchPlus, ImagePlus, Minus, Palette, Pencil, RectangleHorizontal, Rows3, Spline, Trash2, Waypoints } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { IconAction } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
@@ -44,6 +44,8 @@ export function BoardToolbar({
   onDeleteTableRow,
   onAddTableCol,
   onDeleteTableCol,
+  onDuplicateSelection,
+  onDeleteSelection,
 }: {
   ready: boolean;
   uploadingImage?: boolean;
@@ -65,6 +67,8 @@ export function BoardToolbar({
   onDeleteTableRow?: () => void;
   onAddTableCol?: () => void;
   onDeleteTableCol?: () => void;
+  onDuplicateSelection?: () => void;
+  onDeleteSelection?: () => void;
 }) {
   const { t } = useLocale();
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -128,6 +132,13 @@ export function BoardToolbar({
             <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id} disabled={!ready} className="max-sm:size-10" onClick={() => onToolChange(tool.id)} />
           ))}
         </div>
+        {hasSelection ? (
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Separator orientation="vertical" className="mx-0 h-6 sm:mx-1" />
+            <IconAction label={t("duplicate")} icon={Copy} disabled={!ready} className="max-sm:size-10" onClick={onDuplicateSelection} />
+            <IconAction label={t("delete")} icon={Trash2} disabled={!ready} className="max-sm:size-10" onClick={onDeleteSelection} />
+          </div>
+        ) : null}
         <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-0 h-6 sm:mx-1" />
           {contentTools.map((tool) => (

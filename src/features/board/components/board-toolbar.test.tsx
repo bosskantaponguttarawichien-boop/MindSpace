@@ -310,4 +310,24 @@ describe("BoardToolbar", () => {
     await user.click(screen.getByRole("button", { name: "Add column" }));
     expect(onAddTableCol).toHaveBeenCalled();
   });
+
+  it("hides duplicate and delete until something is selected", () => {
+    renderToolbar();
+
+    expect(screen.queryByRole("button", { name: "Duplicate selection" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete selection" })).toBeNull();
+  });
+
+  it("duplicates and deletes the selection from the toolbar", async () => {
+    const user = userEvent.setup();
+    const onDuplicateSelection = vi.fn();
+    const onDeleteSelection = vi.fn();
+    renderToolbar({ hasSelection: true, onDuplicateSelection, onDeleteSelection });
+
+    await user.click(screen.getByRole("button", { name: "Duplicate selection" }));
+    expect(onDuplicateSelection).toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete selection" }));
+    expect(onDeleteSelection).toHaveBeenCalled();
+  });
 });

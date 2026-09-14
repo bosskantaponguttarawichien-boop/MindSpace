@@ -132,6 +132,13 @@ export function BoardToolbar({
             <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id} disabled={!ready} className="max-sm:size-10" onClick={() => onToolChange(tool.id)} />
           ))}
         </div>
+        {hasSelection ? (
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Separator orientation="vertical" className="mx-0 h-6 sm:mx-1" />
+            <IconAction label={t("duplicate")} icon={Copy} disabled={!ready} className="max-sm:size-10" onClick={onDuplicateSelection} />
+            <IconAction label={t("delete")} icon={Trash2} disabled={!ready} className="max-sm:size-10" onClick={onDeleteSelection} />
+          </div>
+        ) : null}
         <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-0 h-6 sm:mx-1" />
           {contentTools.map((tool) => (
@@ -171,13 +178,6 @@ export function BoardToolbar({
           <IconAction label={t("autoLayout")} icon={Spline} expandable expanded={openCard === "layout"} disabled={!ready} onClick={() => { onLayoutMindMap(lastMindMapDirection); toggleCard("layout"); }} />
           <IconAction label={t("changeColor")} icon={Palette} expandable expanded={openCard === "color"} disabled={!ready} onClick={() => toggleCard("color")} />
         </div>
-        {hasSelection ? (
-          <div className="flex shrink-0 items-center gap-0.5">
-            <Separator orientation="vertical" className="mx-1 h-6" />
-            <IconAction label={t("duplicate")} icon={Copy} disabled={!ready} className="max-sm:size-10" onClick={onDuplicateSelection} />
-            <IconAction label={t("delete")} icon={Trash2} disabled={!ready} className="max-sm:size-10" onClick={onDeleteSelection} />
-          </div>
-        ) : null}
       </div>
 
       {openCard === "text" ? (

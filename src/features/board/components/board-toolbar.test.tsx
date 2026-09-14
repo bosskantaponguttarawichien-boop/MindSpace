@@ -190,13 +190,31 @@ describe("BoardToolbar", () => {
     expect(screen.queryByRole("group", { name: "Shapes" })).toBeNull();
   });
 
+  it("keeps connector option groups collapsed until their heading is tapped", async () => {
+    const user = userEvent.setup();
+    renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Connector" }));
+
+    expect(screen.queryByRole("button", { name: "Dashed line" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Line style" })).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(screen.getByRole("button", { name: "Line style" }));
+
+    expect(screen.getByRole("button", { name: "Dashed line" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Line style" })).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("applies connector options and marks the chosen one", async () => {
     const user = userEvent.setup();
     const { onUpdateConnection } = renderToolbar();
 
     await user.click(screen.getByRole("button", { name: "Connector" }));
+    await user.click(screen.getByRole("button", { name: "Head type" }));
     await user.click(screen.getByRole("button", { name: "Diamond marker" }));
+    await user.click(screen.getByRole("button", { name: "Line style" }));
     await user.click(screen.getByRole("button", { name: "Dashed line" }));
+    await user.click(screen.getByRole("button", { name: "Connector shape" }));
     await user.click(screen.getByRole("button", { name: "Curved" }));
 
     expect(onUpdateConnection).toHaveBeenCalledWith({ headType: "diamond" });
@@ -227,6 +245,7 @@ describe("BoardToolbar", () => {
     const { onUpdateConnection, onSetColor } = renderToolbar();
 
     await user.click(screen.getByRole("button", { name: "Connector" }));
+    await user.click(screen.getByRole("button", { name: "Line color" }));
     await user.click(screen.getByRole("button", { name: "Red" }));
 
     expect(onUpdateConnection).toHaveBeenCalledWith({ color: "red" });

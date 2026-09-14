@@ -4,7 +4,7 @@ import { AlignCenter, AlignLeft, AlignRight, Bold, Columns3, Copy, FileText, Git
 import { useEffect, useRef, useState } from "react";
 import { IconAction } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
-import { ColorRow, OptionRow, ToolCard, ToolCardLabel, ToolCardRow, ToolCardSeparator } from "@/features/board/components/tool-card";
+import { AccordionItem, ColorRow, OptionRow, ToolCard, ToolCardLabel, ToolCardRow, ToolCardSeparator } from "@/features/board/components/tool-card";
 import { connectionEnds, connectionHeadTypes, connectionLineStyles, connectionPathStyles, contentTools, inkTools, mindMapLayoutDirections, pointerTools, shapeTools } from "@/features/board/components/toolbar-groups";
 import { useLocale } from "@/lib/i18n/locale-provider";
 import type { BoardTool } from "@/infrastructure/board-engine/board-engine";
@@ -220,20 +220,22 @@ export function BoardToolbar({
       ) : null}
 
       {openCard === "connector" ? (
-        <ToolCard label={t("connectorOptions")} className="flex-col items-stretch gap-2">
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:overflow-x-auto sm:scrollbar-none">
-            <OptionRow label={t("pathStyle")} options={connectionPathStyles} value={connection.pathStyle} onSelect={(pathStyle) => applyConnection({ pathStyle })} />
-            <Separator orientation="horizontal" className="sm:hidden" />
-            <Separator orientation="vertical" className="mx-0.5 hidden h-6 sm:block" />
-            <OptionRow label={t("connectionStyle")} options={connectionEnds} value={connection.style} onSelect={(style) => applyConnection({ style })} />
-            <Separator orientation="horizontal" className="sm:hidden" />
-            <Separator orientation="vertical" className="mx-0.5 hidden h-6 sm:block" />
-            <OptionRow label={t("headType")} options={connectionHeadTypes} value={connection.headType} onSelect={(headType) => applyConnection({ headType })} />
-            <Separator orientation="horizontal" className="sm:hidden" />
-            <Separator orientation="vertical" className="mx-0.5 hidden h-6 sm:block" />
-            <OptionRow label={t("lineStyle")} options={connectionLineStyles} value={connection.lineStyle} onSelect={(lineStyle) => applyConnection({ lineStyle })} />
-          </div>
-          <ColorRow label={t("connectionColor")} onSelect={(color) => applyConnection({ color })} />
+        <ToolCard label={t("connectorOptions")} className="flex-col items-stretch gap-0">
+          <AccordionItem label={t("pathStyle")} icon={connectionPathStyles.find((option) => option.value === connection.pathStyle)?.icon}>
+            <OptionRow options={connectionPathStyles} value={connection.pathStyle} onSelect={(pathStyle) => applyConnection({ pathStyle })} />
+          </AccordionItem>
+          <AccordionItem label={t("connectionStyle")} icon={connectionEnds.find((option) => option.value === connection.style)?.icon}>
+            <OptionRow options={connectionEnds} value={connection.style} onSelect={(style) => applyConnection({ style })} />
+          </AccordionItem>
+          <AccordionItem label={t("headType")} icon={connectionHeadTypes.find((option) => option.value === connection.headType)?.icon}>
+            <OptionRow options={connectionHeadTypes} value={connection.headType} onSelect={(headType) => applyConnection({ headType })} />
+          </AccordionItem>
+          <AccordionItem label={t("lineStyle")} icon={connectionLineStyles.find((option) => option.value === connection.lineStyle)?.icon}>
+            <OptionRow options={connectionLineStyles} value={connection.lineStyle} onSelect={(lineStyle) => applyConnection({ lineStyle })} />
+          </AccordionItem>
+          <AccordionItem label={t("connectionColor")} icon={Palette}>
+            <ColorRow onSelect={(color) => applyConnection({ color })} />
+          </AccordionItem>
         </ToolCard>
       ) : null}
 

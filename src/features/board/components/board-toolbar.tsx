@@ -12,7 +12,7 @@ import { TEXT_FONT_SIZES, type BoardColor, type BoardConnection, type BoardTextF
 import type { MindMapLayoutDirection } from "@/domain/board/mind-map";
 import type { MessageKey } from "@/lib/i18n/messages";
 
-type ToolCardId = "text" | "shape" | "connector" | "ink" | "layout" | "color";
+type ToolCardId = "text" | "note" | "table" | "shape" | "connector" | "ink" | "layout";
 
 const textSizeLabels: Record<BoardTextFontSize, MessageKey> = {
   14: "textSize14",
@@ -22,6 +22,8 @@ const textSizeLabels: Record<BoardTextFontSize, MessageKey> = {
   32: "textSize32",
   40: "textSize40",
 };
+
+const alignIcons = { left: AlignLeft, center: AlignCenter, right: AlignRight } as const;
 
 export function BoardToolbar({
   ready,
@@ -124,6 +126,30 @@ export function BoardToolbar({
     onLayoutMindMap(direction);
   }
 
+  function toggleBold() {
+    onSetTextStyle({ fontWeight: textStyle.fontWeight === "bold" ? "normal" : "bold" });
+  }
+
+  function textAlignRow() {
+    return (
+      <ToolCardRow>
+        <IconAction label={t("textAlignLeft")} icon={AlignLeft} active={textStyle.textAlign === "left"} onClick={() => onSetTextStyle({ textAlign: "left" })} />
+        <IconAction label={t("textAlignCenter")} icon={AlignCenter} active={textStyle.textAlign === "center"} onClick={() => onSetTextStyle({ textAlign: "center" })} />
+        <IconAction label={t("textAlignRight")} icon={AlignRight} active={textStyle.textAlign === "right"} onClick={() => onSetTextStyle({ textAlign: "right" })} />
+      </ToolCardRow>
+    );
+  }
+
+  function textSizeRow() {
+    return (
+      <ToolCardRow>
+        {TEXT_FONT_SIZES.map((size) => (
+          <button key={size} type="button" aria-label={t(textSizeLabels[size])} aria-pressed={textStyle.fontSize === size} className="size-8 shrink-0 rounded-lg border border-transparent text-xs font-semibold text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-primary/10 aria-pressed:text-primary max-sm:size-10" onClick={() => onSetTextStyle({ fontSize: size })}>{size}</button>
+        ))}
+      </ToolCardRow>
+    );
+  }
+
   return (
     <div ref={toolbarRef} className="pointer-events-none absolute inset-x-2 top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 flex flex-col items-center gap-2 sm:inset-x-3 sm:top-3" onKeyDown={(event) => { if (event.key === "Escape") setOpenCard(null); }}>
       <div className="pointer-events-auto flex w-full max-w-full snap-x snap-mandatory flex-nowrap items-center justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur touch-pan-x scrollbar-none sm:w-auto sm:snap-none" role="toolbar" aria-label="Board tools">
@@ -142,13 +168,9 @@ export function BoardToolbar({
         <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-0 h-6 sm:mx-1" />
           {contentTools.map((tool) => (
-            <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id} expandable={tool.id === "text"} expanded={tool.id === "text" && openCard === "text"} disabled={!ready} className="max-sm:size-10" onClick={() => {
-              if (tool.id === "text") {
-                if (!hasSelection) onToolChange(tool.id);
-                toggleCard("text");
-                return;
-              }
-              onToolChange(tool.id);
+            <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id} expandable expanded={openCard === tool.id} disabled={!ready} className="max-sm:size-10" onClick={() => {
+              if (!hasSelection) onToolChange(tool.id);
+              toggleCard(tool.id as ToolCardId);
             }} />
           ))}
         </div>
@@ -163,59 +185,89 @@ export function BoardToolbar({
           <IconAction label={t("importImage")} icon={ImagePlus} disabled={!ready || uploadingImage} onClick={onImportImage} />
           <IconAction label={t("importPdf")} icon={FileText} disabled={!ready} onClick={onImportPdf} />
         </div>
-        {selectedElementKind === "table" ? (
-          <div className="flex shrink-0 items-center gap-0.5">
-            <Separator orientation="vertical" className="mx-0 h-6 sm:mx-1" />
-            <IconAction label={t("addRow")} icon={Rows3} disabled={!ready} className="max-sm:size-10" onClick={onAddTableRow} />
-            <IconAction label={t("deleteRow")} icon={Minus} disabled={!ready} className="max-sm:size-10" onClick={onDeleteTableRow} />
-            <IconAction label={t("addCol")} icon={Columns3} disabled={!ready} className="max-sm:size-10" onClick={onAddTableCol} />
-            <IconAction label={t("deleteCol")} icon={Minus} disabled={!ready} className="max-sm:size-10" onClick={onDeleteTableCol} />
-          </div>
-        ) : null}
         <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-1 h-6" />
           <IconAction label={t("addChildNode")} icon={GitBranchPlus} disabled={!ready} onClick={onAddChildNode} />
           <IconAction label={t("autoLayout")} icon={Spline} expandable expanded={openCard === "layout"} disabled={!ready} onClick={() => { onLayoutMindMap(lastMindMapDirection); toggleCard("layout"); }} />
-          <IconAction label={t("changeColor")} icon={Palette} expandable expanded={openCard === "color"} disabled={!ready} onClick={() => toggleCard("color")} />
         </div>
       </div>
 
       {openCard === "text" ? (
-        <ToolCard label={t("textFormatting")}>
-          <IconAction label={t("bold")} icon={Bold} active={textStyle.fontWeight === "bold"} onClick={() => onSetTextStyle({ fontWeight: textStyle.fontWeight === "bold" ? "normal" : "bold" })} />
-          <ToolCardSeparator />
-          <ToolCardRow>
-            <ToolCardLabel>{t("textAlign")}</ToolCardLabel>
-            <IconAction label={t("textAlignLeft")} icon={AlignLeft} active={textStyle.textAlign === "left"} onClick={() => onSetTextStyle({ textAlign: "left" })} />
-            <IconAction label={t("textAlignCenter")} icon={AlignCenter} active={textStyle.textAlign === "center"} onClick={() => onSetTextStyle({ textAlign: "center" })} />
-            <IconAction label={t("textAlignRight")} icon={AlignRight} active={textStyle.textAlign === "right"} onClick={() => onSetTextStyle({ textAlign: "right" })} />
+        <ToolCard label={t("textFormatting")} className="flex-col items-stretch gap-0">
+          <ToolCardRow className="px-1 py-1.5">
+            <IconAction label={t("bold")} icon={Bold} active={textStyle.fontWeight === "bold"} onClick={toggleBold} />
           </ToolCardRow>
-          <ToolCardSeparator />
-          <ToolCardRow>
-            <ToolCardLabel>{t("textSize")}</ToolCardLabel>
-            {TEXT_FONT_SIZES.map((size) => (
-              <button key={size} type="button" aria-label={t(textSizeLabels[size])} aria-pressed={textStyle.fontSize === size} className="size-8 shrink-0 rounded-lg border border-transparent text-xs font-semibold text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-primary/10 aria-pressed:text-primary max-sm:size-10" onClick={() => onSetTextStyle({ fontSize: size })}>{size}</button>
-            ))}
-          </ToolCardRow>
+          <AccordionItem label={t("textAlign")} icon={alignIcons[textStyle.textAlign]}>
+            {textAlignRow()}
+          </AccordionItem>
+          <AccordionItem label={t("textSize")}>
+            {textSizeRow()}
+          </AccordionItem>
+          <AccordionItem label={t("textColor")} icon={Palette}>
+            <ColorRow onSelect={onSetColor} />
+          </AccordionItem>
+        </ToolCard>
+      ) : null}
+
+      {openCard === "note" ? (
+        <ToolCard label={t("note")} className="flex-col items-stretch gap-0">
+          <AccordionItem label={t("textFormatting")} icon={alignIcons[textStyle.textAlign]}>
+            <ToolCardRow>
+              <IconAction label={t("bold")} icon={Bold} active={textStyle.fontWeight === "bold"} onClick={toggleBold} />
+              <ToolCardSeparator />
+              <IconAction label={t("textAlignLeft")} icon={AlignLeft} active={textStyle.textAlign === "left"} onClick={() => onSetTextStyle({ textAlign: "left" })} />
+              <IconAction label={t("textAlignCenter")} icon={AlignCenter} active={textStyle.textAlign === "center"} onClick={() => onSetTextStyle({ textAlign: "center" })} />
+              <IconAction label={t("textAlignRight")} icon={AlignRight} active={textStyle.textAlign === "right"} onClick={() => onSetTextStyle({ textAlign: "right" })} />
+            </ToolCardRow>
+            <ToolCardRow>
+              <ToolCardLabel>{t("textSize")}</ToolCardLabel>
+              {TEXT_FONT_SIZES.map((size) => (
+                <button key={size} type="button" aria-label={t(textSizeLabels[size])} aria-pressed={textStyle.fontSize === size} className="size-8 shrink-0 rounded-lg border border-transparent text-xs font-semibold text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-primary/10 aria-pressed:text-primary max-sm:size-10" onClick={() => onSetTextStyle({ fontSize: size })}>{size}</button>
+              ))}
+            </ToolCardRow>
+          </AccordionItem>
+          <AccordionItem label={t("noteColor")} icon={Palette}>
+            <ColorRow onSelect={onSetColor} />
+          </AccordionItem>
+        </ToolCard>
+      ) : null}
+
+      {openCard === "table" ? (
+        <ToolCard label={t("table")} className="flex-col items-stretch gap-0">
+          {selectedElementKind === "table" ? (
+            <AccordionItem label={t("tableActions")}>
+              <ToolCardRow className="w-full overflow-x-auto touch-pan-x scrollbar-none">
+                <IconAction label={t("addRow")} icon={Rows3} disabled={!ready} className="max-sm:size-10" onClick={onAddTableRow} />
+                <IconAction label={t("deleteRow")} icon={Minus} disabled={!ready} className="max-sm:size-10" onClick={onDeleteTableRow} />
+                <IconAction label={t("addCol")} icon={Columns3} disabled={!ready} className="max-sm:size-10" onClick={onAddTableCol} />
+                <IconAction label={t("deleteCol")} icon={Minus} disabled={!ready} className="max-sm:size-10" onClick={onDeleteTableCol} />
+              </ToolCardRow>
+            </AccordionItem>
+          ) : null}
+          <AccordionItem label={t("tableColor")} icon={Palette}>
+            <ColorRow onSelect={onSetColor} />
+          </AccordionItem>
+          <AccordionItem label={t("textAlign")} icon={alignIcons[textStyle.textAlign]}>
+            {textAlignRow()}
+          </AccordionItem>
         </ToolCard>
       ) : null}
 
       {openCard === "shape" ? (
-        <ToolCard label={t("shapes")} className="flex-col items-stretch gap-2">
-          <ToolCardRow className="w-full overflow-x-auto touch-pan-x scrollbar-none">
-            {shapeTools.map((tool) => (
-              <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id || selectedShapeKind === tool.id} onClick={() => pickShapeTool(tool.id)} />
-            ))}
-          </ToolCardRow>
-          <Separator orientation="horizontal" />
-          <ColorRow label={t("shapeColor")} onSelect={onSetColor} />
-          <Separator orientation="horizontal" />
-          <ToolCardRow className="w-full overflow-x-auto touch-pan-x scrollbar-none">
-            <ToolCardLabel>{t("textAlign")}</ToolCardLabel>
-            <IconAction label={t("textAlignLeft")} icon={AlignLeft} active={textStyle.textAlign === "left"} onClick={() => onSetTextStyle({ textAlign: "left" })} />
-            <IconAction label={t("textAlignCenter")} icon={AlignCenter} active={textStyle.textAlign === "center"} onClick={() => onSetTextStyle({ textAlign: "center" })} />
-            <IconAction label={t("textAlignRight")} icon={AlignRight} active={textStyle.textAlign === "right"} onClick={() => onSetTextStyle({ textAlign: "right" })} />
-          </ToolCardRow>
+        <ToolCard label={t("shapes")} className="flex-col items-stretch gap-0">
+          <AccordionItem label={t("shapeKind")} icon={shapeIcon}>
+            <ToolCardRow className="w-full overflow-x-auto touch-pan-x scrollbar-none">
+              {shapeTools.map((tool) => (
+                <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id || selectedShapeKind === tool.id} onClick={() => pickShapeTool(tool.id)} />
+              ))}
+            </ToolCardRow>
+          </AccordionItem>
+          <AccordionItem label={t("shapeColor")} icon={Palette}>
+            <ColorRow onSelect={onSetColor} />
+          </AccordionItem>
+          <AccordionItem label={t("textAlign")} icon={alignIcons[textStyle.textAlign]}>
+            {textAlignRow()}
+          </AccordionItem>
         </ToolCard>
       ) : null}
 
@@ -253,12 +305,6 @@ export function BoardToolbar({
             ))}
           </ToolCardRow>
           <ColorRow label={t("drawColor")} onSelect={onSetColor} />
-        </ToolCard>
-      ) : null}
-
-      {openCard === "color" ? (
-        <ToolCard label={t("changeColor")}>
-          <ColorRow onSelect={onSetColor} />
         </ToolCard>
       ) : null}
     </div>

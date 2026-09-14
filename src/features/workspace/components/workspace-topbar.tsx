@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ChevronDown, Check, Cloud, Copy, FileDown, FolderInput, Group, LogOut, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Pencil, Plus, Redo2, Trash2, Ungroup, Undo2, UserRound } from "lucide-react";
+import { AlertCircle, ChevronDown, Check, Cloud, FileDown, FolderInput, Group, LogOut, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Pencil, Plus, Redo2, Trash2, Ungroup, Undo2, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconAction } from "@/components/ui/icon-action";
@@ -212,8 +212,6 @@ export function WorkspaceTopbar({
               ) : null}
               <DropdownMenuItem disabled={!canGroup} onSelect={() => engine?.groupSelection()}><Group />{t("group")}</DropdownMenuItem>
               <DropdownMenuItem disabled={!canUngroup} onSelect={() => engine?.ungroupSelection()}><Ungroup />{t("ungroup")}</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => engine?.duplicateSelection()}><Copy />{t("duplicate")}</DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onSelect={() => engine?.deleteSelection()}><Trash2 />{t("delete")}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled><FolderInput />{t("import")}</DropdownMenuItem>
               <DropdownMenuItem onSelect={onExportPdf}><FileDown />{t("exportPdf")}</DropdownMenuItem>
@@ -239,8 +237,6 @@ export function WorkspaceTopbar({
         </div>
         <IconAction label={t("group")} icon={Group} shortcut="⌘ G" disabled={!engine || !canGroup} onClick={() => engine?.groupSelection()} className="hidden sm:inline-flex" />
         <IconAction label={t("ungroup")} icon={Ungroup} shortcut="⇧ ⌘ G" disabled={!engine || !canUngroup} onClick={() => engine?.ungroupSelection()} className="hidden sm:inline-flex" />
-        <IconAction label={t("duplicate")} icon={Copy} disabled={!engine} onClick={() => engine?.duplicateSelection()} className="hidden sm:inline-flex" />
-        <IconAction label={t("delete")} icon={Trash2} disabled={!engine} onClick={() => engine?.deleteSelection()} className="hidden sm:inline-flex" />
         <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled title={t("importImage")}><FolderInput className="size-4" />{t("import")}</Button>
         <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" disabled={!engine} onClick={onExportPdf}><FileDown className="size-4" />{t("exportPdf")}</Button>
         {onOpenAccount ? <Button variant="outline" size="sm" className="hidden gap-2 lg:inline-flex" onClick={onOpenAccount}><UserRound className="size-4" />{accountLabel ?? t("account")}</Button> : null}

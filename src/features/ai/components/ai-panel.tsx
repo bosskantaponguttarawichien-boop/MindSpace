@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { Bot, Check, CheckCircle2, CircleHelp, GitFork, ListPlus, Loader2, PanelRightClose, ScanSearch, Send, Sparkles, Trash2, X } from "lucide-react";
+import { Bot, Check, CheckCircle2, CircleHelp, GitFork, ListPlus, Loader2, ScanSearch, Send, Sparkles, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -100,13 +100,12 @@ export function AiPanel({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="size-8 text-muted-foreground hover:text-foreground"
+                className="size-8 text-muted-foreground hover:text-foreground lg:hidden"
                 aria-label={t("collapseAiPanel")}
                 title={t("collapseAiPanel")}
                 onClick={onClose}
               >
-                <PanelRightClose className="size-4 max-lg:hidden" />
-                <X className="size-4 lg:hidden" />
+                <X className="size-4" />
               </Button>
             ) : null}
           </div>

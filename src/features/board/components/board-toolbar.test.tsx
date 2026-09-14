@@ -21,8 +21,8 @@ function renderToolbar(overrides: Partial<Parameters<typeof BoardToolbar>[0]> = 
     onUpdateConnection: vi.fn(),
     ...overrides,
   };
-  render(<LocaleProvider><TooltipProvider><BoardToolbar {...props} /></TooltipProvider></LocaleProvider>);
-  return props;
+  const result = render(<LocaleProvider><TooltipProvider><BoardToolbar {...props} /></TooltipProvider></LocaleProvider>);
+  return { ...props, ...result };
 }
 
 describe("BoardToolbar", () => {
@@ -100,6 +100,21 @@ describe("BoardToolbar", () => {
     await user.click(screen.getByRole("button", { name: "Center text" }));
 
     expect(onSetTextStyle).toHaveBeenCalledWith({ textAlign: "center" });
+  });
+
+  it("sets vertical alignment for future text and selected elements", async () => {
+    const user = userEvent.setup();
+    const { onSetTextStyle } = renderToolbar({ activeTool: "text", textStyle: { ...DEFAULT_TEXT_STYLE, verticalAlign: "top" } });
+
+    await user.click(screen.getByRole("button", { name: "Text" }));
+    await user.click(screen.getByRole("button", { name: "Alignment" }));
+
+    expect(screen.getByRole("button", { name: "Align top" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Align middle" }));
+    expect(onSetTextStyle).toHaveBeenCalledWith({ verticalAlign: "middle" });
+
+    await user.click(screen.getByRole("button", { name: "Align bottom" }));
+    expect(onSetTextStyle).toHaveBeenCalledWith({ verticalAlign: "bottom" });
   });
 
   it("sets the text colour from the text sub-tools", async () => {
@@ -353,7 +368,7 @@ describe("BoardToolbar", () => {
     const onAddTableCol = vi.fn();
     renderToolbar({ hasSelection: true, selectedElementKind: "table", onAddTableRow, onAddTableCol });
 
-    await user.click(screen.getByRole("button", { name: "Table" }));
+    // Table sub-tools are auto-expanded when a table is selected
     await user.click(screen.getByRole("button", { name: "Table actions" }));
 
     await user.click(screen.getByRole("button", { name: "Add row" }));
@@ -361,6 +376,105 @@ describe("BoardToolbar", () => {
 
     await user.click(screen.getByRole("button", { name: "Add column" }));
     expect(onAddTableCol).toHaveBeenCalled();
+  });
+
+  it("automatically selects the corresponding tool and expands sub-tools when an element is selected", () => {
+    const { rerender } = renderToolbar({ hasSelection: true, selectedElementKind: "note" });
+
+    // Note tool should be active and its sub-tools expanded
+    expect(screen.getByRole("button", { name: "Sticky note" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Select" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Bold" })).toBeInTheDocument();
+
+    // Switch selection to a shape
+    rerender(
+      <LocaleProvider>
+        <TooltipProvider>
+          <BoardToolbar
+            ready={true}
+            activeTool="select"
+            textStyle={DEFAULT_TEXT_STYLE}
+            onToolChange={vi.fn()}
+            onImportImage={vi.fn()}
+            onImportPdf={vi.fn()}
+            onAddChildNode={vi.fn()}
+            onLayoutMindMap={vi.fn()}
+            onSetColor={vi.fn()}
+            onSetTextStyle={vi.fn()}
+            onUpdateConnection={vi.fn()}
+            hasSelection={true}
+            selectedElementKind="rectangle"
+          />
+        </TooltipProvider>
+      </LocaleProvider>
+    );
+    expect(screen.getByRole("button", { name: "Shapes" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: "Bold" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Shape type" })).toBeInTheDocument();
+
+    // Deselect
+    rerender(
+      <LocaleProvider>
+        <TooltipProvider>
+          <BoardToolbar
+            ready={true}
+            activeTool="select"
+            textStyle={DEFAULT_TEXT_STYLE}
+            onToolChange={vi.fn()}
+            onImportImage={vi.fn()}
+            onImportPdf={vi.fn()}
+            onAddChildNode={vi.fn()}
+            onLayoutMindMap={vi.fn()}
+            onSetColor={vi.fn()}
+            onSetTextStyle={vi.fn()}
+            onUpdateConnection={vi.fn()}
+            hasSelection={false}
+            selectedElementKind={null}
+          />
+        </TooltipProvider>
+      </LocaleProvider>
+    );
+    expect(screen.getByRole("button", { name: "Select" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Shapes" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: "Shape type" })).toBeNull();
+  });
+
+  it("keeps sub-tools open when clicking outside while an object is selected, and when switching to another object of the same kind", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderToolbar({ hasSelection: true, selectedElementKind: "note", selectedIds: ["note-1"] });
+
+    // Sub-tools should be open
+    expect(screen.getByRole("button", { name: "Bold" })).toBeInTheDocument();
+
+    // Clicking outside (on canvas / document.body) while an object is selected should NOT close sub-tools
+    await user.pointer({ target: document.body, keys: "[MouseLeft]" });
+    expect(screen.getByRole("button", { name: "Bold" })).toBeInTheDocument();
+
+    // Selecting another note on the canvas (different ID, same kind) must keep sub-tools open
+    rerender(
+      <LocaleProvider>
+        <TooltipProvider>
+          <BoardToolbar
+            ready={true}
+            activeTool="select"
+            textStyle={DEFAULT_TEXT_STYLE}
+            onToolChange={vi.fn()}
+            onImportImage={vi.fn()}
+            onImportPdf={vi.fn()}
+            onAddChildNode={vi.fn()}
+            onLayoutMindMap={vi.fn()}
+            onSetColor={vi.fn()}
+            onSetTextStyle={vi.fn()}
+            onUpdateConnection={vi.fn()}
+            hasSelection={true}
+            selectedElementKind="note"
+            selectedIds={["note-2"]}
+          />
+        </TooltipProvider>
+      </LocaleProvider>
+    );
+    expect(screen.getByRole("button", { name: "Bold" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sticky note" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("hides duplicate and delete until something is selected", () => {

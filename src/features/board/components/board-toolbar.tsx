@@ -1,10 +1,10 @@
 "use client";
 
-import { ALargeSmall, AlignCenter, AlignLeft, AlignRight, Bold, Columns3, Copy, FileText, GitBranchPlus, ImagePlus, Minus, Palette, Pencil, RectangleHorizontal, Rows3, Spline, Trash2, Waypoints } from "lucide-react";
+import { ALargeSmall, AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Bold, Columns3, Copy, FileText, GitBranchPlus, ImagePlus, Minus, Palette, Pencil, RectangleHorizontal, Rows3, Spline, Trash2, Waypoints } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { IconAction } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
-import { ColorRow, OptionRow, SubToolGroup, ToolCard, ToolCardRow } from "@/features/board/components/tool-card";
+import { ColorRow, CollapsibleSubTools, OptionRow, SubToolGroup, ToolCard, ToolCardRow, ToolCardSeparator } from "@/features/board/components/tool-card";
 import { connectionEnds, connectionHeadTypes, connectionLineStyles, connectionPathStyles, contentTools, inkTools, mindMapLayoutDirections, pointerTools, shapeTools } from "@/features/board/components/toolbar-groups";
 import { useLocale } from "@/lib/i18n/locale-provider";
 import type { BoardTool } from "@/infrastructure/board-engine/board-engine";
@@ -13,6 +13,17 @@ import type { MindMapLayoutDirection } from "@/domain/board/mind-map";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 type ToolCardId = "text" | "note" | "table" | "shape" | "connector" | "ink" | "layout";
+
+function toolCardForKind(kind: string | null | undefined): ToolCardId | null {
+  if (!kind) return null;
+  if (kind === "note") return "note";
+  if (kind === "text") return "text";
+  if (kind === "table") return "table";
+  if (kind === "rectangle" || kind === "ellipse" || kind === "diamond" || kind === "triangle" || kind === "shape") return "shape";
+  if (kind === "draw") return "ink";
+  if (kind === "connector" || kind === "arrow") return "connector";
+  return null;
+}
 
 const textSizeLabels: Record<BoardTextFontSize, MessageKey> = {
   14: "textSize14",
@@ -32,6 +43,7 @@ export function BoardToolbar({
   textStyle,
   selectedShapeKind,
   selectedElementKind,
+  selectedIds,
   hasSelection = false,
   onToolChange,
   onSetShape,
@@ -55,6 +67,7 @@ export function BoardToolbar({
   textStyle: BoardTextStyle;
   selectedShapeKind?: BoardTool | null;
   selectedElementKind?: string | null;
+  selectedIds?: string[];
   hasSelection?: boolean;
   onToolChange: (tool: BoardTool) => void;
   onSetShape?: (shape: BoardTool) => void;
@@ -85,16 +98,52 @@ export function BoardToolbar({
     if (!openCard) return;
     function handlePointerDown(event: PointerEvent) {
       if (toolbarRef.current && !toolbarRef.current.contains(event.target as Node)) {
-        setOpenCard(null);
+        if (!hasSelection) {
+          setOpenCard(null);
+        }
+        setOpenSubTool(null);
       }
     }
     window.addEventListener("pointerdown", handlePointerDown);
     return () => window.removeEventListener("pointerdown", handlePointerDown);
-  }, [openCard]);
+  }, [openCard, hasSelection]);
+
+  const [prevSelectionKey, setPrevSelectionKey] = useState<string | null>(null);
+
+  const currentSelectionKey = hasSelection
+    ? (selectedIds && selectedIds.length > 0
+        ? `${selectedElementKind}:${selectedIds.join(",")}`
+        : (selectedElementKind ?? "selected"))
+    : null;
+  if (currentSelectionKey !== prevSelectionKey) {
+    setPrevSelectionKey(currentSelectionKey);
+    if (hasSelection && selectedElementKind) {
+      const card = toolCardForKind(selectedElementKind);
+      if (card) {
+        setOpenCard(card);
+        setOpenSubTool(null);
+      }
+    } else if (!hasSelection) {
+      setOpenCard(null);
+      setOpenSubTool(null);
+    }
+  }
 
   const effectiveShapeTool = selectedShapeKind ?? lastShapeTool;
-  const shapeActive = shapeTools.some((tool) => tool.id === activeTool) || Boolean(selectedShapeKind);
-  const inkActive = inkTools.some((tool) => tool.id === activeTool);
+  const isShapeSelected = hasSelection && (
+    selectedElementKind === "rectangle" ||
+    selectedElementKind === "ellipse" ||
+    selectedElementKind === "diamond" ||
+    selectedElementKind === "triangle" ||
+    selectedElementKind === "shape" ||
+    Boolean(selectedShapeKind)
+  );
+  const shapeActive = isShapeSelected || (!hasSelection && shapeTools.some((tool) => tool.id === activeTool));
+  const isInkSelected = hasSelection && selectedElementKind === "draw";
+  const inkActive = isInkSelected || (!hasSelection && inkTools.some((tool) => tool.id === activeTool));
+  const isConnectorSelected = hasSelection && (selectedElementKind === "connector" || selectedElementKind === "arrow");
+  const connectorActive = isConnectorSelected || (!hasSelection && activeTool === "arrow");
+
   const shapeTool = shapeActive ? (shapeTools.some((tool) => tool.id === activeTool) ? activeTool : effectiveShapeTool) : effectiveShapeTool;
   const inkTool = inkActive ? activeTool : lastInkTool;
   const shapeIcon = shapeTools.find((tool) => tool.id === shapeTool)?.icon ?? RectangleHorizontal;
@@ -137,11 +186,16 @@ export function BoardToolbar({
   }
 
   function textAlignRow() {
+    const verticalAlign = textStyle.verticalAlign ?? "top";
     return (
       <ToolCardRow>
         <IconAction label={t("textAlignLeft")} icon={AlignLeft} active={textStyle.textAlign === "left"} onClick={() => onSetTextStyle({ textAlign: "left" })} />
         <IconAction label={t("textAlignCenter")} icon={AlignCenter} active={textStyle.textAlign === "center"} onClick={() => onSetTextStyle({ textAlign: "center" })} />
         <IconAction label={t("textAlignRight")} icon={AlignRight} active={textStyle.textAlign === "right"} onClick={() => onSetTextStyle({ textAlign: "right" })} />
+        <ToolCardSeparator />
+        <IconAction label={t("alignTop")} icon={AlignVerticalJustifyStart} active={verticalAlign === "top"} onClick={() => onSetTextStyle({ verticalAlign: "top" })} />
+        <IconAction label={t("alignMiddle")} icon={AlignVerticalJustifyCenter} active={verticalAlign === "middle"} onClick={() => onSetTextStyle({ verticalAlign: "middle" })} />
+        <IconAction label={t("alignBottom")} icon={AlignVerticalJustifyEnd} active={verticalAlign === "bottom"} onClick={() => onSetTextStyle({ verticalAlign: "bottom" })} />
       </ToolCardRow>
     );
   }
@@ -150,7 +204,16 @@ export function BoardToolbar({
     return (
       <ToolCardRow>
         {TEXT_FONT_SIZES.map((size) => (
-          <button key={size} type="button" aria-label={t(textSizeLabels[size])} aria-pressed={textStyle.fontSize === size} className="size-8 shrink-0 rounded-lg border border-transparent text-xs font-semibold text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-primary/10 aria-pressed:text-primary max-sm:size-10" onClick={() => onSetTextStyle({ fontSize: size })}>{size}</button>
+          <button
+            key={size}
+            type="button"
+            aria-label={t(textSizeLabels[size])}
+            aria-pressed={textStyle.fontSize === size}
+            className="size-8 shrink-0 rounded-full border border-transparent text-xs font-semibold text-zinc-700 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground dark:text-zinc-300 max-sm:size-10"
+            onClick={() => onSetTextStyle({ fontSize: size })}
+          >
+            {size}
+          </button>
         ))}
       </ToolCardRow>
     );
@@ -161,9 +224,9 @@ export function BoardToolbar({
       return (
         <SubToolGroup>
           <IconAction label={t("bold")} icon={Bold} active={textStyle.fontWeight === "bold"} disabled={!ready} className="max-sm:size-10" onClick={toggleBold} />
-          <IconAction label={t("textAlign")} icon={alignIcons[textStyle.textAlign]} expandable expanded={openSubTool === "align"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("align")} />
-          <IconAction label={t("textSize")} icon={ALargeSmall} expandable expanded={openSubTool === "size"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("size")} />
-          <IconAction label={t(id === "text" ? "textColor" : "noteColor")} icon={Palette} expandable expanded={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
+          <IconAction label={t("textAlign")} icon={alignIcons[textStyle.textAlign]} expandable expanded={openSubTool === "align"} active={openSubTool === "align"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("align")} />
+          <IconAction label={t("textSize")} icon={ALargeSmall} expandable expanded={openSubTool === "size"} active={openSubTool === "size"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("size")} />
+          <IconAction label={t(id === "text" ? "textColor" : "noteColor")} icon={Palette} expandable expanded={openSubTool === "color"} active={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
         </SubToolGroup>
       );
     }
@@ -171,30 +234,30 @@ export function BoardToolbar({
       return (
         <SubToolGroup>
           {selectedElementKind === "table" ? (
-            <IconAction label={t("tableActions")} icon={Rows3} expandable expanded={openSubTool === "actions"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("actions")} />
+            <IconAction label={t("tableActions")} icon={Rows3} expandable expanded={openSubTool === "actions"} active={openSubTool === "actions"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("actions")} />
           ) : null}
-          <IconAction label={t("tableColor")} icon={Palette} expandable expanded={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
-          <IconAction label={t("textAlign")} icon={alignIcons[textStyle.textAlign]} expandable expanded={openSubTool === "align"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("align")} />
+          <IconAction label={t("tableColor")} icon={Palette} expandable expanded={openSubTool === "color"} active={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
+          <IconAction label={t("textAlign")} icon={alignIcons[textStyle.textAlign]} expandable expanded={openSubTool === "align"} active={openSubTool === "align"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("align")} />
         </SubToolGroup>
       );
     }
     if (id === "shape") {
       return (
         <SubToolGroup>
-          <IconAction label={t("shapeKind")} icon={shapeIcon} expandable expanded={openSubTool === "kind"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("kind")} />
-          <IconAction label={t("shapeColor")} icon={Palette} expandable expanded={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
-          <IconAction label={t("textAlign")} icon={alignIcons[textStyle.textAlign]} expandable expanded={openSubTool === "align"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("align")} />
+          <IconAction label={t("shapeKind")} icon={shapeIcon} expandable expanded={openSubTool === "kind"} active={openSubTool === "kind"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("kind")} />
+          <IconAction label={t("shapeColor")} icon={Palette} expandable expanded={openSubTool === "color"} active={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
+          <IconAction label={t("textAlign")} icon={alignIcons[textStyle.textAlign]} expandable expanded={openSubTool === "align"} active={openSubTool === "align"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("align")} />
         </SubToolGroup>
       );
     }
     if (id === "connector") {
       return (
         <SubToolGroup>
-          <IconAction label={t("pathStyle")} icon={connectionPathStyles.find((option) => option.value === connection.pathStyle)?.icon ?? RectangleHorizontal} expandable expanded={openSubTool === "pathStyle"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("pathStyle")} />
-          <IconAction label={t("connectionStyle")} icon={connectionEnds.find((option) => option.value === connection.style)?.icon ?? RectangleHorizontal} expandable expanded={openSubTool === "connectionStyle"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("connectionStyle")} />
-          <IconAction label={t("headType")} icon={connectionHeadTypes.find((option) => option.value === connection.headType)?.icon ?? RectangleHorizontal} expandable expanded={openSubTool === "headType"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("headType")} />
-          <IconAction label={t("lineStyle")} icon={connectionLineStyles.find((option) => option.value === connection.lineStyle)?.icon ?? RectangleHorizontal} expandable expanded={openSubTool === "lineStyle"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("lineStyle")} />
-          <IconAction label={t("connectionColor")} icon={Palette} expandable expanded={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
+          <IconAction label={t("pathStyle")} icon={connectionPathStyles.find((option) => option.value === connection.pathStyle)?.icon ?? RectangleHorizontal} expandable expanded={openSubTool === "pathStyle"} active={openSubTool === "pathStyle"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("pathStyle")} />
+          <IconAction label={t("connectionStyle")} icon={connectionEnds.find((option) => option.value === connection.style)?.icon ?? RectangleHorizontal} expandable expanded={openSubTool === "connectionStyle"} active={openSubTool === "connectionStyle"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("connectionStyle")} />
+          <IconAction label={t("headType")} icon={connectionHeadTypes.find((option) => option.value === connection.headType)?.icon ?? RectangleHorizontal} expandable expanded={openSubTool === "headType"} active={openSubTool === "headType"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("headType")} />
+          <IconAction label={t("lineStyle")} icon={connectionLineStyles.find((option) => option.value === connection.lineStyle)?.icon ?? RectangleHorizontal} expandable expanded={openSubTool === "lineStyle"} active={openSubTool === "lineStyle"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("lineStyle")} />
+          <IconAction label={t("connectionColor")} icon={Palette} expandable expanded={openSubTool === "color"} active={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
         </SubToolGroup>
       );
     }
@@ -204,7 +267,7 @@ export function BoardToolbar({
           {inkTools.map((tool) => (
             <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id} disabled={!ready} className="max-sm:size-10" onClick={() => pickInkTool(tool.id)} />
           ))}
-          <IconAction label={t("drawColor")} icon={Palette} expandable expanded={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
+          <IconAction label={t("drawColor")} icon={Palette} expandable expanded={openSubTool === "color"} active={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
         </SubToolGroup>
       );
     }
@@ -267,10 +330,10 @@ export function BoardToolbar({
 
   return (
     <div ref={toolbarRef} className="pointer-events-none absolute inset-x-2 top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 flex flex-col items-center gap-2 sm:inset-x-3 sm:top-3" onKeyDown={(event) => { if (event.key === "Escape") setOpenCard(null); }}>
-      <div className="pointer-events-auto flex w-full max-w-full snap-x snap-mandatory flex-nowrap items-center justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur touch-pan-x scrollbar-none sm:w-auto sm:snap-none" role="toolbar" aria-label="Board tools">
+      <div className="pointer-events-auto flex h-[50px] max-sm:h-[54px] w-full max-w-full snap-x snap-mandatory flex-nowrap items-center justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur touch-pan-x scrollbar-none transition-all duration-350 ease-out sm:w-auto sm:snap-none" role="toolbar" aria-label="Board tools">
         <div className="flex shrink-0 items-center gap-0.5">
           {pointerTools.map((tool) => (
-            <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id} disabled={!ready} className="max-sm:size-10" onClick={() => onToolChange(tool.id)} />
+            <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={!hasSelection && activeTool === tool.id} disabled={!ready} className="max-sm:size-10" onClick={() => onToolChange(tool.id)} />
           ))}
         </div>
         {hasSelection ? (
@@ -282,24 +345,36 @@ export function BoardToolbar({
         ) : null}
         <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-0 h-6 sm:mx-1" />
-          {contentTools.map((tool) => (
-            <div key={tool.id} className="flex shrink-0 items-center gap-0.5">
-              <IconAction label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id} expandable expanded={openCard === tool.id} disabled={!ready} className="max-sm:size-10" onClick={() => {
-                if (!hasSelection) onToolChange(tool.id);
-                toggleCard(tool.id as ToolCardId);
-              }} />
-              {openCard === tool.id ? renderToolSubTools(tool.id as ToolCardId) : null}
-            </div>
-          ))}
+          {contentTools.map((tool) => {
+            const isSelected = hasSelection && selectedElementKind === tool.id;
+            const isActive = isSelected || (!hasSelection && activeTool === tool.id);
+            return (
+              <div key={tool.id} className="flex shrink-0 items-center gap-0.5">
+                <IconAction label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={isActive} expandable expanded={openCard === tool.id} disabled={!ready} className="max-sm:size-10" onClick={() => {
+                  if (!hasSelection) onToolChange(tool.id);
+                  toggleCard(tool.id as ToolCardId);
+                }} />
+                <CollapsibleSubTools open={openCard === tool.id}>
+                  {renderToolSubTools(tool.id as ToolCardId)}
+                </CollapsibleSubTools>
+              </div>
+            );
+          })}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-0 h-6 sm:mx-1" />
           <IconAction label={t("shapes")} icon={shapeIcon} active={shapeActive} expandable expanded={openCard === "shape"} disabled={!ready} className="max-sm:size-10" onClick={() => { if (!hasSelection && openCard !== "shape") { pickShapeTool(shapeTool); } toggleCard("shape"); }} />
-          {openCard === "shape" ? renderToolSubTools("shape") : null}
-          <IconAction label={t("connector")} icon={Waypoints} shortcut="A" active={activeTool === "arrow"} expandable expanded={openCard === "connector"} disabled={!ready} className="max-sm:size-10" onClick={() => { onToolChange("arrow"); toggleCard("connector"); }} />
-          {openCard === "connector" ? renderToolSubTools("connector") : null}
+          <CollapsibleSubTools open={openCard === "shape"}>
+            {renderToolSubTools("shape")}
+          </CollapsibleSubTools>
+          <IconAction label={t("connector")} icon={Waypoints} shortcut="A" active={connectorActive} expandable expanded={openCard === "connector"} disabled={!ready} className="max-sm:size-10" onClick={() => { onToolChange("arrow"); toggleCard("connector"); }} />
+          <CollapsibleSubTools open={openCard === "connector"}>
+            {renderToolSubTools("connector")}
+          </CollapsibleSubTools>
           <IconAction label={t("drawTools")} icon={inkIcon} active={inkActive} expandable expanded={openCard === "ink"} disabled={!ready} className="max-sm:size-10" onClick={() => { pickInkTool(inkTool); toggleCard("ink"); }} />
-          {openCard === "ink" ? renderToolSubTools("ink") : null}
+          <CollapsibleSubTools open={openCard === "ink"}>
+            {renderToolSubTools("ink")}
+          </CollapsibleSubTools>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-1 h-6" />

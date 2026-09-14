@@ -14,15 +14,16 @@ export type BoardScope =
 
 const colors = new Set<string>(BOARD_COLORS);
 const kinds = new Set(["text", "note", "rectangle", "ellipse", "diamond", "triangle", "draw", "image", "table"]);
-const textStyleKinds = new Set(["text", "rectangle", "ellipse", "diamond", "triangle"]);
+const textStyleKinds = new Set(["text", "note", "rectangle", "ellipse", "diamond", "triangle"]);
 const textFontSizes = new Set<number>(TEXT_FONT_SIZES);
 
 function isBoardTextStyle(value: unknown): value is Partial<BoardTextStyle> {
   if (!value || typeof value !== "object") return false;
-  const candidate = value as { fontSize?: unknown; fontWeight?: unknown; textAlign?: unknown };
+  const candidate = value as { fontSize?: unknown; fontWeight?: unknown; textAlign?: unknown; verticalAlign?: unknown };
   return typeof candidate.fontSize === "number" && textFontSizes.has(candidate.fontSize) &&
     (candidate.fontWeight === "normal" || candidate.fontWeight === "bold") &&
-    (candidate.textAlign === undefined || candidate.textAlign === "left" || candidate.textAlign === "center" || candidate.textAlign === "right");
+    (candidate.textAlign === undefined || candidate.textAlign === "left" || candidate.textAlign === "center" || candidate.textAlign === "right") &&
+    (candidate.verticalAlign === undefined || candidate.verticalAlign === "top" || candidate.verticalAlign === "middle" || candidate.verticalAlign === "bottom");
 }
 
 function isBoardElement(value: unknown): value is BoardElement {

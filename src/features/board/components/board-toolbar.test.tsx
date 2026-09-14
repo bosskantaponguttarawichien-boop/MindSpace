@@ -41,19 +41,19 @@ describe("BoardToolbar", () => {
     expect(connectorButton.closest(".hidden")).toBeNull();
   });
 
-  it("picks the group tool and opens its card in one click", async () => {
+  it("reveals shape sub-tools inline in the row when tapped", async () => {
     const user = userEvent.setup();
     const { onToolChange } = renderToolbar();
 
-    expect(screen.queryByRole("group", { name: "Shapes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Shape type" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Shapes" }));
 
     expect(onToolChange).toHaveBeenCalledWith("rectangle");
-    expect(screen.getByRole("group", { name: "Shapes" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Shape type" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Shapes" })).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("opens text formatting controls and dispatches bold and font-size changes", async () => {
+  it("opens text sub-tools and dispatches bold and font-size changes", async () => {
     const user = userEvent.setup();
     const { onSetTextStyle } = renderToolbar({ activeTool: "text" });
 
@@ -64,23 +64,22 @@ describe("BoardToolbar", () => {
     await user.click(screen.getByRole("button", { name: "Text size" }));
     await user.click(screen.getByRole("button", { name: "24 px" }));
 
-    expect(screen.getByRole("group", { name: "Text formatting" })).toBeInTheDocument();
     expect(textTool).toHaveAttribute("aria-expanded", "true");
     expect(onSetTextStyle).toHaveBeenCalledWith({ fontWeight: "bold" });
     expect(onSetTextStyle).toHaveBeenCalledWith({ fontSize: 24 });
   });
 
-  it("opens text formatting for a selected element without changing tools", async () => {
+  it("opens text sub-tools for a selected element without changing tools", async () => {
     const user = userEvent.setup();
     const { onToolChange } = renderToolbar({ hasSelection: true });
 
     await user.click(screen.getByRole("button", { name: "Text" }));
 
-    expect(screen.getByRole("group", { name: "Text formatting" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bold" })).toBeInTheDocument();
     expect(onToolChange).not.toHaveBeenCalled();
   });
 
-  it("marks the selected text style in the format card", async () => {
+  it("marks the selected text style in the size panel", async () => {
     const user = userEvent.setup();
     renderToolbar({ activeTool: "text", textStyle: { fontSize: 32, fontWeight: "bold", textAlign: "left" } });
 
@@ -103,7 +102,7 @@ describe("BoardToolbar", () => {
     expect(onSetTextStyle).toHaveBeenCalledWith({ textAlign: "center" });
   });
 
-  it("sets the text colour from the text card", async () => {
+  it("sets the text colour from the text sub-tools", async () => {
     const user = userEvent.setup();
     const { onSetColor } = renderToolbar({ activeTool: "text" });
 
@@ -114,7 +113,7 @@ describe("BoardToolbar", () => {
     expect(onSetColor).toHaveBeenCalledWith("red");
   });
 
-  it("sets alignment directly from the shapes menu for a selected shape", async () => {
+  it("sets alignment directly from the shapes sub-tools for a selected shape", async () => {
     const user = userEvent.setup();
     const { onSetTextStyle } = renderToolbar({ hasSelection: true, selectedShapeKind: "rectangle", textStyle: { ...DEFAULT_TEXT_STYLE, textAlign: "center" } });
 
@@ -126,36 +125,35 @@ describe("BoardToolbar", () => {
     expect(onSetTextStyle).toHaveBeenCalledWith({ textAlign: "right" });
   });
 
-  it("keeps shape color and alignment collapsed until their heading is tapped", async () => {
+  it("shows only one shape sub-tool panel at a time", async () => {
     const user = userEvent.setup();
     renderToolbar({ hasSelection: true, selectedShapeKind: "rectangle" });
 
     await user.click(screen.getByRole("button", { name: "Shapes" }));
-
-    expect(screen.getByRole("group", { name: "Shapes" })).toHaveClass("flex-col", "items-stretch");
     expect(screen.queryByRole("button", { name: "Red" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Align text left" })).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Shape color" }));
-    await user.click(screen.getByRole("button", { name: "Alignment" }));
-
     expect(screen.getByRole("button", { name: "Red" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Alignment" }));
+    expect(screen.queryByRole("button", { name: "Red" })).toBeNull();
     expect(screen.getByRole("button", { name: "Align text left" })).toBeInTheDocument();
   });
 
-  it("keeps the tool selected when the card is toggled shut", async () => {
+  it("keeps the tool selected when its sub-tools are toggled shut", async () => {
     const user = userEvent.setup();
     const { onToolChange } = renderToolbar({ activeTool: "rectangle" });
 
     await user.click(screen.getByRole("button", { name: "Shapes" }));
     await user.click(screen.getByRole("button", { name: "Shapes" }));
 
-    expect(screen.queryByRole("group", { name: "Shapes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Shape type" })).toBeNull();
     expect(onToolChange).toHaveBeenLastCalledWith("rectangle");
     expect(screen.getByRole("button", { name: "Shapes" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("remembers the shape picked in the card as the group tool", async () => {
+  it("remembers the shape picked as the group tool", async () => {
     const user = userEvent.setup();
     const { onToolChange } = renderToolbar({ activeTool: "diamond" });
 
@@ -164,7 +162,7 @@ describe("BoardToolbar", () => {
     expect(onToolChange).toHaveBeenCalledWith("diamond");
   });
 
-  it("selects the eraser from the draw card", async () => {
+  it("selects the eraser from the draw sub-tools", async () => {
     const user = userEvent.setup();
     const { onToolChange } = renderToolbar();
 
@@ -174,11 +172,12 @@ describe("BoardToolbar", () => {
     expect(onToolChange).toHaveBeenCalledWith("eraser");
   });
 
-  it("sets the colour for drawing from the draw card", async () => {
+  it("sets the colour for drawing from the draw sub-tools", async () => {
     const user = userEvent.setup();
     const { onSetColor } = renderToolbar();
 
     await user.click(screen.getByRole("button", { name: "Draw and erase" }));
+    await user.click(screen.getByRole("button", { name: "Draw color" }));
     await user.click(screen.getByRole("button", { name: "Red" }));
 
     expect(onSetColor).toHaveBeenCalledWith("red");
@@ -191,28 +190,28 @@ describe("BoardToolbar", () => {
     expect(screen.queryByRole("button", { name: "Align selection" })).toBeNull();
   });
 
-  it("opens one card at a time", async () => {
+  it("shows one tool's sub-tools at a time", async () => {
     const user = userEvent.setup();
     renderToolbar();
 
     await user.click(screen.getByRole("button", { name: "Shapes" }));
     await user.click(screen.getByRole("button", { name: "Connector" }));
 
-    expect(screen.queryByRole("group", { name: "Shapes" })).toBeNull();
-    expect(screen.getByRole("group", { name: "Connector options" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Shape type" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Connector shape" })).toBeInTheDocument();
   });
 
-  it("closes the open card on Escape", async () => {
+  it("closes the open sub-tools on Escape", async () => {
     const user = userEvent.setup();
     renderToolbar();
 
     await user.click(screen.getByRole("button", { name: "Shapes" }));
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByRole("group", { name: "Shapes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Shape type" })).toBeNull();
   });
 
-  it("keeps connector option groups collapsed until their heading is tapped", async () => {
+  it("keeps connector sub-tool panels collapsed until tapped", async () => {
     const user = userEvent.setup();
     renderToolbar();
 
@@ -232,18 +231,20 @@ describe("BoardToolbar", () => {
     const { onUpdateConnection } = renderToolbar();
 
     await user.click(screen.getByRole("button", { name: "Connector" }));
+
     await user.click(screen.getByRole("button", { name: "Head type" }));
     await user.click(screen.getByRole("button", { name: "Diamond marker" }));
+    expect(onUpdateConnection).toHaveBeenCalledWith({ headType: "diamond" });
+    expect(screen.getByRole("button", { name: "Diamond marker" })).toHaveAttribute("aria-pressed", "true");
+
     await user.click(screen.getByRole("button", { name: "Line style" }));
     await user.click(screen.getByRole("button", { name: "Dashed line" }));
+    expect(onUpdateConnection).toHaveBeenCalledWith({ lineStyle: "dashed" });
+    expect(screen.getByRole("button", { name: "Dashed line" })).toHaveAttribute("aria-pressed", "true");
+
     await user.click(screen.getByRole("button", { name: "Connector shape" }));
     await user.click(screen.getByRole("button", { name: "Curved" }));
-
-    expect(onUpdateConnection).toHaveBeenCalledWith({ headType: "diamond" });
-    expect(onUpdateConnection).toHaveBeenCalledWith({ lineStyle: "dashed" });
     expect(onUpdateConnection).toHaveBeenCalledWith({ pathStyle: "curved" });
-    expect(screen.getByRole("button", { name: "Diamond marker" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Dashed line" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Curved" })).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -262,7 +263,7 @@ describe("BoardToolbar", () => {
     expect(onLayoutMindMap).toHaveBeenLastCalledWith("tree");
   });
 
-  it("sets the connector colour through the connector card", async () => {
+  it("sets the connector colour through its sub-tool", async () => {
     const user = userEvent.setup();
     const { onUpdateConnection, onSetColor } = renderToolbar();
 
@@ -274,7 +275,7 @@ describe("BoardToolbar", () => {
     expect(onSetColor).not.toHaveBeenCalled();
   });
 
-  it("has no standalone change-color button — color lives inside each tool's own card", () => {
+  it("has no standalone change-color button — color lives inside each tool's own sub-tools", () => {
     renderToolbar();
 
     expect(screen.queryByRole("button", { name: "Change color" })).toBeNull();
@@ -294,15 +295,15 @@ describe("BoardToolbar", () => {
     expect(onSetShape).toHaveBeenCalledWith("diamond");
   });
 
-  it("closes open tool card when pointer clicks outside", async () => {
+  it("closes open sub-tools when pointer clicks outside", async () => {
     const user = userEvent.setup();
     renderToolbar();
 
     await user.click(screen.getByRole("button", { name: "Shapes" }));
-    expect(screen.getByRole("group", { name: "Shapes" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Shape type" })).toBeInTheDocument();
 
     await user.pointer({ target: document.body, keys: "[MouseLeft]" });
-    expect(screen.queryByRole("group", { name: "Shapes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Shape type" })).toBeNull();
   });
 
   it("disables every tool until the engine is ready", () => {
@@ -319,13 +320,13 @@ describe("BoardToolbar", () => {
     expect(onToolChange).toHaveBeenCalledWith("table");
   });
 
-  it("opens the note card with formatting and color, both collapsed by default", async () => {
+  it("opens the note sub-tools with formatting and color, both collapsed by default", async () => {
     const user = userEvent.setup();
     const { onSetColor } = renderToolbar();
 
     await user.click(screen.getByRole("button", { name: "Sticky note" }));
 
-    expect(screen.getByRole("group", { name: "Sticky note" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bold" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Center text" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Red" })).toBeNull();
 

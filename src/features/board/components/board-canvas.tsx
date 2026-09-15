@@ -6,7 +6,8 @@ import { BoardToolbar } from "@/features/board/components/board-toolbar";
 import type { LocalPdf } from "@/features/board/components/local-pdf-viewer";
 import { ZoomControls } from "@/features/board/components/zoom-controls";
 import type { BoardEngine, BoardTool } from "@/infrastructure/board-engine/board-engine";
-import { DEFAULT_TEXT_STYLE, type BoardDocument, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
+import { type BoardDocument, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
+import { DEFAULT_TEXT_STYLES, textStyleScopeFor, type BoardTextStyleScope, type BoardTextStyles } from "@/domain/board/text-style-scope";
 import { isSupportedPdf } from "@/domain/files/file-validation";
 import { ImageUploadError, type ImageUploadFailure } from "@/infrastructure/files/firebase-board-images";
 import { useLocale } from "@/lib/i18n/locale-provider";
@@ -38,7 +39,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
   const [engine, setEngine] = useState<BoardEngine | null>(null);
   const [activeTool, setActiveTool] = useState<BoardTool>("select");
   const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }>({ selectedShapeKind: null, hasSelection: false, selectedElementKind: null, selectedTextStyle: null, selectedIds: [] });
-  const [textStyle, setTextStyle] = useState<BoardTextStyle>(DEFAULT_TEXT_STYLE);
+  const [textStyles, setTextStyles] = useState<BoardTextStyles>(DEFAULT_TEXT_STYLES);
   const [uploadingImage, setUploadingImage] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -57,12 +58,18 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
 
   const handleSelectionChange = useCallback((next: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }) => {
     setSelectionState(next);
-    if (next.selectedTextStyle) setTextStyle(next.selectedTextStyle);
+    // A selected object only ever refreshes the scope it belongs to, so picking a note never
+    // rewrites the style the shape or table tool will use next.
+    const scope = textStyleScopeFor(next.selectedElementKind);
+    const selectedTextStyle = next.selectedTextStyle;
+    if (scope && selectedTextStyle) {
+      setTextStyles((current) => ({ ...current, [scope]: selectedTextStyle }));
+    }
     if (next.selectedIds && onSelectionIdsChange) onSelectionIdsChange(next.selectedIds);
   }, [onSelectionIdsChange]);
 
-  const setTextFormatting = useCallback((patch: Partial<BoardTextStyle>) => {
-    setTextStyle((current) => ({ ...current, ...patch }));
+  const setTextFormatting = useCallback((scope: BoardTextStyleScope, patch: Partial<BoardTextStyle>) => {
+    setTextStyles((current) => ({ ...current, [scope]: { ...current[scope], ...patch } }));
     engine?.setSelectionTextStyle(patch);
   }, [engine]);
   const importImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,14 +124,14 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
 
   return (
     <div className="relative h-full min-h-0 overflow-hidden bg-muted/30" data-testid="board-canvas">
-      <KonvaBoard initialDocument={document} onDocumentChange={handleDocumentChange} activeTool={activeTool} textStyle={textStyle} onToolChange={setActiveTool} onSelectionChange={handleSelectionChange} onReady={handleReady} />
+      <KonvaBoard initialDocument={document} onDocumentChange={handleDocumentChange} activeTool={activeTool} textStyles={textStyles} onToolChange={setActiveTool} onSelectionChange={handleSelectionChange} onReady={handleReady} />
       <input ref={inputRef} className="sr-only" type="file" accept="image/*" onChange={importImage} />
       <input ref={pdfInputRef} className="sr-only" type="file" accept="application/pdf" onChange={importPdf} />
       <BoardToolbar
         ready={engine !== null}
         uploadingImage={uploadingImage}
         activeTool={activeTool}
-        textStyle={textStyle}
+        textStyles={textStyles}
         selectedShapeKind={selectionState.selectedShapeKind}
         selectedElementKind={selectionState.selectedElementKind}
         selectedIds={selectionState.selectedIds}

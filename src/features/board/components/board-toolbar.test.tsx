@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BoardToolbar } from "@/features/board/components/board-toolbar";
-import { DEFAULT_TEXT_STYLE } from "@/domain/board/board-document";
+import { DEFAULT_TEXT_STYLES } from "@/domain/board/text-style-scope";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -10,7 +10,7 @@ function renderToolbar(overrides: Partial<Parameters<typeof BoardToolbar>[0]> = 
   const props = {
     ready: true,
     activeTool: "select" as const,
-    textStyle: DEFAULT_TEXT_STYLE,
+    textStyles: DEFAULT_TEXT_STYLES,
     onToolChange: vi.fn(),
     onImportImage: vi.fn(),
     onImportPdf: vi.fn(),
@@ -65,8 +65,8 @@ describe("BoardToolbar", () => {
     await user.click(screen.getByRole("button", { name: "24 px" }));
 
     expect(textTool).toHaveAttribute("aria-expanded", "true");
-    expect(onSetTextStyle).toHaveBeenCalledWith({ fontWeight: "bold" });
-    expect(onSetTextStyle).toHaveBeenCalledWith({ fontSize: 24 });
+    expect(onSetTextStyle).toHaveBeenCalledWith("text", { fontWeight: "bold" });
+    expect(onSetTextStyle).toHaveBeenCalledWith("text", { fontSize: 24 });
   });
 
   it("opens text sub-tools for a selected element without changing tools", async () => {
@@ -81,7 +81,7 @@ describe("BoardToolbar", () => {
 
   it("marks the selected text style in the size panel", async () => {
     const user = userEvent.setup();
-    renderToolbar({ activeTool: "text", textStyle: { fontSize: 32, fontWeight: "bold", textAlign: "left" } });
+    renderToolbar({ activeTool: "text", textStyles: { ...DEFAULT_TEXT_STYLES, text: { fontSize: 32, fontWeight: "bold", textAlign: "left" } } });
 
     await user.click(screen.getByRole("button", { name: "Text" }));
 
@@ -99,22 +99,22 @@ describe("BoardToolbar", () => {
     await user.click(screen.getByRole("button", { name: "Alignment" }));
     await user.click(screen.getByRole("button", { name: "Center text" }));
 
-    expect(onSetTextStyle).toHaveBeenCalledWith({ textAlign: "center" });
+    expect(onSetTextStyle).toHaveBeenCalledWith("text", { textAlign: "center" });
   });
 
   it("sets vertical alignment for future text and selected elements", async () => {
     const user = userEvent.setup();
-    const { onSetTextStyle } = renderToolbar({ activeTool: "text", textStyle: { ...DEFAULT_TEXT_STYLE, verticalAlign: "top" } });
+    const { onSetTextStyle } = renderToolbar({ activeTool: "text", textStyles: { ...DEFAULT_TEXT_STYLES, text: { ...DEFAULT_TEXT_STYLES.text, verticalAlign: "top" } } });
 
     await user.click(screen.getByRole("button", { name: "Text" }));
     await user.click(screen.getByRole("button", { name: "Alignment" }));
 
     expect(screen.getByRole("button", { name: "Align top" })).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: "Align middle" }));
-    expect(onSetTextStyle).toHaveBeenCalledWith({ verticalAlign: "middle" });
+    expect(onSetTextStyle).toHaveBeenCalledWith("text", { verticalAlign: "middle" });
 
     await user.click(screen.getByRole("button", { name: "Align bottom" }));
-    expect(onSetTextStyle).toHaveBeenCalledWith({ verticalAlign: "bottom" });
+    expect(onSetTextStyle).toHaveBeenCalledWith("text", { verticalAlign: "bottom" });
   });
 
   it("sets the text colour from the text sub-tools", async () => {
@@ -130,14 +130,14 @@ describe("BoardToolbar", () => {
 
   it("sets alignment directly from the shapes sub-tools for a selected shape", async () => {
     const user = userEvent.setup();
-    const { onSetTextStyle } = renderToolbar({ hasSelection: true, selectedShapeKind: "rectangle", textStyle: { ...DEFAULT_TEXT_STYLE, textAlign: "center" } });
+    const { onSetTextStyle } = renderToolbar({ hasSelection: true, selectedShapeKind: "rectangle", textStyles: { ...DEFAULT_TEXT_STYLES, shape: { ...DEFAULT_TEXT_STYLES.shape, textAlign: "center" } } });
 
     await user.click(screen.getByRole("button", { name: "Shapes" }));
     await user.click(screen.getByRole("button", { name: "Alignment" }));
 
     expect(screen.getByRole("button", { name: "Center text" })).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: "Align text right" }));
-    expect(onSetTextStyle).toHaveBeenCalledWith({ textAlign: "right" });
+    expect(onSetTextStyle).toHaveBeenCalledWith("shape", { textAlign: "right" });
   });
 
   it("shows only one shape sub-tool panel at a time", async () => {
@@ -393,7 +393,7 @@ describe("BoardToolbar", () => {
           <BoardToolbar
             ready={true}
             activeTool="select"
-            textStyle={DEFAULT_TEXT_STYLE}
+            textStyles={DEFAULT_TEXT_STYLES}
             onToolChange={vi.fn()}
             onImportImage={vi.fn()}
             onImportPdf={vi.fn()}
@@ -409,8 +409,8 @@ describe("BoardToolbar", () => {
       </LocaleProvider>
     );
     expect(screen.getByRole("button", { name: "Shapes" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByRole("button", { name: "Bold" })).toBeNull();
     expect(screen.getByRole("button", { name: "Shape type" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Shape options" })).toContainElement(screen.getByRole("button", { name: "Bold" }));
 
     // Deselect
     rerender(
@@ -419,7 +419,7 @@ describe("BoardToolbar", () => {
           <BoardToolbar
             ready={true}
             activeTool="select"
-            textStyle={DEFAULT_TEXT_STYLE}
+            textStyles={DEFAULT_TEXT_STYLES}
             onToolChange={vi.fn()}
             onImportImage={vi.fn()}
             onImportPdf={vi.fn()}
@@ -457,7 +457,7 @@ describe("BoardToolbar", () => {
           <BoardToolbar
             ready={true}
             activeTool="select"
-            textStyle={DEFAULT_TEXT_STYLE}
+            textStyles={DEFAULT_TEXT_STYLES}
             onToolChange={vi.fn()}
             onImportImage={vi.fn()}
             onImportPdf={vi.fn()}
@@ -475,6 +475,76 @@ describe("BoardToolbar", () => {
     );
     expect(screen.getByRole("button", { name: "Bold" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sticky note" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("gives the shape tool its own bold, alignment and text size sub-tools", async () => {
+    const user = userEvent.setup();
+    const { onSetTextStyle } = renderToolbar({ hasSelection: true, selectedElementKind: "rectangle", selectedShapeKind: "rectangle" });
+
+    const shapeOptions = screen.getByRole("group", { name: "Shape options" });
+    expect(shapeOptions).toContainElement(screen.getByRole("button", { name: "Bold" }));
+    expect(shapeOptions).toContainElement(screen.getByRole("button", { name: "Alignment" }));
+    expect(shapeOptions).toContainElement(screen.getByRole("button", { name: "Text size" }));
+
+    await user.click(screen.getByRole("button", { name: "Bold" }));
+    expect(onSetTextStyle).toHaveBeenCalledWith("shape", { fontWeight: "bold" });
+
+    await user.click(screen.getByRole("button", { name: "Text size" }));
+    await user.click(screen.getByRole("button", { name: "32 px" }));
+    expect(onSetTextStyle).toHaveBeenCalledWith("shape", { fontSize: 32 });
+  });
+
+  it("gives the table tool its own bold, alignment and text size sub-tools", async () => {
+    const user = userEvent.setup();
+    const { onSetTextStyle } = renderToolbar({ hasSelection: true, selectedElementKind: "table" });
+
+    const tableOptions = screen.getByRole("group", { name: "Table options" });
+    expect(tableOptions).toContainElement(screen.getByRole("button", { name: "Bold" }));
+    expect(tableOptions).toContainElement(screen.getByRole("button", { name: "Alignment" }));
+    expect(tableOptions).toContainElement(screen.getByRole("button", { name: "Text size" }));
+
+    await user.click(screen.getByRole("button", { name: "Bold" }));
+    expect(onSetTextStyle).toHaveBeenCalledWith("table", { fontWeight: "bold" });
+
+    await user.click(screen.getByRole("button", { name: "Text size" }));
+    await user.click(screen.getByRole("button", { name: "14 px" }));
+    expect(onSetTextStyle).toHaveBeenCalledWith("table", { fontSize: 14 });
+  });
+
+  it("keeps each object type's text formatting separate in the sub-tools", async () => {
+    const user = userEvent.setup();
+    renderToolbar({
+      activeTool: "note",
+      textStyles: {
+        ...DEFAULT_TEXT_STYLES,
+        note: { ...DEFAULT_TEXT_STYLES.note, fontWeight: "bold", fontSize: 24 },
+        shape: { ...DEFAULT_TEXT_STYLES.shape, fontWeight: "normal", fontSize: 40 },
+      },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Sticky note" }));
+    expect(screen.getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Text size" }));
+    expect(screen.getByRole("button", { name: "24 px" })).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: "Shapes" }));
+    expect(screen.getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "false");
+    await user.click(screen.getByRole("button", { name: "Text size" }));
+    expect(screen.getByRole("button", { name: "40 px" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "24 px" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("labels each tool's sub-tools as a group of its own", async () => {
+    const user = userEvent.setup();
+    renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Sticky note" }));
+    expect(screen.getByRole("group", { name: "Sticky note options" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Text options" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Text" }));
+    expect(screen.getByRole("group", { name: "Text options" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Sticky note options" })).toBeNull();
   });
 
   it("hides duplicate and delete until something is selected", () => {

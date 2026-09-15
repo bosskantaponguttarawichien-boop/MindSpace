@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
 import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, textStyleFor, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
+import { textStyleForScope, type BoardTextStyles } from "@/domain/board/text-style-scope";
 import { boundsFromPoints, getConnectionEndpoints, getConnectionPathPoints, getGroupedElbowPaths, isElementContainedByBounds, type Bounds } from "@/domain/board/geometry";
 import { expandSelectionWithGroups, groupElements, ungroupElements } from "@/domain/board/grouping";
 import { appendMindMapChild, appendMindMapSibling, layoutMindMap, type MindMapDefaults, type MindMapLayoutDirection } from "@/domain/board/mind-map";
@@ -85,8 +86,9 @@ function boardBounds(elements: BoardElement[]) {
   };
 }
 
-function nextElement(tool: BoardTool, x: number, y: number, textStyle: BoardTextStyle): BoardElement | null {
+function nextElement(tool: BoardTool, x: number, y: number, textStyles: BoardTextStyles): BoardElement | null {
   const id = createElementId();
+  const textStyle = textStyleForScope(textStyles, tool);
   if (tool === "text") return { id, kind: "text", x, y, width: 220, height: 54, text: "New idea", color: "grey", textStyle };
   if (tool === "note") return { id, kind: "note", x, y, width: 190, height: 170, text: "New note", color: "yellow", textStyle };
   if (tool === "table") {
@@ -107,6 +109,7 @@ function nextElement(tool: BoardTool, x: number, y: number, textStyle: BoardText
       tableData: defaultData,
       text: defaultData.map((row) => row.join(" | ")).join("\n"),
       color: "slate",
+      textStyle,
     };
   }
   if (tool === "rectangle") return { id, kind: "rectangle", x, y, width: 220, height: 120, text: "New concept", color: "violet", textStyle };
@@ -117,7 +120,7 @@ function nextElement(tool: BoardTool, x: number, y: number, textStyle: BoardText
 }
 
 function supportsTextStyle(element: BoardElement) {
-  return element.kind === "text" || element.kind === "note" || element.kind === "rectangle" || element.kind === "ellipse" || element.kind === "diamond" || element.kind === "triangle";
+  return element.kind === "text" || element.kind === "note" || element.kind === "table" || element.kind === "rectangle" || element.kind === "ellipse" || element.kind === "diamond" || element.kind === "triangle";
 }
 
 function effectiveTextStyleFor(element: Pick<BoardElement, "kind" | "textStyle">): BoardTextStyle {
@@ -128,6 +131,14 @@ function effectiveTextStyleFor(element: Pick<BoardElement, "kind" | "textStyle">
   }
   if (element.kind === "note" && element.textStyle?.fontSize === undefined) {
     return { ...style, fontSize: 16 };
+  }
+  if (element.kind === "table") {
+    return {
+      fontSize: element.textStyle?.fontSize ?? 14,
+      fontWeight: element.textStyle?.fontWeight ?? "normal",
+      textAlign: element.textStyle?.textAlign ?? "center",
+      verticalAlign: element.textStyle?.verticalAlign ?? "middle",
+    };
   }
   return style;
 }
@@ -166,6 +177,11 @@ function BoardTable({
   for (let r = 1; r < rows; r++) {
     hLines.push(r * cellHeight);
   }
+
+  const textStyle = effectiveTextStyleFor(element);
+  // Tables saved before cell text was styleable keep auto-fitting to their row height;
+  // once a size is picked in the table tool, that choice wins.
+  const fontSize = element.textStyle?.fontSize ?? Math.max(11, Math.min(14, cellHeight * 0.35));
 
   return (
     <Group>
@@ -231,11 +247,11 @@ function BoardTable({
               padding={6}
               fill="#0f172a"
               fontFamily="Geist, Noto Sans Thai, sans-serif"
-              fontSize={Math.max(11, Math.min(14, cellHeight * 0.35))}
-              fontStyle={r === 0 ? "bold" : "normal"}
+              fontSize={fontSize}
+              fontStyle={r === 0 || textStyle.fontWeight === "bold" ? "bold" : "normal"}
               lineHeight={1.25}
-              verticalAlign="middle"
-              align="center"
+              verticalAlign={textStyle.verticalAlign ?? "middle"}
+              align={textStyle.textAlign}
               wrap="word"
             />
           </Group>
@@ -342,7 +358,7 @@ export function KonvaBoard({
   initialDocument,
   onDocumentChange,
   activeTool,
-  textStyle,
+  textStyles,
   onToolChange,
   onReady,
   onSelectionChange,
@@ -350,7 +366,7 @@ export function KonvaBoard({
   initialDocument: BoardDocument;
   onDocumentChange: (document: BoardDocument) => void;
   activeTool: BoardTool;
-  textStyle: BoardTextStyle;
+  textStyles: BoardTextStyles;
   onToolChange: (tool: BoardTool) => void;
   onReady: (engine: BoardEngine) => void;
   onSelectionChange?: (info: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: BoardElement["kind"] | "connector" | "shape" | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }) => void;
@@ -1451,7 +1467,7 @@ export function KonvaBoard({
       replaceDocument({ ...documentRef.current, elements: [...documentRef.current.elements, element] });
       return;
     }
-    const created = nextElement(effectiveTool, point.x, point.y, textStyle);
+    const created = nextElement(effectiveTool, point.x, point.y, textStyles);
     const element = created && elementColorRef.current ? { ...created, color: elementColorRef.current } : created;
     if (element) {
       commit({ ...documentRef.current, elements: [...documentRef.current.elements, element] });

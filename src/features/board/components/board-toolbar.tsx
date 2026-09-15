@@ -9,17 +9,19 @@ import { connectionEnds, connectionHeadTypes, connectionLineStyles, connectionPa
 import { useLocale } from "@/lib/i18n/locale-provider";
 import type { BoardTool } from "@/infrastructure/board-engine/board-engine";
 import { TEXT_FONT_SIZES, type BoardColor, type BoardConnection, type BoardTextFontSize, type BoardTextStyle, type ConnectionHeadType, type ConnectionLineStyle, type ConnectionPathStyle, type ConnectionStyle } from "@/domain/board/board-document";
+import { TEXT_STYLE_SCOPES, textStyleScopeFor, type BoardTextStyleScope, type BoardTextStyles } from "@/domain/board/text-style-scope";
 import type { MindMapLayoutDirection } from "@/domain/board/mind-map";
 import type { MessageKey } from "@/lib/i18n/messages";
 
-type ToolCardId = "text" | "note" | "table" | "shape" | "connector" | "ink" | "layout";
+type ToolCardId = BoardTextStyleScope | "connector" | "ink" | "layout";
+
+function isTextScope(id: ToolCardId): id is BoardTextStyleScope {
+  return (TEXT_STYLE_SCOPES as readonly string[]).includes(id);
+}
 
 function toolCardForKind(kind: string | null | undefined): ToolCardId | null {
-  if (!kind) return null;
-  if (kind === "note") return "note";
-  if (kind === "text") return "text";
-  if (kind === "table") return "table";
-  if (kind === "rectangle" || kind === "ellipse" || kind === "diamond" || kind === "triangle" || kind === "shape") return "shape";
+  const scope = textStyleScopeFor(kind);
+  if (scope) return scope;
   if (kind === "draw") return "ink";
   if (kind === "connector" || kind === "arrow") return "connector";
   return null;
@@ -34,13 +36,28 @@ const textSizeLabels: Record<BoardTextFontSize, MessageKey> = {
   40: "textSize40",
 };
 
+/** Every creator tool owns its colour and its text formatting; nothing is shared between them. */
+const scopeColorLabels: Record<BoardTextStyleScope, MessageKey> = {
+  text: "textColor",
+  note: "noteColor",
+  table: "tableColor",
+  shape: "shapeColor",
+};
+
+const scopeGroupLabels: Record<BoardTextStyleScope, MessageKey> = {
+  text: "textToolOptions",
+  note: "noteToolOptions",
+  table: "tableToolOptions",
+  shape: "shapeToolOptions",
+};
+
 const alignIcons = { left: AlignLeft, center: AlignCenter, right: AlignRight } as const;
 
 export function BoardToolbar({
   ready,
   uploadingImage = false,
   activeTool,
-  textStyle,
+  textStyles,
   selectedShapeKind,
   selectedElementKind,
   selectedIds,
@@ -64,14 +81,14 @@ export function BoardToolbar({
   ready: boolean;
   uploadingImage?: boolean;
   activeTool: BoardTool;
-  textStyle: BoardTextStyle;
+  textStyles: BoardTextStyles;
   selectedShapeKind?: BoardTool | null;
   selectedElementKind?: string | null;
   selectedIds?: string[];
   hasSelection?: boolean;
   onToolChange: (tool: BoardTool) => void;
   onSetShape?: (shape: BoardTool) => void;
-  onSetTextStyle: (patch: Partial<BoardTextStyle>) => void;
+  onSetTextStyle: (scope: BoardTextStyleScope, patch: Partial<BoardTextStyle>) => void;
   onImportImage: () => void;
   onImportPdf: () => void;
   onAddChildNode: () => void;
@@ -131,11 +148,7 @@ export function BoardToolbar({
 
   const effectiveShapeTool = selectedShapeKind ?? lastShapeTool;
   const isShapeSelected = hasSelection && (
-    selectedElementKind === "rectangle" ||
-    selectedElementKind === "ellipse" ||
-    selectedElementKind === "diamond" ||
-    selectedElementKind === "triangle" ||
-    selectedElementKind === "shape" ||
+    textStyleScopeFor(selectedElementKind) === "shape" ||
     Boolean(selectedShapeKind)
   );
   const shapeActive = isShapeSelected || (!hasSelection && shapeTools.some((tool) => tool.id === activeTool));
@@ -181,26 +194,36 @@ export function BoardToolbar({
     onLayoutMindMap(direction);
   }
 
-  function toggleBold() {
-    onSetTextStyle({ fontWeight: textStyle.fontWeight === "bold" ? "normal" : "bold" });
+  /** Bold, alignment and size, bound to one object type's own style. */
+  function textFormattingSubTools(scope: BoardTextStyleScope): ReactNode {
+    const style = textStyles[scope];
+    return (
+      <>
+        <IconAction label={t("bold")} icon={Bold} active={style.fontWeight === "bold"} disabled={!ready} className="max-sm:size-10" onClick={() => onSetTextStyle(scope, { fontWeight: style.fontWeight === "bold" ? "normal" : "bold" })} />
+        <IconAction label={t("textAlign")} icon={alignIcons[style.textAlign]} expandable expanded={openSubTool === "align"} active={openSubTool === "align"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("align")} />
+        <IconAction label={t("textSize")} icon={ALargeSmall} expandable expanded={openSubTool === "size"} active={openSubTool === "size"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("size")} />
+      </>
+    );
   }
 
-  function textAlignRow() {
-    const verticalAlign = textStyle.verticalAlign ?? "top";
+  function textAlignRow(scope: BoardTextStyleScope) {
+    const style = textStyles[scope];
+    const verticalAlign = style.verticalAlign ?? "top";
     return (
       <ToolCardRow>
-        <IconAction label={t("textAlignLeft")} icon={AlignLeft} active={textStyle.textAlign === "left"} onClick={() => onSetTextStyle({ textAlign: "left" })} />
-        <IconAction label={t("textAlignCenter")} icon={AlignCenter} active={textStyle.textAlign === "center"} onClick={() => onSetTextStyle({ textAlign: "center" })} />
-        <IconAction label={t("textAlignRight")} icon={AlignRight} active={textStyle.textAlign === "right"} onClick={() => onSetTextStyle({ textAlign: "right" })} />
+        <IconAction label={t("textAlignLeft")} icon={AlignLeft} active={style.textAlign === "left"} onClick={() => onSetTextStyle(scope, { textAlign: "left" })} />
+        <IconAction label={t("textAlignCenter")} icon={AlignCenter} active={style.textAlign === "center"} onClick={() => onSetTextStyle(scope, { textAlign: "center" })} />
+        <IconAction label={t("textAlignRight")} icon={AlignRight} active={style.textAlign === "right"} onClick={() => onSetTextStyle(scope, { textAlign: "right" })} />
         <ToolCardSeparator />
-        <IconAction label={t("alignTop")} icon={AlignVerticalJustifyStart} active={verticalAlign === "top"} onClick={() => onSetTextStyle({ verticalAlign: "top" })} />
-        <IconAction label={t("alignMiddle")} icon={AlignVerticalJustifyCenter} active={verticalAlign === "middle"} onClick={() => onSetTextStyle({ verticalAlign: "middle" })} />
-        <IconAction label={t("alignBottom")} icon={AlignVerticalJustifyEnd} active={verticalAlign === "bottom"} onClick={() => onSetTextStyle({ verticalAlign: "bottom" })} />
+        <IconAction label={t("alignTop")} icon={AlignVerticalJustifyStart} active={verticalAlign === "top"} onClick={() => onSetTextStyle(scope, { verticalAlign: "top" })} />
+        <IconAction label={t("alignMiddle")} icon={AlignVerticalJustifyCenter} active={verticalAlign === "middle"} onClick={() => onSetTextStyle(scope, { verticalAlign: "middle" })} />
+        <IconAction label={t("alignBottom")} icon={AlignVerticalJustifyEnd} active={verticalAlign === "bottom"} onClick={() => onSetTextStyle(scope, { verticalAlign: "bottom" })} />
       </ToolCardRow>
     );
   }
 
-  function textSizeRow() {
+  function textSizeRow(scope: BoardTextStyleScope) {
+    const style = textStyles[scope];
     return (
       <ToolCardRow>
         {TEXT_FONT_SIZES.map((size) => (
@@ -208,9 +231,9 @@ export function BoardToolbar({
             key={size}
             type="button"
             aria-label={t(textSizeLabels[size])}
-            aria-pressed={textStyle.fontSize === size}
+            aria-pressed={style.fontSize === size}
             className="size-8 shrink-0 rounded-full border border-transparent text-xs font-semibold text-zinc-700 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground dark:text-zinc-300 max-sm:size-10"
-            onClick={() => onSetTextStyle({ fontSize: size })}
+            onClick={() => onSetTextStyle(scope, { fontSize: size })}
           >
             {size}
           </button>
@@ -220,39 +243,23 @@ export function BoardToolbar({
   }
 
   function renderToolSubTools(id: ToolCardId): ReactNode {
-    if (id === "text" || id === "note") {
+    if (isTextScope(id)) {
       return (
-        <SubToolGroup>
-          <IconAction label={t("bold")} icon={Bold} active={textStyle.fontWeight === "bold"} disabled={!ready} className="max-sm:size-10" onClick={toggleBold} />
-          <IconAction label={t("textAlign")} icon={alignIcons[textStyle.textAlign]} expandable expanded={openSubTool === "align"} active={openSubTool === "align"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("align")} />
-          <IconAction label={t("textSize")} icon={ALargeSmall} expandable expanded={openSubTool === "size"} active={openSubTool === "size"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("size")} />
-          <IconAction label={t(id === "text" ? "textColor" : "noteColor")} icon={Palette} expandable expanded={openSubTool === "color"} active={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
-        </SubToolGroup>
-      );
-    }
-    if (id === "table") {
-      return (
-        <SubToolGroup>
-          {selectedElementKind === "table" ? (
+        <SubToolGroup label={t(scopeGroupLabels[id])}>
+          {id === "shape" ? (
+            <IconAction label={t("shapeKind")} icon={shapeIcon} expandable expanded={openSubTool === "kind"} active={openSubTool === "kind"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("kind")} />
+          ) : null}
+          {id === "table" && selectedElementKind === "table" ? (
             <IconAction label={t("tableActions")} icon={Rows3} expandable expanded={openSubTool === "actions"} active={openSubTool === "actions"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("actions")} />
           ) : null}
-          <IconAction label={t("tableColor")} icon={Palette} expandable expanded={openSubTool === "color"} active={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
-          <IconAction label={t("textAlign")} icon={alignIcons[textStyle.textAlign]} expandable expanded={openSubTool === "align"} active={openSubTool === "align"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("align")} />
-        </SubToolGroup>
-      );
-    }
-    if (id === "shape") {
-      return (
-        <SubToolGroup>
-          <IconAction label={t("shapeKind")} icon={shapeIcon} expandable expanded={openSubTool === "kind"} active={openSubTool === "kind"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("kind")} />
-          <IconAction label={t("shapeColor")} icon={Palette} expandable expanded={openSubTool === "color"} active={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
-          <IconAction label={t("textAlign")} icon={alignIcons[textStyle.textAlign]} expandable expanded={openSubTool === "align"} active={openSubTool === "align"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("align")} />
+          {textFormattingSubTools(id)}
+          <IconAction label={t(scopeColorLabels[id])} icon={Palette} expandable expanded={openSubTool === "color"} active={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
         </SubToolGroup>
       );
     }
     if (id === "connector") {
       return (
-        <SubToolGroup>
+        <SubToolGroup label={t("connectorOptions")}>
           <IconAction label={t("pathStyle")} icon={connectionPathStyles.find((option) => option.value === connection.pathStyle)?.icon ?? RectangleHorizontal} expandable expanded={openSubTool === "pathStyle"} active={openSubTool === "pathStyle"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("pathStyle")} />
           <IconAction label={t("connectionStyle")} icon={connectionEnds.find((option) => option.value === connection.style)?.icon ?? RectangleHorizontal} expandable expanded={openSubTool === "connectionStyle"} active={openSubTool === "connectionStyle"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("connectionStyle")} />
           <IconAction label={t("headType")} icon={connectionHeadTypes.find((option) => option.value === connection.headType)?.icon ?? RectangleHorizontal} expandable expanded={openSubTool === "headType"} active={openSubTool === "headType"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("headType")} />
@@ -263,7 +270,7 @@ export function BoardToolbar({
     }
     if (id === "ink") {
       return (
-        <SubToolGroup>
+        <SubToolGroup label={t("drawToolOptions")}>
           {inkTools.map((tool) => (
             <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id} disabled={!ready} className="max-sm:size-10" onClick={() => pickInkTool(tool.id)} />
           ))}
@@ -275,13 +282,25 @@ export function BoardToolbar({
   }
 
   function getSubPanel(): { label: string; content: ReactNode } | null {
-    if ((openCard === "text" || openCard === "note") && openSubTool) {
-      if (openSubTool === "align") return { label: t("textAlign"), content: textAlignRow() };
-      if (openSubTool === "size") return { label: t("textSize"), content: textSizeRow() };
-      if (openSubTool === "color") return { label: t(openCard === "text" ? "textColor" : "noteColor"), content: <ColorRow onSelect={onSetColor} /> };
-    }
-    if (openCard === "table" && openSubTool) {
-      if (openSubTool === "actions") {
+    if (openCard && isTextScope(openCard) && openSubTool) {
+      const scope = openCard;
+      const owner = t(scopeGroupLabels[scope]);
+      if (openSubTool === "align") return { label: `${owner} · ${t("textAlign")}`, content: textAlignRow(scope) };
+      if (openSubTool === "size") return { label: `${owner} · ${t("textSize")}`, content: textSizeRow(scope) };
+      if (openSubTool === "color") return { label: t(scopeColorLabels[scope]), content: <ColorRow onSelect={onSetColor} /> };
+      if (scope === "shape" && openSubTool === "kind") {
+        return {
+          label: t("shapeKind"),
+          content: (
+            <ToolCardRow className="w-full overflow-x-auto touch-pan-x scrollbar-none">
+              {shapeTools.map((tool) => (
+                <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id || selectedShapeKind === tool.id} onClick={() => pickShapeTool(tool.id)} />
+              ))}
+            </ToolCardRow>
+          ),
+        };
+      }
+      if (scope === "table" && openSubTool === "actions") {
         return {
           label: t("tableActions"),
           content: (
@@ -294,24 +313,7 @@ export function BoardToolbar({
           ),
         };
       }
-      if (openSubTool === "color") return { label: t("tableColor"), content: <ColorRow onSelect={onSetColor} /> };
-      if (openSubTool === "align") return { label: t("textAlign"), content: textAlignRow() };
-    }
-    if (openCard === "shape" && openSubTool) {
-      if (openSubTool === "kind") {
-        return {
-          label: t("shapeKind"),
-          content: (
-            <ToolCardRow className="w-full overflow-x-auto touch-pan-x scrollbar-none">
-              {shapeTools.map((tool) => (
-                <IconAction key={tool.id} label={t(tool.label)} icon={tool.icon} shortcut={tool.shortcut} active={activeTool === tool.id || selectedShapeKind === tool.id} onClick={() => pickShapeTool(tool.id)} />
-              ))}
-            </ToolCardRow>
-          ),
-        };
-      }
-      if (openSubTool === "color") return { label: t("shapeColor"), content: <ColorRow onSelect={onSetColor} /> };
-      if (openSubTool === "align") return { label: t("textAlign"), content: textAlignRow() };
+      return null;
     }
     if (openCard === "connector" && openSubTool) {
       if (openSubTool === "pathStyle") return { label: t("pathStyle"), content: <OptionRow options={connectionPathStyles} value={connection.pathStyle} onSelect={(pathStyle) => applyConnection({ pathStyle })} /> };

@@ -1,5 +1,6 @@
 import { collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, type FirestoreError } from "firebase/firestore";
 import { BOARD_COLORS, TEXT_FONT_SIZES, type BoardConnection, type BoardDocument, type BoardElement, type BoardTextStyle } from "@/domain/board/board-document";
+import { textStyleScopeFor } from "@/domain/board/text-style-scope";
 import { getFirebaseServices } from "@/infrastructure/firebase/client";
 
 export type StoredBoard = {
@@ -14,8 +15,16 @@ export type BoardScope =
 
 const colors = new Set<string>(BOARD_COLORS);
 const kinds = new Set(["text", "note", "rectangle", "ellipse", "diamond", "triangle", "draw", "image", "table"]);
-const textStyleKinds = new Set(["text", "note", "rectangle", "ellipse", "diamond", "triangle"]);
 const textFontSizes = new Set<number>(TEXT_FONT_SIZES);
+
+/**
+ * Which kinds may carry a persisted text style is owned by the text-style scopes, not by a list
+ * copied here: a kind that gains formatting in the editor but not in this check would fail
+ * validation, and a single rejected element drops the whole board out of the workspace.
+ */
+function carriesTextStyle(kind: string) {
+  return textStyleScopeFor(kind) !== null;
+}
 
 function isBoardTextStyle(value: unknown): value is Partial<BoardTextStyle> {
   if (!value || typeof value !== "object") return false;
@@ -40,7 +49,7 @@ function isBoardElement(value: unknown): value is BoardElement {
     (candidate.rows === undefined || (typeof candidate.rows === "number" && Number.isFinite(candidate.rows))) &&
     (candidate.cols === undefined || (typeof candidate.cols === "number" && Number.isFinite(candidate.cols))) &&
     (candidate.tableData === undefined || (Array.isArray(candidate.tableData) && candidate.tableData.every((row) => Array.isArray(row) && row.every((cell) => typeof cell === "string")))) &&
-    (candidate.textStyle === undefined || (textStyleKinds.has(candidate.kind) && isBoardTextStyle(candidate.textStyle))) &&
+    (candidate.textStyle === undefined || (carriesTextStyle(candidate.kind) && isBoardTextStyle(candidate.textStyle))) &&
     (candidate.groupId === undefined || typeof candidate.groupId === "string")
   );
 }

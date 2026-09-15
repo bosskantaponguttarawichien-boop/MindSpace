@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BOARD_COLORS } from "@/domain/board/board-document";
+import { DEFAULT_TEXT_STYLES, textStyleForScope, textStyleScopeFor } from "@/domain/board/text-style-scope";
 import { parseBoardDocument } from "@/infrastructure/persistence/firestore-board-repository";
 
 describe("parseBoardDocument", () => {
@@ -108,5 +109,48 @@ describe("parseBoardDocument", () => {
         ["Val1", "Val2"],
       ],
     });
+  });
+
+  it("keeps a board whose table carries the styles the table tool creates it with", () => {
+    // A rejected element discards the entire board, so the editor would drop the board the user
+    // is drawing on the moment a table came back from Firestore.
+    const doc = parseBoardDocument({
+      version: 1,
+      id: "board:styled-table",
+      name: "Styled table",
+      elements: [
+        {
+          id: "element:table",
+          kind: "table",
+          x: 0,
+          y: 0,
+          width: 300,
+          height: 150,
+          rows: 1,
+          cols: 2,
+          text: "ColA | ColB",
+          color: "slate",
+          textStyle: textStyleForScope(DEFAULT_TEXT_STYLES, "table"),
+        },
+      ],
+      connections: [],
+    });
+    expect(doc).not.toBeNull();
+    expect(doc?.elements[0]?.textStyle).toMatchObject({ textAlign: "center", verticalAlign: "middle" });
+  });
+
+  it("every text-style scope maps onto a kind this parser accepts", () => {
+    for (const kind of ["text", "note", "table", "rectangle", "ellipse", "diamond", "triangle"]) {
+      const scope = textStyleScopeFor(kind);
+      expect(scope).not.toBeNull();
+      const doc = parseBoardDocument({
+        version: 1,
+        id: `board:${kind}`,
+        name: kind,
+        elements: [{ id: `element:${kind}`, kind, x: 0, y: 0, width: 100, height: 50, text: "Hi", textStyle: DEFAULT_TEXT_STYLES[scope!] }],
+        connections: [],
+      });
+      expect(doc, `${kind} should survive a Firestore round trip`).not.toBeNull();
+    }
   });
 });

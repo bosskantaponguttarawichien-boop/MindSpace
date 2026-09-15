@@ -77,10 +77,12 @@ export function CollapsibleSubTools({ open, children }: { open: boolean; childre
 }
 
 /** A tinted cluster of sub-tool buttons, inserted inline into the toolbar row right after the tool that owns them. */
-export function SubToolGroup({ className, children }: { className?: string; children: ReactNode }) {
+export function SubToolGroup({ label, className, children }: { label?: string; className?: string; children: ReactNode }) {
   return (
     <SubToolContext.Provider value={true}>
       <div
+        role={label ? "group" : undefined}
+        aria-label={label}
         className={cn(
           "flex h-9 shrink-0 items-center gap-0.5 rounded-full p-0.5 border shadow-xs transition-colors",
           "bg-primary/10 border-primary/20",

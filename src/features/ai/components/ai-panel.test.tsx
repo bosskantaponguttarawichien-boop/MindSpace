@@ -201,6 +201,53 @@ describe("AiPanel", () => {
     expect(onApplyProposal).toHaveBeenCalledWith(mockResponse.proposal);
   });
 
+  it("previews text style, layout, grouping and connector deletion before approval", async () => {
+    const user = userEvent.setup();
+    const onApplyProposal = vi.fn();
+    const mockResponse = {
+      text: "Here is the full clean-up.",
+      proposal: {
+        id: "prop-tools-1",
+        title: "Clean up the board",
+        explanation: "Restyle, regroup and arrange the map.",
+        elements: [{ kind: "table", text: "", rows: 2, cols: 2, tableData: [["A", "B"], ["1", "2"]] }],
+        updateElements: [{ id: "element:1", textStyle: { fontSize: 32, fontWeight: "bold" }, x: 40, y: 60 }],
+        deleteConnectionIds: ["connection:1"],
+        groupElements: [{ elementIds: ["element:1", "element:2"] }],
+        ungroupElementIds: ["element:3"],
+        layout: { direction: "tree" },
+      },
+    };
+
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockResponse,
+    });
+
+    render(
+      <LocaleProvider>
+        <AiPanel document={mockDocument} onApplyProposal={onApplyProposal} />
+      </LocaleProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Improve" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Clean up the board")).toBeInTheDocument();
+    });
+    expect(screen.getByText("2x2 table")).toBeInTheDocument();
+    expect(screen.getByText("size → 32")).toBeInTheDocument();
+    expect(screen.getByText("weight → bold")).toBeInTheDocument();
+    expect(screen.getByText("move → 40,60")).toBeInTheDocument();
+    expect(screen.getByText("Delete connector: connection:1")).toBeInTheDocument();
+    expect(screen.getByText("2 elements")).toBeInTheDocument();
+    expect(screen.getByText("1 elements")).toBeInTheDocument();
+    expect(screen.getByText("tree")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Approve changes" }));
+    expect(onApplyProposal).toHaveBeenCalledWith(mockResponse.proposal);
+  });
+
   it("calls onClose when the collapse button is clicked", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

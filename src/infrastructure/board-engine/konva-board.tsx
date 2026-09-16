@@ -13,6 +13,7 @@ import { appendMindMapChild, appendMindMapSibling, layoutMindMap, type MindMapDe
 import { parseMarkdown } from "@/domain/board/markdown";
 import type { BoardEngine, BoardExport, BoardTool } from "@/infrastructure/board-engine/board-engine";
 import type { AiProposal } from "@/domain/ai/proposal-schema";
+import { applyProposalToDocument } from "@/domain/ai/apply-proposal";
 import { heightForEditedElement } from "@/infrastructure/board-engine/element-sizing";
 import { useLocale } from "@/lib/i18n/locale-provider";
 
@@ -814,123 +815,17 @@ export function KonvaBoard({
   }, [commit]);
 
   const applyProposal = useCallback((proposal: AiProposal) => {
-    const hasElements = Boolean(proposal.elements && proposal.elements.length > 0);
-    const hasConnUpdates = Boolean(proposal.updateConnections && proposal.updateConnections.length > 0);
-    const hasElemUpdates = Boolean(proposal.updateElements && proposal.updateElements.length > 0);
-    const hasDeletes = Boolean(proposal.deleteElementIds && proposal.deleteElementIds.length > 0);
-    if (!hasElements && !hasConnUpdates && !hasElemUpdates && !hasDeletes) return;
-    const doc = documentRef.current;
+    const result = applyProposalToDocument(documentRef.current, proposal, {
+      createElementId,
+      createConnectionId: () => `connection:${crypto.randomUUID()}`,
+      createGroupId: () => `group:${crypto.randomUUID()}`,
+      selectedIds: selectionRef.current,
+    });
+    if (!result) return;
 
-    const referenceId = (proposal.elements?.[0]?.relativeToId as BoardElementId | undefined) ?? selectionRef.current[0];
-    const referenceElement = referenceId ? doc.elements.find((e) => e.id === referenceId) : null;
-
-    let startX = referenceElement ? referenceElement.x + referenceElement.width + 100 : 400;
-    let startY = referenceElement ? referenceElement.y : 200;
-
-    if (!referenceElement && doc.elements.length > 0) {
-      const maxX = Math.max(...doc.elements.map((e) => e.x + e.width));
-      const minY = Math.min(...doc.elements.map((e) => e.y));
-      startX = maxX + 100;
-      startY = minY;
-    }
-
-    const newElements: BoardElement[] = [];
-    const idMap: BoardElementId[] = [];
-
-    if (proposal.elements && proposal.elements.length > 0) {
-      for (const [index, proposed] of proposal.elements.entries()) {
-        const elementId = createElementId();
-        idMap.push(elementId);
-        const isNote = proposed.kind === "note";
-        const width = isNote ? 190 : 160;
-        const height = isNote ? 110 : 80;
-        const x = startX;
-        const y = startY + index * (height + 28);
-
-        newElements.push({
-          id: elementId,
-          kind: proposed.kind,
-          x,
-          y,
-          width,
-          height,
-          text: proposed.text,
-          color: proposed.color ?? (isNote ? "violet" : "blue"),
-        });
-      }
-    }
-
-    const newConnections: BoardConnection[] = [];
-    if (proposal.connections && proposal.connections.length > 0) {
-      for (const conn of proposal.connections) {
-        const fromId = conn.fromId ? (conn.fromId as BoardElementId) : (conn.fromIndex !== undefined ? idMap[conn.fromIndex] : (referenceElement?.id ?? idMap[0]));
-        const toId = conn.toIndex !== undefined ? idMap[conn.toIndex] : (conn.toId as BoardElementId | undefined);
-        if (fromId && toId && fromId !== toId) {
-          newConnections.push({
-            id: `connection:${crypto.randomUUID()}`,
-            fromId,
-            toId,
-            style: conn.style ?? "end",
-            lineStyle: conn.lineStyle ?? "solid",
-            headType: conn.headType ?? "arrow",
-            pathStyle: conn.pathStyle ?? "straight",
-          });
-        }
-      }
-    } else if (referenceElement && idMap[0]) {
-      newConnections.push({
-        id: `connection:${crypto.randomUUID()}`,
-        fromId: referenceElement.id,
-        toId: idMap[0],
-        style: "end",
-        lineStyle: "solid",
-        headType: "arrow",
-        pathStyle: "straight",
-      });
-    }
-
-    let updatedConnections = [...doc.connections];
-    if (proposal.updateConnections && proposal.updateConnections.length > 0) {
-      for (const update of proposal.updateConnections) {
-        updatedConnections = updatedConnections.map((conn) => {
-          if (update.id && conn.id !== update.id) return conn;
-          return {
-            ...conn,
-            ...(update.headType !== undefined ? { headType: update.headType } : {}),
-            ...(update.style !== undefined ? { style: update.style } : {}),
-            ...(update.lineStyle !== undefined ? { lineStyle: update.lineStyle } : {}),
-            ...(update.pathStyle !== undefined ? { pathStyle: update.pathStyle } : {}),
-            ...(update.color !== undefined ? { color: update.color } : {}),
-          };
-        });
-      }
-    }
-
-    let updatedElements = [...doc.elements];
-    if (proposal.updateElements && proposal.updateElements.length > 0) {
-      for (const update of proposal.updateElements) {
-        updatedElements = updatedElements.map((elem) => {
-          if (update.id && elem.id !== update.id) return elem;
-          return {
-            ...elem,
-            ...(update.color !== undefined ? { color: update.color } : {}),
-            ...(update.text !== undefined ? { text: update.text } : {}),
-            ...(update.kind !== undefined ? { kind: update.kind } : {}),
-          };
-        });
-      }
-    }
-
-    const deletedIds = new Set(proposal.deleteElementIds as BoardElementId[] | undefined);
-    const nextDoc: BoardDocument = {
-      ...doc,
-      elements: [...updatedElements, ...newElements].filter((element) => !deletedIds.has(element.id)),
-      connections: [...updatedConnections, ...newConnections].filter((connection) => !deletedIds.has(connection.fromId) && !deletedIds.has(connection.toId)),
-    };
-
-    commit(nextDoc);
-    if (idMap.length > 0) {
-      setSelection(idMap);
+    commit(result.document);
+    if (result.createdElementIds.length > 0) {
+      setSelection(result.createdElementIds);
     }
   }, [commit]);
 

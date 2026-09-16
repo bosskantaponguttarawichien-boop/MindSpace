@@ -49,4 +49,21 @@ describe("board-context", () => {
     expect(formatted).toContain("[note] (ID: element:1) \"Central Idea\"");
     expect(formatted).toContain("- (ID: connection:1) \"Central Idea\" -> \"Sub Topic A\"");
   });
+
+  it("describes every attribute the AI is allowed to edit", () => {
+    const document: BoardDocument = {
+      ...mockDocument,
+      elements: [
+        { id: "element:1", kind: "note", x: 100, y: 100, width: 200, height: 120, text: "Central Idea", color: "violet", textStyle: { fontSize: 32, fontWeight: "bold", textAlign: "center", verticalAlign: "middle" }, groupId: "group:a" },
+        { id: "element:4", kind: "table", x: 0, y: 0, width: 300, height: 150, text: "A | B", rows: 2, cols: 3, color: "slate" },
+      ],
+      connections: [],
+    };
+
+    const formatted = formatContextForPrompt(extractBoardContext(document, "entire-board"));
+
+    expect(formatted).toContain("pos 100,100, size 200x120, color violet, text 32/bold/center/middle");
+    expect(formatted).toContain("group group:a");
+    expect(formatted).toContain("table 2x3");
+  });
 });

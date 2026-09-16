@@ -50,6 +50,54 @@ describe("board-context", () => {
     expect(formatted).toContain("- (ID: connection:1) \"Central Idea\" -> \"Sub Topic A\"");
   });
 
+  it("builds a mind-map outline so a summary can follow the branches", () => {
+    const document: BoardDocument = {
+      ...mockDocument,
+      elements: [
+        { id: "element:root", kind: "rectangle", x: 0, y: 0, width: 200, height: 100, text: "Launch plan" },
+        { id: "element:a", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Marketing" },
+        { id: "element:a1", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Launch video" },
+        { id: "element:b", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Engineering" },
+        { id: "element:loose", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Parking lot" },
+      ],
+      connections: [
+        { id: "connection:1", fromId: "element:root", toId: "element:a" },
+        { id: "connection:2", fromId: "element:a", toId: "element:a1" },
+        { id: "connection:3", fromId: "element:root", toId: "element:b" },
+      ],
+    };
+
+    const context = extractBoardContext(document, "entire-board");
+    expect(context.outline.map((node) => [node.label, node.depth])).toEqual([
+      ["Launch plan", 0],
+      ["Marketing", 1],
+      ["Launch video", 2],
+      ["Engineering", 1],
+    ]);
+
+    const formatted = formatContextForPrompt(context);
+    expect(formatted).toContain("Mind map outline (root first, indented by depth):");
+    expect(formatted).toContain("- Launch plan\n  - Marketing\n    - Launch video\n  - Engineering");
+    expect(formatted).toContain("Standalone elements (not connected): Parking lot");
+  });
+
+  it("emits every connected node once even when connections form a cycle", () => {
+    const document: BoardDocument = {
+      ...mockDocument,
+      elements: [
+        { id: "element:1", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "A" },
+        { id: "element:2", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "B" },
+      ],
+      connections: [
+        { id: "connection:1", fromId: "element:1", toId: "element:2" },
+        { id: "connection:2", fromId: "element:2", toId: "element:1" },
+      ],
+    };
+
+    const context = extractBoardContext(document, "entire-board");
+    expect(context.outline.map((node) => node.label)).toEqual(["A", "B"]);
+  });
+
   it("describes every attribute the AI is allowed to edit", () => {
     const document: BoardDocument = {
       ...mockDocument,

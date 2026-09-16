@@ -33,11 +33,19 @@ export type BoardAiConnectionSummary = {
   color?: string;
 };
 
+/** One node of the connection tree, flattened in reading order with its depth. */
+export type BoardAiOutlineNode = {
+  id: BoardElementId;
+  label: string;
+  depth: number;
+};
+
 export type BoardAiContext = {
   scope: BoardAiContextScope;
   elementCount: number;
   elements: BoardAiElementSummary[];
   connections: BoardAiConnectionSummary[];
+  outline: BoardAiOutlineNode[];
 };
 
 export function extractBoardContext(
@@ -98,7 +106,55 @@ export function extractBoardContext(
     elementCount: elementsSummary.length,
     elements: elementsSummary,
     connections: connectionsSummary,
+    outline: buildOutline(elementsSummary, connectionsSummary),
   };
+}
+
+function labelFor(element: BoardAiElementSummary): string {
+  return element.text ?? `[empty ${element.kind}]`;
+}
+
+/**
+ * Walks the connections as a tree so a summary can follow the map's own branches
+ * instead of a flat element list. Cycles and nodes whose parent sits outside the
+ * scope are still emitted once, at the top level.
+ */
+function buildOutline(
+  elements: BoardAiElementSummary[],
+  connections: BoardAiConnectionSummary[],
+): BoardAiOutlineNode[] {
+  const elementById = new Map(elements.map((element) => [element.id, element]));
+  const childIds = new Map<BoardElementId, BoardElementId[]>();
+  const linkedIds = new Set<BoardElementId>();
+  const hasParent = new Set<BoardElementId>();
+
+  for (const connection of connections) {
+    if (!elementById.has(connection.fromId) || !elementById.has(connection.toId)) continue;
+    childIds.set(connection.fromId, [...(childIds.get(connection.fromId) ?? []), connection.toId]);
+    hasParent.add(connection.toId);
+    linkedIds.add(connection.fromId);
+    linkedIds.add(connection.toId);
+  }
+
+  const outline: BoardAiOutlineNode[] = [];
+  const visited = new Set<BoardElementId>();
+
+  const walk = (id: BoardElementId, depth: number) => {
+    const element = elementById.get(id);
+    if (!element || visited.has(id)) return;
+    visited.add(id);
+    outline.push({ id, label: labelFor(element), depth });
+    for (const childId of childIds.get(id) ?? []) walk(childId, depth + 1);
+  };
+
+  for (const element of elements) {
+    if (childIds.has(element.id) && !hasParent.has(element.id)) walk(element.id, 0);
+  }
+  for (const element of elements) {
+    if (linkedIds.has(element.id)) walk(element.id, 0);
+  }
+
+  return outline;
 }
 
 /** Describes every board attribute the AI is allowed to change, so edits can target real state. */
@@ -127,6 +183,18 @@ export function formatContextForPrompt(context: BoardAiContext): string {
   for (const [index, element] of context.elements.entries()) {
     const desc = element.text ? `"${element.text}"` : `[empty ${element.kind}]`;
     lines.push(`${index + 1}. [${element.kind}] (ID: ${element.id}) ${desc} {${describeElement(element)}}`);
+  }
+
+  if (context.outline.length > 0) {
+    const outlineIds = new Set(context.outline.map((node) => node.id));
+    lines.push("\nMind map outline (root first, indented by depth):");
+    for (const node of context.outline) {
+      lines.push(`${"  ".repeat(node.depth)}- ${node.label}`);
+    }
+    const standalone = context.elements.filter((element) => !outlineIds.has(element.id));
+    if (standalone.length > 0) {
+      lines.push(`Standalone elements (not connected): ${standalone.map(labelFor).join(", ")}`);
+    }
   }
 
   if (context.connections.length > 0) {

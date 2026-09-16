@@ -76,6 +76,13 @@ Operation guide:
 - "groupElements" / "ungroupElementIds": group elements so they move together, or release existing groups. A group needs at least two element IDs.
 - "layout": auto-arrange the mind map around "rootId" ("horizontal" for a left-to-right map, "tree" for a top-down tree).
 
+SUMMARIZING A MIND MAP:
+When the user asks for a summary (or the requested action is "summarize"), read the "Mind map outline" in Current Board State and summarize the map by its own structure, not as a flat list of nodes:
+1. Open with one sentence naming the root topic and what the map is about.
+2. Give one short bullet per main branch (depth 1), folding that branch's sub-nodes into its key points.
+3. Close with what stands out when it matters: gaps, a branch with no detail, or elements left unconnected.
+Summarize only the text that is on the board; never invent nodes, facts, or branches. Keep it under about 150 words unless the user asks for more, and do not return a proposal for a summary request. The same structure applies to "explain" and "check": follow the outline branch by branch.
+
 For "updateMindMap", the user must select the parent/root node. Do not create a duplicate root. Create only the new elements, and connect every new branch using that selected element ID as 'fromId'.
 
 For edits, use the element and connection IDs included in Current Board State. Never omit an ID unless the user explicitly says "all" / "ทุกอัน"; an omitted ID applies to every element or connection and is unsafe for a scoped edit. Convert a note to a shape by changing its kind while preserving its text. Prefer rectangle when the user says only "shape" / "shapes".
@@ -228,15 +235,64 @@ function readContextElements(contextText: string): ContextElement[] {
   return elements;
 }
 
+type OutlineNode = { depth: number; label: string };
+
+/** Reads the outline block the board context writes, so demo mode can still follow the map's branches. */
+function readContextOutline(contextText: string): OutlineNode[] {
+  const section = contextText.split("Mind map outline")[1];
+  if (!section) return [];
+
+  const nodes: OutlineNode[] = [];
+  for (const line of section.split("\n")) {
+    const match = /^(\s*)- (.+)$/.exec(line);
+    if (!match) {
+      if (nodes.length > 0) break;
+      continue;
+    }
+    nodes.push({ depth: Math.floor((match[1]?.length ?? 0) / 2), label: match[2]?.trim() ?? "" });
+  }
+  return nodes;
+}
+
+function summarizeOutline(outline: OutlineNode[], isThai: boolean): string {
+  const root = outline[0];
+  const branches = outline.filter((node) => node.depth === 1);
+  const lines: string[] = [];
+
+  lines.push(
+    isThai
+      ? `สรุป Mind map "${root?.label ?? ""}" (${outline.length} โหนด, ${branches.length} กิ่งหลัก)`
+      : `Summary of the mind map "${root?.label ?? ""}" (${outline.length} nodes, ${branches.length} main branches)`,
+  );
+
+  for (const [index, branch] of branches.entries()) {
+    const start = outline.indexOf(branch);
+    const next = outline.findIndex((node, position) => position > start && node.depth <= 1);
+    const children = outline.slice(start + 1, next === -1 ? undefined : next).map((node) => node.label);
+    lines.push(children.length > 0 ? `${index + 1}. ${branch.label}: ${children.join(", ")}` : `${index + 1}. ${branch.label}`);
+  }
+
+  lines.push(
+    isThai
+      ? "หมายเหตุ: โหมดตัวอย่างสรุปจากโครงสร้างของ Mind map เท่านั้น ใส่ OPENAI_API_KEY หรือ GEMINI_API_KEY เพื่อให้ AI สรุปเนื้อหาเชิงความหมายได้"
+      : "Note: demo mode summarizes the map structure only. Configure OPENAI_API_KEY or GEMINI_API_KEY for a meaning-level summary.",
+  );
+
+  return lines.join("\n");
+}
+
 export class MockAiProvider implements AiProvider {
   async chat(params: AiChatParams): Promise<AiChatResult> {
     const isThai = params.locale === "th" || /[\u0E00-\u0E7F]/.test(params.contextText);
     const lastUserMessage = params.messages.filter((m) => m.role === "user").pop()?.content ?? "";
 
     if (params.action === "summarize") {
-      const text = isThai
-        ? "สรุปภาพรวมของบอร์ด: มีหัวข้อและบันทึกความคิดเชื่อมโยงกันอย่างเป็นระบบ โดยเน้นการจัดโครงสร้างเนื้อหาและการแบ่งหมวดหมู่ที่ชัดเจน"
-        : "Board Summary: The board contains organized concepts and interconnected notes establishing clear topic hierarchies.";
+      const outline = readContextOutline(params.contextText);
+      const text = outline.length > 0
+        ? summarizeOutline(outline, isThai)
+        : isThai
+          ? "สรุปภาพรวมของบอร์ด: มีหัวข้อและบันทึกความคิดเชื่อมโยงกันอย่างเป็นระบบ โดยเน้นการจัดโครงสร้างเนื้อหาและการแบ่งหมวดหมู่ที่ชัดเจน"
+          : "Board Summary: The board contains organized concepts and interconnected notes establishing clear topic hierarchies.";
       return { text, provider: "mock-ai", isMock: true };
     }
 

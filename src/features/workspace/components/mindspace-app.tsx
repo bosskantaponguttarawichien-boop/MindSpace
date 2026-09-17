@@ -8,7 +8,6 @@ import { AiPanel } from "@/features/ai/components/ai-panel";
 import { useAiChat } from "@/features/ai/hooks/use-ai-chat";
 import { BoardCanvas } from "@/features/board/components/board-canvas";
 import { ExportPdfDialog } from "@/features/board/components/export-pdf-dialog";
-import { LocalPdfViewer, type LocalPdf } from "@/features/board/components/local-pdf-viewer";
 import { WorkspaceSidebar } from "@/features/workspace/components/workspace-sidebar";
 import { WorkspaceTopbar } from "@/features/workspace/components/workspace-topbar";
 import { AccountDialog } from "@/features/workspace/components/account-dialog";
@@ -31,7 +30,6 @@ export function MindSpaceApp() {
     loading: false,
     hasUnread: false,
   });
-  const [pdf, setPdf] = useState<LocalPdf | null>(null);
   const [exportPreview, setExportPreview] = useState<BoardExport | null>(null);
   const [selectedIds, setSelectedIds] = useState<BoardElementId[]>([]);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
@@ -134,7 +132,6 @@ export function MindSpaceApp() {
               onDocumentChange={handleDocumentChange}
               onUploadImage={uploadImage}
               onDeleteImages={deleteImages}
-              onOpenPdf={setPdf}
               onEngineReady={handleEngineReady}
               onSelectionIdsChange={setSelectedIds}
             />
@@ -244,7 +241,6 @@ export function MindSpaceApp() {
           onSignOut={signOut}
         />
       ) : null}
-      {pdf ? <LocalPdfViewer pdf={pdf} onClose={() => { URL.revokeObjectURL(pdf.url); setPdf(null); }} /> : null}
     </>
   );
 }

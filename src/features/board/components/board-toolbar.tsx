@@ -56,6 +56,7 @@ const alignIcons = { left: AlignLeft, center: AlignCenter, right: AlignRight } a
 export function BoardToolbar({
   ready,
   uploadingImage = false,
+  importingPdf = false,
   activeTool,
   textStyles,
   selectedShapeKind,
@@ -80,6 +81,7 @@ export function BoardToolbar({
 }: {
   ready: boolean;
   uploadingImage?: boolean;
+  importingPdf?: boolean;
   activeTool: BoardTool;
   textStyles: BoardTextStyles;
   selectedShapeKind?: BoardTool | null;
@@ -381,7 +383,7 @@ export function BoardToolbar({
         <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-1 h-6" />
           <IconAction label={t("importImage")} icon={ImagePlus} disabled={!ready || uploadingImage} onClick={onImportImage} />
-          <IconAction label={t("importPdf")} icon={FileText} disabled={!ready} onClick={onImportPdf} />
+          <IconAction label={t("importPdf")} icon={FileText} disabled={!ready || importingPdf} onClick={onImportPdf} />
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Separator orientation="vertical" className="mx-1 h-6" />

@@ -191,9 +191,12 @@ export function MindSpaceApp() {
       </button>
 
       {/* Mobile AI Popup Container (Persistent to preserve background processing and conversation state) */}
+      {/* The top gap has a floor: when iOS keeps the status bar opaque it reserves
+          that strip itself and reports `safe-area-inset-top: 0`, so an inset-only
+          pad would leave the card hugging the clock. */}
       <div
         className={cn(
-          "fixed start-0 top-0 z-50 flex w-full flex-col justify-end p-2 pt-[calc(var(--safe-top)+0.5rem)] pb-[calc(var(--safe-bottom)+0.5rem)] ps-[calc(var(--safe-left)+0.5rem)] pe-[calc(var(--safe-right)+0.5rem)] sm:p-4 sm:pt-[calc(var(--safe-top)+1rem)] sm:pb-[calc(var(--safe-bottom)+1rem)] sm:ps-[calc(var(--safe-left)+1rem)] sm:pe-[calc(var(--safe-right)+1rem)] lg:hidden transition-[visibility] duration-300",
+          "fixed start-0 top-0 z-50 flex w-full flex-col justify-end p-2 pt-[max(calc(var(--safe-top)+0.75rem),1.5rem)] pb-[calc(var(--safe-bottom)+0.5rem)] ps-[calc(var(--safe-left)+0.5rem)] pe-[calc(var(--safe-right)+0.5rem)] sm:p-4 sm:pt-[max(calc(var(--safe-top)+1rem),2rem)] sm:pb-[calc(var(--safe-bottom)+1rem)] sm:ps-[calc(var(--safe-left)+1rem)] sm:pe-[calc(var(--safe-right)+1rem)] lg:hidden transition-[visibility] duration-300",
           mobileAiOpen ? "visible pointer-events-auto" : "invisible pointer-events-none delay-300"
         )}
         style={mobileViewport ? {

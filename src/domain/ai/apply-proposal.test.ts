@@ -33,6 +33,21 @@ function proposal(patch: Partial<AiProposal>): AiProposal {
 }
 
 describe("apply-proposal", () => {
+  it("leaves a locked element untouched by an approved update or delete", () => {
+    const document = baseDocument();
+    document.elements[0]!.locked = true;
+
+    const result = applyProposalToDocument(
+      document,
+      proposal({ updateElements: [{ id: "element:1", text: "Rewritten" }], deleteElementIds: ["element:1"] }),
+      options(),
+    );
+
+    const kept = result?.document.elements.find((element) => element.id === "element:1");
+    expect(kept?.text).toBe("Root");
+    expect(result?.document.connections).toHaveLength(1);
+  });
+
   it("returns null when a proposal carries no applicable operation", () => {
     expect(applyProposalToDocument(baseDocument(), proposal({}), options())).toBeNull();
   });

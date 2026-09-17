@@ -7,6 +7,7 @@ import {
   type BoardElementId,
   type BoardTextStyle,
 } from "@/domain/board/board-document";
+import { isElementLocked } from "@/domain/board/element-lock";
 import { groupElements, ungroupElements } from "@/domain/board/grouping";
 import { layoutMindMap } from "@/domain/board/mind-map";
 import type {
@@ -249,10 +250,12 @@ export function applyProposalToDocument(
 
   let nextElements = [...document.elements];
   for (const update of proposal.updateElements ?? []) {
-    nextElements = nextElements.map((element) => (update.id && element.id !== update.id ? element : updateElement(element, update)));
+    nextElements = nextElements.map((element) => (update.id && element.id !== update.id) || isElementLocked(element) ? element : updateElement(element, update));
   }
 
-  const deletedElementIds = new Set((proposal.deleteElementIds ?? []) as BoardElementId[]);
+  // A lock outranks an approved proposal: the reader locked that element so nothing rewrites it.
+  const lockedIds = new Set(document.elements.filter(isElementLocked).map((element) => element.id));
+  const deletedElementIds = new Set(((proposal.deleteElementIds ?? []) as BoardElementId[]).filter((id) => !lockedIds.has(id)));
   const deletedConnectionIds = new Set((proposal.deleteConnectionIds ?? []) as BoardConnectionId[]);
 
   nextElements = [...nextElements, ...createdElements].filter((element) => !deletedElementIds.has(element.id));

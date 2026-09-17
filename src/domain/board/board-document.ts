@@ -59,6 +59,8 @@ export type BoardElement = {
   textStyle?: Partial<BoardTextStyle>;
   // Older boards predate grouping, so this remains additive/absent.
   groupId?: string;
+  // Older boards predate locking, so an absent flag means unlocked.
+  locked?: boolean;
 };
 
 export function textStyleFor(element: Pick<BoardElement, "textStyle">): BoardTextStyle {

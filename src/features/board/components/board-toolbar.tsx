@@ -1,19 +1,20 @@
 "use client";
 
-import { ALargeSmall, AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Bold, Columns3, Copy, FileText, GitBranchPlus, ImagePlus, Minus, Palette, Pencil, RectangleHorizontal, Rows3, Spline, Trash2, Waypoints } from "lucide-react";
+import { ALargeSmall, AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Bold, Columns3, Copy, FileText, GitBranchPlus, ImagePlus, Layers, Lock, LockOpen, Minus, Palette, Pencil, RectangleHorizontal, Rows3, Spline, Trash2, Waypoints } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { IconAction } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
 import { ColorRow, CollapsibleSubTools, OptionRow, SubToolGroup, ToolCard, ToolCardRow, ToolCardSeparator } from "@/features/board/components/tool-card";
-import { connectionEnds, connectionHeadTypes, connectionLineStyles, connectionPathStyles, contentTools, inkTools, mindMapLayoutDirections, pointerTools, shapeTools } from "@/features/board/components/toolbar-groups";
+import { connectionEnds, connectionHeadTypes, connectionLineStyles, connectionPathStyles, contentTools, inkTools, layerPlacements, mindMapLayoutDirections, pointerTools, shapeTools } from "@/features/board/components/toolbar-groups";
 import { useLocale } from "@/lib/i18n/locale-provider";
 import type { BoardTool } from "@/infrastructure/board-engine/board-engine";
 import { TEXT_FONT_SIZES, type BoardColor, type BoardConnection, type BoardTextFontSize, type BoardTextStyle, type ConnectionHeadType, type ConnectionLineStyle, type ConnectionPathStyle, type ConnectionStyle } from "@/domain/board/board-document";
+import type { LayerPlacement } from "@/domain/board/element-order";
 import { TEXT_STYLE_SCOPES, textStyleScopeFor, type BoardTextStyleScope, type BoardTextStyles } from "@/domain/board/text-style-scope";
 import type { MindMapLayoutDirection } from "@/domain/board/mind-map";
 import type { MessageKey } from "@/lib/i18n/messages";
 
-type ToolCardId = BoardTextStyleScope | "connector" | "ink" | "layout";
+type ToolCardId = BoardTextStyleScope | "connector" | "ink" | "layer" | "layout";
 
 function isTextScope(id: ToolCardId): id is BoardTextStyleScope {
   return (TEXT_STYLE_SCOPES as readonly string[]).includes(id);
@@ -63,6 +64,7 @@ export function BoardToolbar({
   selectedElementKind,
   selectedIds,
   hasSelection = false,
+  selectionLocked = false,
   onToolChange,
   onSetShape,
   onSetTextStyle,
@@ -78,6 +80,8 @@ export function BoardToolbar({
   onDeleteTableCol,
   onDuplicateSelection,
   onDeleteSelection,
+  onSetSelectionLocked,
+  onSetSelectionLayer,
 }: {
   ready: boolean;
   uploadingImage?: boolean;
@@ -88,6 +92,7 @@ export function BoardToolbar({
   selectedElementKind?: string | null;
   selectedIds?: string[];
   hasSelection?: boolean;
+  selectionLocked?: boolean;
   onToolChange: (tool: BoardTool) => void;
   onSetShape?: (shape: BoardTool) => void;
   onSetTextStyle: (scope: BoardTextStyleScope, patch: Partial<BoardTextStyle>) => void;
@@ -103,6 +108,8 @@ export function BoardToolbar({
   onDeleteTableCol?: () => void;
   onDuplicateSelection?: () => void;
   onDeleteSelection?: () => void;
+  onSetSelectionLocked?: (locked: boolean) => void;
+  onSetSelectionLayer?: (placement: LayerPlacement) => void;
 }) {
   const { t } = useLocale();
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -344,7 +351,16 @@ export function BoardToolbar({
           <div className="flex shrink-0 items-center gap-0.5">
             <Separator orientation="vertical" className="mx-0 h-6 sm:mx-1" />
             <IconAction label={t("duplicate")} icon={Copy} disabled={!ready} className="max-sm:size-10" onClick={onDuplicateSelection} />
-            <IconAction label={t("delete")} icon={Trash2} disabled={!ready} className="max-sm:size-10" onClick={onDeleteSelection} />
+            <IconAction label={t("delete")} icon={Trash2} disabled={!ready || selectionLocked} className="max-sm:size-10" onClick={onDeleteSelection} />
+            <IconAction label={t(selectionLocked ? "unlockSelection" : "lockSelection")} icon={selectionLocked ? Lock : LockOpen} active={selectionLocked} disabled={!ready} className="max-sm:size-10" onClick={() => onSetSelectionLocked?.(!selectionLocked)} />
+            <IconAction label={t("layerOrder")} icon={Layers} expandable expanded={openCard === "layer"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleCard("layer")} />
+            <CollapsibleSubTools open={openCard === "layer"}>
+              <SubToolGroup label={t("layerOrder")}>
+                {layerPlacements.map((placement) => (
+                  <IconAction key={placement.value} label={t(placement.label)} icon={placement.icon} disabled={!ready} className="max-sm:size-10" onClick={() => onSetSelectionLayer?.(placement.value)} />
+                ))}
+              </SubToolGroup>
+            </CollapsibleSubTools>
           </div>
         ) : null}
         <div className="flex shrink-0 items-center gap-0.5">

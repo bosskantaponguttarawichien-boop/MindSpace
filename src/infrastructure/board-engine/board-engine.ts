@@ -1,4 +1,5 @@
 import type { BoardColor, BoardConnection, BoardTextStyle } from "@/domain/board/board-document";
+import type { LayerPlacement } from "@/domain/board/element-order";
 import type { MindMapLayoutDirection } from "@/domain/board/mind-map";
 import type { AiProposal } from "@/domain/ai/proposal-schema";
 
@@ -37,6 +38,8 @@ export type BoardEngine = {
   setSelectionColor: (color: BoardColor) => void;
   setSelectionShape: (shape: BoardTool) => void;
   setSelectionTextStyle: (patch: Partial<BoardTextStyle>) => void;
+  setSelectionLocked: (locked: boolean) => void;
+  setSelectionLayer: (placement: LayerPlacement) => void;
   updateSelectedConnection: (patch: Partial<BoardConnection>) => void;
   setConnectionDefaults: (patch: Partial<BoardConnection>) => void;
   addTableRow: (elementId?: string, rowIndex?: number) => void;

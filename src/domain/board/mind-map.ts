@@ -1,4 +1,5 @@
 import type { BoardConnection, BoardDocument, BoardElement, BoardElementId, BoardTextStyle } from "@/domain/board/board-document";
+import { isElementLocked } from "@/domain/board/element-lock";
 
 type MindMapResult = { document: BoardDocument; node: BoardElement };
 type MindMapNodeKind = Extract<BoardElement["kind"], "text" | "note" | "rectangle" | "ellipse" | "diamond" | "triangle">;
@@ -135,7 +136,9 @@ export function layoutMindMap(document: BoardDocument, preferredRootId?: BoardEl
     }
   }
 
-  const nextElements = document.elements.map((element) => positions.has(element.id) ? { ...element, ...positions.get(element.id)! } : element);
+  // A locked node is an anchor the reader placed on purpose, so the layout arranges around it
+  // instead of moving it.
+  const nextElements = document.elements.map((element) => positions.has(element.id) && !isElementLocked(element) ? { ...element, ...positions.get(element.id)! } : element);
   // A tree layout only reads as a tree with right-angle branches, so the connections it just arranged switch to the elbow connector shape.
   const nextConnections = direction === "tree"
     ? document.connections.map((connection) => visited.has(connection.fromId) && visited.has(connection.toId) ? { ...connection, pathStyle: "elbow" as const } : connection)

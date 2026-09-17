@@ -154,7 +154,7 @@ export function MindSpaceApp() {
         <button
           type="button"
           onClick={handleOpenMobileAi}
-          className="fixed bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] end-16 z-30 flex cursor-pointer items-center gap-2 rounded-full border border-primary/30 bg-background/95 py-1.5 pe-3 ps-2.5 text-xs font-medium text-foreground shadow-lg backdrop-blur active:scale-95 transition-all animate-pulse lg:hidden"
+          className="fixed bottom-[calc(var(--safe-bottom)+1.25rem)] end-[calc(var(--safe-right)+4rem)] z-30 flex cursor-pointer items-center gap-2 rounded-full border border-primary/30 bg-background/95 py-1.5 pe-3 ps-2.5 text-xs font-medium text-foreground shadow-lg backdrop-blur active:scale-95 transition-all animate-pulse lg:hidden"
           role="status"
           aria-label={aiStatus.text ?? t("aiThinking")}
         >
@@ -165,7 +165,7 @@ export function MindSpaceApp() {
         <button
           type="button"
           onClick={handleOpenMobileAi}
-          className="fixed bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] end-16 z-30 flex cursor-pointer items-center gap-1.5 rounded-full border border-emerald-500/40 bg-background/95 py-1.5 pe-3 ps-2.5 text-xs font-medium text-foreground shadow-lg backdrop-blur active:scale-95 transition-all lg:hidden"
+          className="fixed bottom-[calc(var(--safe-bottom)+1.25rem)] end-[calc(var(--safe-right)+4rem)] z-30 flex cursor-pointer items-center gap-1.5 rounded-full border border-emerald-500/40 bg-background/95 py-1.5 pe-3 ps-2.5 text-xs font-medium text-foreground shadow-lg backdrop-blur active:scale-95 transition-all lg:hidden"
           role="status"
           aria-label={locale === "th" ? "เสร็จแล้ว กดเพื่อดู" : "Done! Tap to view"}
         >
@@ -178,7 +178,7 @@ export function MindSpaceApp() {
         type="button"
         onClick={handleOpenMobileAi}
         className={cn(
-          "fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] end-3 z-30 flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 sm:bottom-4 sm:end-4 lg:hidden",
+          "fixed bottom-[calc(var(--safe-bottom)+1rem)] end-[calc(var(--safe-right)+0.75rem)] z-30 flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 sm:end-[calc(var(--safe-right)+1rem)] lg:hidden",
           aiStatus.loading && "ring-2 ring-primary ring-offset-2 ring-offset-background"
         )}
         aria-label={t("boardAi")}
@@ -193,7 +193,7 @@ export function MindSpaceApp() {
       {/* Mobile AI Popup Container (Persistent to preserve background processing and conversation state) */}
       <div
         className={cn(
-          "fixed start-0 top-0 z-50 flex w-full flex-col justify-end p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:p-4 lg:hidden transition-[visibility] duration-300",
+          "fixed start-0 top-0 z-50 flex w-full flex-col justify-end p-2 pt-[calc(var(--safe-top)+0.5rem)] pb-[calc(var(--safe-bottom)+0.5rem)] ps-[calc(var(--safe-left)+0.5rem)] pe-[calc(var(--safe-right)+0.5rem)] sm:p-4 sm:pt-[calc(var(--safe-top)+1rem)] sm:pb-[calc(var(--safe-bottom)+1rem)] sm:ps-[calc(var(--safe-left)+1rem)] sm:pe-[calc(var(--safe-right)+1rem)] lg:hidden transition-[visibility] duration-300",
           mobileAiOpen ? "visible pointer-events-auto" : "invisible pointer-events-none delay-300"
         )}
         style={mobileViewport ? {

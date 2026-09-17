@@ -340,7 +340,7 @@ export function BoardToolbar({
   const subPanel = getSubPanel();
 
   return (
-    <div ref={toolbarRef} className="pointer-events-none absolute inset-x-2 top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 flex flex-col items-center gap-2 sm:inset-x-3 sm:top-3" onKeyDown={(event) => { if (event.key === "Escape") setOpenCard(null); }}>
+    <div ref={toolbarRef} className="pointer-events-none absolute start-[calc(var(--safe-left)+0.5rem)] end-[calc(var(--safe-right)+0.5rem)] top-2 z-30 flex flex-col items-center gap-2 sm:start-[calc(var(--safe-left)+0.75rem)] sm:end-[calc(var(--safe-right)+0.75rem)] sm:top-3" onKeyDown={(event) => { if (event.key === "Escape") setOpenCard(null); }}>
       <div className="pointer-events-auto flex h-[50px] max-sm:h-[54px] w-full max-w-full snap-x snap-mandatory flex-nowrap items-center justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur touch-pan-x scrollbar-none transition-all duration-350 ease-out sm:w-auto sm:snap-none" role="toolbar" aria-label="Board tools">
         <div className="flex shrink-0 items-center gap-0.5">
           {pointerTools.map((tool) => (

@@ -186,7 +186,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
         onSetSelectionLayer={(placement) => engine?.setSelectionLayer(placement)}
       />
       <ZoomControls engine={engine} />
-      {uploadingImage || importingPdf || notice ? <div className="pointer-events-none absolute bottom-20 end-3 sm:bottom-4 sm:end-4 z-30 max-w-64 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur" role="status">{t(importingPdf ? "pdfImporting" : uploadingImage ? "imageUploading" : notice ?? "imageUploading")}</div> : null}
+      {uploadingImage || importingPdf || notice ? <div className="pointer-events-none absolute bottom-[calc(var(--safe-bottom)+5rem)] end-[calc(var(--safe-right)+0.75rem)] sm:bottom-[calc(var(--safe-bottom)+1rem)] sm:end-[calc(var(--safe-right)+1rem)] z-30 max-w-64 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur" role="status">{t(importingPdf ? "pdfImporting" : uploadingImage ? "imageUploading" : notice ?? "imageUploading")}</div> : null}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Noto_Sans_Thai } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
@@ -21,6 +21,15 @@ export const metadata: Metadata = {
       { url: "/icons/mindspace-512.png", sizes: "512x512", type: "image/png" },
     ],
   },
+};
+
+// `viewport-fit=cover` lets the PWA paint edge to edge on notched devices.
+// Without it iOS letterboxes the web view inside the safe area and every
+// `env(safe-area-inset-*)` used across the UI resolves to 0px.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

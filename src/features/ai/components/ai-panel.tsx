@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useLocale } from "@/lib/i18n/locale-provider";
 import type { BoardDocument, BoardElementId } from "@/domain/board/board-document";
-import type { AiActionType, AiProposal } from "@/domain/ai/proposal-schema";
+import type { AiActionType, AiProposal, AiProposedElement, AiProposedElementUpdate } from "@/domain/ai/proposal-schema";
 
 import { useAiChat, type ChatMessage, type UseAiChatResult } from "@/features/ai/hooks/use-ai-chat";
 
@@ -23,6 +23,29 @@ const actions: Array<{ label: AiActionType; icon: typeof Sparkles }> = [
   { label: "explain", icon: CircleHelp },
   { label: "improve", icon: ScanSearch },
 ];
+
+/** Every attribute an approval would change, so nothing is applied that the preview did not show. */
+function describeElementUpdate(update: AiProposedElementUpdate): string[] {
+  const parts: string[] = [];
+  if (update.kind) parts.push(`kind → ${update.kind}`);
+  if (update.color) parts.push(`color → ${update.color}`);
+  if (update.text) parts.push(`text → ${update.text}`);
+  if (update.textStyle?.fontSize) parts.push(`size → ${update.textStyle.fontSize}`);
+  if (update.textStyle?.fontWeight) parts.push(`weight → ${update.textStyle.fontWeight}`);
+  if (update.textStyle?.textAlign) parts.push(`align → ${update.textStyle.textAlign}`);
+  if (update.textStyle?.verticalAlign) parts.push(`valign → ${update.textStyle.verticalAlign}`);
+  if (update.x !== undefined || update.y !== undefined) parts.push(`move → ${update.x ?? "-"},${update.y ?? "-"}`);
+  if (update.width !== undefined || update.height !== undefined) parts.push(`resize → ${update.width ?? "-"}x${update.height ?? "-"}`);
+  if (update.tableData) parts.push(`table → ${update.tableData.length}x${update.tableData[0]?.length ?? 0}`);
+  return parts;
+}
+
+function describeNewElement(element: AiProposedElement): string {
+  if (element.kind !== "table") return element.text;
+  const rows = element.tableData?.length ?? element.rows ?? 0;
+  const cols = element.tableData?.[0]?.length ?? element.cols ?? 0;
+  return element.text || `${rows}x${cols} table`;
+}
 
 export function AiPanel({
   document,
@@ -205,7 +228,7 @@ export function AiPanel({
                       >
                         <span className="size-2 rounded-full bg-primary" />
                         <span className="font-semibold text-muted-foreground">[{elem.kind}]</span>
-                        <span className="truncate max-w-44">{elem.text}</span>
+                        <span className="truncate max-w-44">{describeNewElement(elem)}</span>
                       </span>
                     ))}
                   </div>
@@ -239,9 +262,9 @@ export function AiPanel({
                         className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium"
                       >
                         <span className="font-semibold text-primary">Element:</span>
-                        {update.color ? <span>color → {update.color}</span> : null}
-                        {update.kind ? <span>kind → {update.kind}</span> : null}
-                        {update.text ? <span className="truncate max-w-40">{update.text}</span> : null}
+                        {describeElementUpdate(update).map((part) => (
+                          <span key={part} className="truncate max-w-40">{part}</span>
+                        ))}
                       </span>
                     ))}
                   </div>
@@ -254,6 +277,45 @@ export function AiPanel({
                         Delete: {id}
                       </span>
                     ))}
+                  </div>
+                ) : null}
+
+                {msg.proposal.deleteConnectionIds && msg.proposal.deleteConnectionIds.length > 0 ? (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {msg.proposal.deleteConnectionIds.map((id) => (
+                      <span key={id} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-[11px] font-medium text-destructive">
+                        Delete connector: {id}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
+                {msg.proposal.groupElements && msg.proposal.groupElements.length > 0 ? (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {msg.proposal.groupElements.map((group, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium">
+                        <span className="font-semibold text-primary">Group:</span>
+                        <span>{group.elementIds.length} elements</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
+                {msg.proposal.ungroupElementIds && msg.proposal.ungroupElementIds.length > 0 ? (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium">
+                      <span className="font-semibold text-primary">Ungroup:</span>
+                      <span>{msg.proposal.ungroupElementIds.length} elements</span>
+                    </span>
+                  </div>
+                ) : null}
+
+                {msg.proposal.layout ? (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium">
+                      <span className="font-semibold text-primary">Layout:</span>
+                      <span>{msg.proposal.layout.direction}</span>
+                    </span>
                   </div>
                 ) : null}
 

@@ -150,3 +150,54 @@ Hope this helps!`,
     expect(result.proposal?.elements).toBeUndefined();
   });
 });
+
+describe("MockAiProvider summarize", () => {
+  const contextText = [
+    "Board Scope: Entire Board",
+    "Total Elements: 5",
+    "",
+    "Relationship outline (root first, indented by depth):",
+    "- Launch plan",
+    "  - Marketing [G1]",
+    "    - Launch video",
+    "  - Engineering",
+    "Standalone elements (no connector, group, frame, or nearby element): Parking lot",
+    "",
+    "Connections:",
+    '- (ID: connection:1) "Launch plan" -> "Marketing" [shape: straight, head: arrow, style: end, line: solid]',
+  ].join("\n");
+
+  it("summarizes the mind map branch by branch", async () => {
+    const result = await new MockAiProvider().chat({ contextText, messages: [], action: "summarize" });
+
+    expect(result.text).toContain('"Launch plan"');
+    expect(result.text).toContain("4 nodes, 2 main branches");
+    expect(result.text).toContain("1. Marketing: Launch video");
+    expect(result.text).toContain("2. Engineering");
+    expect(result.proposal).toBeUndefined();
+  });
+
+  it("summarizes in Thai when the locale is Thai", async () => {
+    const result = await new MockAiProvider().chat({ contextText, messages: [], action: "summarize", locale: "th" });
+
+    expect(result.text).toContain("สรุป Mind map");
+    expect(result.text).toContain("Marketing: Launch video");
+  });
+
+  it("reads node labels without their relationship tags", async () => {
+    const result = await new MockAiProvider().chat({ contextText, messages: [], action: "summarize" });
+
+    expect(result.text).toContain("1. Marketing: Launch video");
+    expect(result.text).not.toContain("[G1]");
+  });
+
+  it("falls back to a board-level summary when the board has no connected map", async () => {
+    const result = await new MockAiProvider().chat({
+      contextText: "Board Scope: Entire Board\nTotal Elements: 1",
+      messages: [],
+      action: "summarize",
+    });
+
+    expect(result.text).toContain("Board Summary");
+  });
+});

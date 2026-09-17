@@ -18,7 +18,7 @@ export function AppShell({
   return (
     // The shell spans the whole screen including the safe areas: the board must
     // bleed edge to edge. Chrome that surrounds it carries the insets instead.
-    <main className="flex h-dvh min-h-0 w-full overflow-hidden bg-background sm:min-h-[620px]">
+    <main className="flex h-[var(--app-height)] min-h-0 w-full overflow-hidden bg-background sm:min-h-[620px]">
       <div
         className={cn(
           "h-full shrink-0 border-e border-border bg-sidebar transition-[width,opacity] duration-200 ease-in-out max-lg:hidden",

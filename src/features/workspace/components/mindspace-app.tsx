@@ -202,7 +202,7 @@ export function MindSpaceApp() {
         style={mobileViewport ? {
           height: `${mobileViewport.height}px`,
           transform: `translateY(${mobileViewport.offsetTop}px)`,
-        } : { height: "100dvh" }}
+        } : { height: "var(--app-height)" }}
         aria-hidden={!mobileAiOpen}
       >
         {/* Backdrop: Smooth fade in/out */}

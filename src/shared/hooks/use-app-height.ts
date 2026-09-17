@@ -1,37 +1,32 @@
 "use client";
 
 import { useEffect } from "react";
-
-type LegacyStandaloneNavigator = Navigator & { standalone?: boolean };
-
-function isStandalone(standaloneQuery: MediaQueryList): boolean {
-  return standaloneQuery.matches || (navigator as LegacyStandaloneNavigator).standalone === true;
-}
+import { isStandaloneDisplay, measureAppHeight } from "@/shared/lib/app-viewport";
 
 /**
  * Keeps `--app-height` equal to the screen the app actually owns.
  *
- * In an installed iOS PWA painting under a translucent status bar, `100dvh`
+ * In an installed iOS app painting under a translucent status bar, `100dvh`
  * resolves short by the top safe-area inset, so a shell sized with it leaves a
- * blank strip along the bottom edge. The layout viewport is the full screen
- * there, and an installed app has no collapsing browser toolbars that would
- * make the layout viewport too tall, so the measured height replaces the
- * `100dvh` default only while the app runs standalone.
+ * blank strip along the bottom edge. `measureAppHeight` adds that shortfall
+ * back. A browser tab keeps the `100dvh` default, where collapsing toolbars
+ * move the viewport and the measurement would lag behind them.
  */
 export function useAppHeight(): void {
   useEffect(() => {
     const root = document.documentElement;
-    const standaloneQuery = window.matchMedia("(display-mode: standalone)");
 
     const updateAppHeight = () => {
-      if (!isStandalone(standaloneQuery)) {
+      if (!isStandaloneDisplay()) {
         root.style.removeProperty("--app-height");
         return;
       }
 
-      const layoutHeight = root.clientHeight || window.innerHeight;
-      if (layoutHeight > 0) root.style.setProperty("--app-height", `${layoutHeight}px`);
+      const appHeight = measureAppHeight();
+      if (appHeight > 0) root.style.setProperty("--app-height", `${appHeight}px`);
     };
+
+    const standaloneQuery = window.matchMedia("(display-mode: standalone)");
 
     updateAppHeight();
     window.addEventListener("resize", updateAppHeight);

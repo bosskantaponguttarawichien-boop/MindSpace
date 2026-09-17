@@ -55,10 +55,10 @@ describe("board-context", () => {
       ...mockDocument,
       elements: [
         { id: "element:root", kind: "rectangle", x: 0, y: 0, width: 200, height: 100, text: "Launch plan" },
-        { id: "element:a", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Marketing" },
-        { id: "element:a1", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Launch video" },
-        { id: "element:b", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Engineering" },
-        { id: "element:loose", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Parking lot" },
+        { id: "element:a", kind: "note", x: 400, y: 0, width: 100, height: 100, text: "Marketing" },
+        { id: "element:a1", kind: "note", x: 800, y: 0, width: 100, height: 100, text: "Launch video" },
+        { id: "element:b", kind: "note", x: 400, y: 400, width: 100, height: 100, text: "Engineering" },
+        { id: "element:loose", kind: "note", x: 1600, y: 900, width: 100, height: 100, text: "Parking lot" },
       ],
       connections: [
         { id: "connection:1", fromId: "element:root", toId: "element:a" },
@@ -78,7 +78,7 @@ describe("board-context", () => {
     const formatted = formatContextForPrompt(context);
     expect(formatted).toContain("Relationship outline (root first, indented by depth;");
     expect(formatted).toContain("- Launch plan\n  - Marketing\n    - Launch video\n  - Engineering");
-    expect(formatted).toContain("Standalone elements (no connector and no group): Parking lot");
+    expect(formatted).toContain("Standalone elements (no connector, group, frame, or nearby element): Parking lot");
   });
 
   it("keeps grouped elements on the same topic as their connected sibling", () => {
@@ -86,9 +86,9 @@ describe("board-context", () => {
       ...mockDocument,
       elements: [
         { id: "element:root", kind: "rectangle", x: 0, y: 0, width: 200, height: 100, text: "Launch plan" },
-        { id: "element:a", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Marketing", groupId: "group:mkt" },
-        { id: "element:a2", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Budget", groupId: "group:mkt" },
-        { id: "element:b", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Engineering" },
+        { id: "element:a", kind: "note", x: 400, y: 0, width: 100, height: 100, text: "Marketing", groupId: "group:mkt" },
+        { id: "element:a2", kind: "note", x: 400, y: 200, width: 100, height: 100, text: "Budget", groupId: "group:mkt" },
+        { id: "element:b", kind: "note", x: 400, y: 600, width: 100, height: 100, text: "Engineering" },
       ],
       connections: [
         { id: "connection:1", fromId: "element:root", toId: "element:a" },
@@ -98,11 +98,11 @@ describe("board-context", () => {
 
     const context = extractBoardContext(document, "entire-board");
     expect(context.groups).toEqual([{ id: "group:mkt", name: "G1", elementIds: ["element:a", "element:a2"] }]);
-    expect(context.outline.map((node) => [node.label, node.depth, node.viaGroup ?? false])).toEqual([
-      ["Launch plan", 0, false],
-      ["Marketing", 1, false],
-      ["Budget", 1, true],
-      ["Engineering", 1, false],
+    expect(context.outline.map((node) => [node.label, node.depth, node.relation ?? "-"])).toEqual([
+      ["Launch plan", 0, "-"],
+      ["Marketing", 1, "-"],
+      ["Budget", 1, "same group"],
+      ["Engineering", 1, "-"],
     ]);
 
     const formatted = formatContextForPrompt(context);
@@ -117,18 +117,42 @@ describe("board-context", () => {
       ...mockDocument,
       elements: [
         { id: "element:1", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Risk A", groupId: "group:risk" },
-        { id: "element:2", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Risk B", groupId: "group:risk" },
-        { id: "element:3", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Loose note" },
+        { id: "element:2", kind: "note", x: 0, y: 300, width: 100, height: 100, text: "Risk B", groupId: "group:risk" },
+        { id: "element:3", kind: "note", x: 900, y: 900, width: 100, height: 100, text: "Loose note" },
       ],
       connections: [],
     };
 
     const context = extractBoardContext(document, "entire-board");
-    expect(context.outline.map((node) => [node.label, node.depth, node.viaGroup ?? false])).toEqual([
-      ["Risk A", 0, false],
-      ["Risk B", 0, true],
+    expect(context.outline.map((node) => [node.label, node.depth, node.relation ?? "-"])).toEqual([
+      ["Risk A", 0, "-"],
+      ["Risk B", 0, "same group"],
     ]);
-    expect(formatContextForPrompt(context)).toContain("Standalone elements (no connector and no group): Loose note");
+    expect(formatContextForPrompt(context)).toContain("Standalone elements (no connector, group, frame, or nearby element): Loose note");
+  });
+
+  it("reports frames and nearby clusters in the prompt", () => {
+    const document: BoardDocument = {
+      ...mockDocument,
+      elements: [
+        { id: "element:frame", kind: "rectangle", x: 0, y: 0, width: 600, height: 400, text: "Discovery" },
+        { id: "element:inside", kind: "note", x: 40, y: 40, width: 100, height: 100, text: "Interviews" },
+        { id: "element:near1", kind: "note", x: 2000, y: 0, width: 100, height: 100, text: "Idea A" },
+        { id: "element:near2", kind: "note", x: 2140, y: 0, width: 100, height: 100, text: "Idea B" },
+      ],
+      connections: [],
+    };
+
+    const context = extractBoardContext(document, "entire-board");
+    expect(context.containerByElementId.get("element:inside")).toBe("element:frame");
+    expect(context.clusters).toEqual([{ name: "P1", elementIds: ["element:near1", "element:near2"] }]);
+
+    const formatted = formatContextForPrompt(context);
+    expect(formatted).toContain("Nearby clusters (close together on the canvas, so probably related; this is a hint, not a stated link):");
+    expect(formatted).toContain("- P1: Idea A (element:near1), Idea B (element:near2)");
+    expect(formatted).toContain("- Discovery\n  - Interviews [inside]");
+    expect(formatted).toContain("- Idea A [P1]\n- Idea B [P1, nearby]");
+    expect(formatted).not.toContain("Standalone elements");
   });
 
   it("ignores a group with only one element in scope", () => {
@@ -150,7 +174,7 @@ describe("board-context", () => {
       ...mockDocument,
       elements: [
         { id: "element:1", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "A" },
-        { id: "element:2", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "B" },
+        { id: "element:2", kind: "note", x: 400, y: 0, width: 100, height: 100, text: "B" },
       ],
       connections: [
         { id: "connection:1", fromId: "element:1", toId: "element:2" },

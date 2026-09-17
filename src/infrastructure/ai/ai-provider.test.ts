@@ -161,7 +161,7 @@ describe("MockAiProvider summarize", () => {
     "  - Marketing [G1]",
     "    - Launch video",
     "  - Engineering",
-    "Standalone elements (no connector and no group): Parking lot",
+    "Standalone elements (no connector, group, frame, or nearby element): Parking lot",
     "",
     "Connections:",
     '- (ID: connection:1) "Launch plan" -> "Marketing" [shape: straight, head: arrow, style: end, line: solid]',

@@ -77,17 +77,19 @@ Operation guide:
 - "layout": auto-arrange the mind map around "rootId" ("horizontal" for a left-to-right map, "tree" for a top-down tree).
 
 HOW ELEMENTS RELATE:
-Current Board State describes two kinds of relationship, and both matter:
+Current Board State describes four kinds of relationship, from most to least certain. All of them matter:
 - Connectors give parent/child structure, shown by the indentation in "Relationship outline".
-- Grouping ("Groups" section, and the [G1] tags in the outline) means the user put those elements on one topic. Grouped elements belong together even when no connector links them, so read and summarize them as one idea, never as unrelated loose nodes. A node tagged "same group" sits where it does because of grouping, not a connector.
-When the user asks about, summarizes, or edits one grouped element, consider its whole group; when a request targets a topic that is a group, apply it to every member of that group.
-Only "Standalone elements" have neither a connector nor a group.
+- Grouping ("Groups" section, [G1] tags) means the user put those elements on one topic. Grouped elements belong together even with no connector between them, so read and summarize them as one idea, never as unrelated loose nodes. A node tagged "same group" sits where it does because of grouping.
+- Sitting inside a shape: a node tagged "inside" is placed within that shape's area, so the shape is a frame or section that owns it and the shape's own text is that section's title. Treat it like a parent, and when a request targets the frame, it covers what is inside it.
+- Sitting close together ("Nearby clusters", [P1] tags, nodes tagged "nearby"): nothing links these elements except layout, so they are probably one topic. Use it as a hint. You may summarize such a cluster as one topic while saying it is inferred from the layout, but never claim a connector or group exists, and never move, regroup, or restructure elements only because they sit close together unless the user asks for it.
+When the user asks about, summarizes, or edits one grouped element, consider its whole group; when a request targets a topic that is a group or a frame, apply it to every member of that group or frame.
+Only "Standalone elements" have none of these relationships.
 
 SUMMARIZING A MIND MAP:
 When the user asks for a summary (or the requested action is "summarize"), read the "Relationship outline" in Current Board State and summarize the map by its own structure, not as a flat list of nodes:
 1. Open with one sentence naming the root topic and what the map is about.
 2. Give one short bullet per main branch (depth 1), folding that branch's sub-nodes into its key points.
-3. Treat each group as one topic: summarize its members together in a single bullet instead of listing them separately.
+3. Treat each group, frame, and nearby cluster as one topic: summarize its members together in a single bullet instead of listing them separately, and say when a topic is inferred from layout rather than stated by a connector or group.
 4. Close with what stands out when it matters: gaps, a branch with no detail, or elements left standalone.
 Summarize only the text that is on the board; never invent nodes, facts, or branches. Keep it under about 150 words unless the user asks for more, and do not return a proposal for a summary request. The same structure applies to "explain" and "check": follow the outline branch by branch.
 

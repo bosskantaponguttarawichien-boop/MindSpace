@@ -1,5 +1,6 @@
-import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronRight, Circle, CornerDownRight, Diamond, Dot, Eraser, GitBranch, Hand, ListTree, Minus, MoreHorizontal, MousePointer2, Pencil, RectangleHorizontal, Slash, Spline, StickyNote, Table, Triangle, Type } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, ArrowRight, BringToFront, ChevronDown, ChevronRight, ChevronUp, Circle, CornerDownRight, Diamond, Dot, Eraser, GitBranch, Hand, ListTree, Minus, MoreHorizontal, MousePointer2, Pencil, RectangleHorizontal, SendToBack, Slash, Spline, StickyNote, Table, Triangle, Type } from "lucide-react";
 import type { BoardColor, ConnectionHeadType, ConnectionLineStyle, ConnectionPathStyle, ConnectionStyle } from "@/domain/board/board-document";
+import type { LayerPlacement } from "@/domain/board/element-order";
 import type { MindMapLayoutDirection } from "@/domain/board/mind-map";
 import type { BoardTool } from "@/infrastructure/board-engine/board-engine";
 import type { MessageKey } from "@/lib/i18n/messages";
@@ -55,6 +56,14 @@ export const connectionPathStyles: ConnectionOption<ConnectionPathStyle>[] = [
   { value: "straight", label: "pathStraight", icon: Slash },
   { value: "curved", label: "pathCurved", icon: Spline },
   { value: "elbow", label: "pathElbow", icon: CornerDownRight },
+];
+
+/** Layering acts on whatever is selected, so it sits with the other selection actions. */
+export const layerPlacements: ConnectionOption<LayerPlacement>[] = [
+  { value: "front", label: "layerToFront", icon: BringToFront },
+  { value: "forward", label: "layerForward", icon: ChevronUp },
+  { value: "backward", label: "layerBackward", icon: ChevronDown },
+  { value: "back", label: "layerToBack", icon: SendToBack },
 ];
 
 export const mindMapLayoutDirections: ConnectionOption<MindMapLayoutDirection>[] = [

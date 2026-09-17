@@ -566,4 +566,51 @@ describe("BoardToolbar", () => {
     await user.click(screen.getByRole("button", { name: "Delete selection" }));
     expect(onDeleteSelection).toHaveBeenCalled();
   });
+
+  it("hides locking and layering until something is selected", () => {
+    renderToolbar();
+
+    expect(screen.queryByRole("button", { name: "Lock selection" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Layer" })).toBeNull();
+  });
+
+  it("locks the selection and then offers to unlock it", async () => {
+    const user = userEvent.setup();
+    const onSetSelectionLocked = vi.fn();
+    const { rerender } = renderToolbar({ hasSelection: true, onSetSelectionLocked });
+
+    await user.click(screen.getByRole("button", { name: "Lock selection" }));
+    expect(onSetSelectionLocked).toHaveBeenCalledWith(true);
+
+    rerender(
+      <LocaleProvider><TooltipProvider>
+        <BoardToolbar ready activeTool="select" textStyles={DEFAULT_TEXT_STYLES} hasSelection selectionLocked onToolChange={vi.fn()} onImportImage={vi.fn()} onImportPdf={vi.fn()} onAddChildNode={vi.fn()} onLayoutMindMap={vi.fn()} onSetColor={vi.fn()} onSetTextStyle={vi.fn()} onSetSelectionLocked={onSetSelectionLocked} />
+      </TooltipProvider></LocaleProvider>,
+    );
+
+    const unlock = screen.getByRole("button", { name: "Unlock selection" });
+    expect(unlock).toHaveAttribute("aria-pressed", "true");
+    await user.click(unlock);
+    expect(onSetSelectionLocked).toHaveBeenLastCalledWith(false);
+  });
+
+  it("keeps a locked selection out of reach of the delete button", () => {
+    renderToolbar({ hasSelection: true, selectionLocked: true });
+
+    expect(screen.getByRole("button", { name: "Delete selection" })).toBeDisabled();
+  });
+
+  it("moves the selection through the layers from the selection actions", async () => {
+    const user = userEvent.setup();
+    const onSetSelectionLayer = vi.fn();
+    renderToolbar({ hasSelection: true, onSetSelectionLayer });
+
+    expect(screen.queryByRole("button", { name: "Bring to front" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Layer" }));
+
+    for (const [label, placement] of [["Bring to front", "front"], ["Bring forward", "forward"], ["Send backward", "backward"], ["Send to back", "back"]] as const) {
+      await user.click(screen.getByRole("button", { name: label }));
+      expect(onSetSelectionLayer).toHaveBeenLastCalledWith(placement);
+    }
+  });
 });

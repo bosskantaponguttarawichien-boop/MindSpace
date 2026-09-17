@@ -44,7 +44,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
   const { t } = useLocale();
   const [engine, setEngine] = useState<BoardEngine | null>(null);
   const [activeTool, setActiveTool] = useState<BoardTool>("select");
-  const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }>({ selectedShapeKind: null, hasSelection: false, selectedElementKind: null, selectedTextStyle: null, selectedIds: [] });
+  const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[]; selectionLocked?: boolean }>({ selectedShapeKind: null, hasSelection: false, selectedElementKind: null, selectedTextStyle: null, selectedIds: [], selectionLocked: false });
   const [textStyles, setTextStyles] = useState<BoardTextStyles>(DEFAULT_TEXT_STYLES);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [importingPdf, setImportingPdf] = useState(false);
@@ -65,7 +65,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
     onEngineReadyRef.current(readyEngine);
   }, []);
 
-  const handleSelectionChange = useCallback((next: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }) => {
+  const handleSelectionChange = useCallback((next: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[]; selectionLocked?: boolean }) => {
     setSelectionState(next);
     // A selected object only ever refreshes the scope it belongs to, so picking a note never
     // rewrites the style the shape or table tool will use next.
@@ -166,6 +166,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
         selectedElementKind={selectionState.selectedElementKind}
         selectedIds={selectionState.selectedIds}
         hasSelection={selectionState.hasSelection}
+        selectionLocked={selectionState.selectionLocked}
         onToolChange={setActiveTool}
         onSetShape={(shape) => engine?.setSelectionShape(shape)}
         onSetTextStyle={setTextFormatting}
@@ -181,6 +182,8 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
         onDeleteTableCol={() => engine?.deleteTableCol()}
         onDuplicateSelection={() => engine?.duplicateSelection()}
         onDeleteSelection={() => engine?.deleteSelection()}
+        onSetSelectionLocked={(locked) => engine?.setSelectionLocked(locked)}
+        onSetSelectionLayer={(placement) => engine?.setSelectionLayer(placement)}
       />
       <ZoomControls engine={engine} />
       {uploadingImage || importingPdf || notice ? <div className="pointer-events-none absolute bottom-20 end-3 sm:bottom-4 sm:end-4 z-30 max-w-64 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur" role="status">{t(importingPdf ? "pdfImporting" : uploadingImage ? "imageUploading" : notice ?? "imageUploading")}</div> : null}

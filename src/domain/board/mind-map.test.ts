@@ -56,4 +56,15 @@ describe("mind-map commands", () => {
     expect(laidOut.elements.find((element) => element.id === second.id)?.x).toBeGreaterThan(laidOut.elements.find((element) => element.id === first.id)?.x ?? 0);
     expect(laidOut.connections.every((connection) => connection.pathStyle === "elbow")).toBe(true);
   });
+
+  it("arranges around a locked node instead of moving it", () => {
+    const first = { id: "element:first" as const, kind: "note" as const, x: 700, y: 700, width: 190, height: 110, text: "First", color: "violet" as const, locked: true };
+    const second = { id: "element:second" as const, kind: "note" as const, x: 0, y: 0, width: 190, height: 110, text: "Second", color: "violet" as const };
+    const document = { ...createEmptyBoard(), elements: [root, first, second], connections: [{ id: "connection:one" as const, fromId: root.id, toId: first.id }, { id: "connection:two" as const, fromId: root.id, toId: second.id }] };
+
+    const laidOut = layoutMindMap(document, root.id);
+
+    expect(laidOut.elements.find((element) => element.id === first.id)).toMatchObject({ x: 700, y: 700 });
+    expect(laidOut.elements.find((element) => element.id === second.id)?.x).toBe(root.x + 300);
+  });
 });

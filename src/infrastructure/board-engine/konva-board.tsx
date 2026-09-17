@@ -8,6 +8,8 @@ import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, textStyleFor, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
 import { textStyleForScope, type BoardTextStyles } from "@/domain/board/text-style-scope";
 import { boundsFromPoints, getConnectionEndpoints, getConnectionPathPoints, getGroupedElbowPaths, isElementContainedByBounds, type Bounds } from "@/domain/board/geometry";
+import { isElementLocked, isSelectionLocked, setElementsLocked } from "@/domain/board/element-lock";
+import { reorderElements, type LayerPlacement } from "@/domain/board/element-order";
 import { expandSelectionWithGroups, groupElements, ungroupElements } from "@/domain/board/grouping";
 import { appendMindMapChild, appendMindMapSibling, layoutMindMap, type MindMapDefaults, type MindMapLayoutDirection } from "@/domain/board/mind-map";
 import { parseMarkdown } from "@/domain/board/markdown";
@@ -370,7 +372,7 @@ export function KonvaBoard({
   textStyles: BoardTextStyles;
   onToolChange: (tool: BoardTool) => void;
   onReady: (engine: BoardEngine) => void;
-  onSelectionChange?: (info: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: BoardElement["kind"] | "connector" | "shape" | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }) => void;
+  onSelectionChange?: (info: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: BoardElement["kind"] | "connector" | "shape" | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[]; selectionLocked?: boolean }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -476,7 +478,10 @@ export function KonvaBoard({
 
   useEffect(() => {
     selectionRef.current = selection;
+    // A locked element gets no transformer handles: they would promise a resize that never lands.
+    const lockedIds = new Set(documentRef.current.elements.filter(isElementLocked).map((element) => element.id));
     const nodes = selection.flatMap((id) => {
+      if (lockedIds.has(id)) return [];
       const node = shapeRefs.current.get(id);
       return node ? [node] : [];
     });
@@ -499,10 +504,10 @@ export function KonvaBoard({
           style.textAlign === firstTextStyle.textAlign &&
           (style.verticalAlign ?? "top") === (firstTextStyle.verticalAlign ?? "top");
       }) ? firstTextStyle : null;
-      onSelectionChangeRef.current?.({ selectedShapeKind: shapeElement ? (shapeElement.kind as BoardTool) : null, hasSelection, selectedElementKind, selectedTextStyle, selectedIds: selection });
+      onSelectionChangeRef.current?.({ selectedShapeKind: shapeElement ? (shapeElement.kind as BoardTool) : null, hasSelection, selectedElementKind, selectedTextStyle, selectedIds: selection, selectionLocked: isSelectionLocked(documentRef.current.elements, selection) });
     } else {
       const isConnectionSelected = selectedConnection !== null;
-      onSelectionChangeRef.current?.({ selectedShapeKind: null, hasSelection: isConnectionSelected, selectedElementKind: isConnectionSelected ? "connector" : null, selectedTextStyle: null, selectedIds: [] });
+      onSelectionChangeRef.current?.({ selectedShapeKind: null, hasSelection: isConnectionSelected, selectedElementKind: isConnectionSelected ? "connector" : null, selectedTextStyle: null, selectedIds: [], selectionLocked: false });
     }
   }, [selection, selectedConnection, document]);
 
@@ -683,14 +688,16 @@ export function KonvaBoard({
       setSelectedConnection(null);
       return;
     }
-    const ids = new Set(selectionRef.current);
+    const lockedIds = new Set(documentRef.current.elements.filter(isElementLocked).map((element) => element.id));
+    const ids = new Set(selectionRef.current.filter((id) => !lockedIds.has(id)));
     if (ids.size === 0) return;
     commit({
       ...documentRef.current,
       elements: documentRef.current.elements.filter((element) => !ids.has(element.id)),
       connections: documentRef.current.connections.filter((connection) => !ids.has(connection.fromId) && !ids.has(connection.toId)),
     });
-    setSelection([]);
+    // Anything locked in the selection survives the delete, so it stays selected and visible.
+    setSelection((current) => current.filter((id) => !ids.has(id)));
   }, [commit]);
 
   const groupSelection = useCallback(() => {
@@ -945,6 +952,18 @@ export function KonvaBoard({
     });
   }, [commit]);
 
+  const setSelectionLocked = useCallback((locked: boolean) => {
+    const elements = setElementsLocked(documentRef.current.elements, selectionRef.current, locked);
+    if (elements === documentRef.current.elements) return;
+    commit({ ...documentRef.current, elements });
+  }, [commit]);
+
+  const setSelectionLayer = useCallback((placement: LayerPlacement) => {
+    const elements = reorderElements(documentRef.current.elements, selectionRef.current, placement);
+    if (elements === documentRef.current.elements) return;
+    commit({ ...documentRef.current, elements });
+  }, [commit]);
+
   const addMindMapNode = useCallback((kind: "child" | "sibling", currentId: BoardElementId, text = "New idea", source = documentRef.current) => {
     const sourceElement = source.elements.find((element) => element.id === currentId);
     const nodeKind = sourceElement && mindMapNodeKinds.has(sourceElement.kind as MindMapNodeKind)
@@ -1113,6 +1132,8 @@ export function KonvaBoard({
     setSelectionColor,
     setSelectionShape,
     setSelectionTextStyle,
+    setSelectionLocked,
+    setSelectionLayer,
     updateSelectedConnection,
     setConnectionDefaults,
     addTableRow,
@@ -1120,7 +1141,7 @@ export function KonvaBoard({
     addTableCol,
     deleteTableCol,
     applyProposal,
-  }), [addChildNode, addImage, addTableCol, addTableRow, applyProposal, arrangeMindMap, copySelection, deleteTableCol, deleteTableRow, deleteSelection, duplicateSelection, groupSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionShape, setSelectionTextStyle, undo, ungroupSelection, updateSelectedConnection, zoomAtCenter, zoomToFit]);
+  }), [addChildNode, addImage, addTableCol, addTableRow, applyProposal, arrangeMindMap, copySelection, deleteTableCol, deleteTableRow, deleteSelection, duplicateSelection, groupSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionLayer, setSelectionLocked, setSelectionShape, setSelectionTextStyle, undo, ungroupSelection, updateSelectedConnection, zoomAtCenter, zoomToFit]);
 
   useEffect(() => onReadyRef.current(engine), [engine]);
 
@@ -1292,6 +1313,8 @@ export function KonvaBoard({
     const name = targetNameAtPointer();
     if (!name) return;
     const current = documentRef.current;
+    // Locking is what makes a reference layer safe to draw over, so the eraser passes through it.
+    if (current.elements.some((element) => element.id === name && isElementLocked(element))) return;
     const next = name.startsWith("connection:")
       ? { ...current, connections: current.connections.filter((connection) => connection.id !== name) }
       : {
@@ -1326,6 +1349,8 @@ export function KonvaBoard({
       return true;
     }
 
+    // Locked elements still land in a marquee: a freehand stroke has no click target of its own,
+    // so selecting it is the only way back to the unlock button.
     const containedIds = documentRef.current.elements
       .filter((element) => isElementContainedByBounds(element, bounds))
       .map((element) => element.id);
@@ -1653,7 +1678,7 @@ export function KonvaBoard({
                 y={element.y}
                 width={element.width}
                 height={element.height}
-                draggable={effectiveTool === "select"}
+                draggable={effectiveTool === "select" && !isElementLocked(element)}
                 onClick={(event) => selectElement(element.id, event)}
                 onTap={(event) => selectElement(element.id, event)}
                 onTouchStart={(event) => startLongPress(element.id, event)}
@@ -1664,10 +1689,12 @@ export function KonvaBoard({
                 onMouseUp={clearLongPress}
                 onDblClick={(event) => {
                   event.cancelBubble = true;
+                  if (isElementLocked(element)) return;
                   setEditing({ id: element.id, value: element.text });
                 }}
                 onDblTap={(event) => {
                   event.cancelBubble = true;
+                  if (isElementLocked(element)) return;
                   setEditing({ id: element.id, value: element.text });
                 }}
                 onDragStart={(event) => {
@@ -1753,6 +1780,12 @@ export function KonvaBoard({
                     ? <Rect width={element.width} height={element.height} fill="rgba(0, 0, 0, 0.001)" />
                     : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} cornerRadius={16} shadowColor="#475569" shadowOpacity={isCoarsePointer ? 0 : 0.12} shadowBlur={isCoarsePointer ? 0 : 10} shadowOffsetY={4} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
                 {element.kind === "image" || element.kind === "table" || editing?.id === element.id ? null : <MarkdownText element={element} color={colors.text} />}
+                {isElementLocked(element) ? (
+                  <Group x={element.width - 18} y={-20} listening={false} opacity={0.85}>
+                    <Rect y={5} width={14} height={10} cornerRadius={2} fill="#475569" />
+                    <Line points={[3.5, 5, 3.5, 2.5, 10.5, 2.5, 10.5, 5]} stroke="#475569" strokeWidth={1.8} lineCap="round" />
+                  </Group>
+                ) : null}
               </Group>
             );
           })}

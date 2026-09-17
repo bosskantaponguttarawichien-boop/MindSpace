@@ -76,9 +76,73 @@ describe("board-context", () => {
     ]);
 
     const formatted = formatContextForPrompt(context);
-    expect(formatted).toContain("Mind map outline (root first, indented by depth):");
+    expect(formatted).toContain("Relationship outline (root first, indented by depth;");
     expect(formatted).toContain("- Launch plan\n  - Marketing\n    - Launch video\n  - Engineering");
-    expect(formatted).toContain("Standalone elements (not connected): Parking lot");
+    expect(formatted).toContain("Standalone elements (no connector and no group): Parking lot");
+  });
+
+  it("keeps grouped elements on the same topic as their connected sibling", () => {
+    const document: BoardDocument = {
+      ...mockDocument,
+      elements: [
+        { id: "element:root", kind: "rectangle", x: 0, y: 0, width: 200, height: 100, text: "Launch plan" },
+        { id: "element:a", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Marketing", groupId: "group:mkt" },
+        { id: "element:a2", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Budget", groupId: "group:mkt" },
+        { id: "element:b", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Engineering" },
+      ],
+      connections: [
+        { id: "connection:1", fromId: "element:root", toId: "element:a" },
+        { id: "connection:2", fromId: "element:root", toId: "element:b" },
+      ],
+    };
+
+    const context = extractBoardContext(document, "entire-board");
+    expect(context.groups).toEqual([{ id: "group:mkt", name: "G1", elementIds: ["element:a", "element:a2"] }]);
+    expect(context.outline.map((node) => [node.label, node.depth, node.viaGroup ?? false])).toEqual([
+      ["Launch plan", 0, false],
+      ["Marketing", 1, false],
+      ["Budget", 1, true],
+      ["Engineering", 1, false],
+    ]);
+
+    const formatted = formatContextForPrompt(context);
+    expect(formatted).toContain("Groups (grouped elements are one topic even with no connector between them):");
+    expect(formatted).toContain("- G1: Marketing (element:a), Budget (element:a2)");
+    expect(formatted).toContain("  - Marketing [G1]\n  - Budget [G1, same group]");
+    expect(formatted).not.toContain("Standalone elements");
+  });
+
+  it("treats a group with no connectors as its own topic cluster", () => {
+    const document: BoardDocument = {
+      ...mockDocument,
+      elements: [
+        { id: "element:1", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Risk A", groupId: "group:risk" },
+        { id: "element:2", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Risk B", groupId: "group:risk" },
+        { id: "element:3", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Loose note" },
+      ],
+      connections: [],
+    };
+
+    const context = extractBoardContext(document, "entire-board");
+    expect(context.outline.map((node) => [node.label, node.depth, node.viaGroup ?? false])).toEqual([
+      ["Risk A", 0, false],
+      ["Risk B", 0, true],
+    ]);
+    expect(formatContextForPrompt(context)).toContain("Standalone elements (no connector and no group): Loose note");
+  });
+
+  it("ignores a group with only one element in scope", () => {
+    const document: BoardDocument = {
+      ...mockDocument,
+      elements: [
+        { id: "element:1", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Only member", groupId: "group:solo" },
+      ],
+      connections: [],
+    };
+
+    const context = extractBoardContext(document, "entire-board");
+    expect(context.groups).toEqual([]);
+    expect(context.outline).toEqual([]);
   });
 
   it("emits every connected node once even when connections form a cycle", () => {
@@ -103,6 +167,7 @@ describe("board-context", () => {
       ...mockDocument,
       elements: [
         { id: "element:1", kind: "note", x: 100, y: 100, width: 200, height: 120, text: "Central Idea", color: "violet", textStyle: { fontSize: 32, fontWeight: "bold", textAlign: "center", verticalAlign: "middle" }, groupId: "group:a" },
+        { id: "element:2", kind: "note", x: 0, y: 0, width: 100, height: 100, text: "Sibling", groupId: "group:a" },
         { id: "element:4", kind: "table", x: 0, y: 0, width: 300, height: 150, text: "A | B", rows: 2, cols: 3, color: "slate" },
       ],
       connections: [],
@@ -111,7 +176,7 @@ describe("board-context", () => {
     const formatted = formatContextForPrompt(extractBoardContext(document, "entire-board"));
 
     expect(formatted).toContain("pos 100,100, size 200x120, color violet, text 32/bold/center/middle");
-    expect(formatted).toContain("group group:a");
+    expect(formatted).toContain("group G1");
     expect(formatted).toContain("table 2x3");
   });
 });

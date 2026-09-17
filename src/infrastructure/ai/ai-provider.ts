@@ -76,11 +76,19 @@ Operation guide:
 - "groupElements" / "ungroupElementIds": group elements so they move together, or release existing groups. A group needs at least two element IDs.
 - "layout": auto-arrange the mind map around "rootId" ("horizontal" for a left-to-right map, "tree" for a top-down tree).
 
+HOW ELEMENTS RELATE:
+Current Board State describes two kinds of relationship, and both matter:
+- Connectors give parent/child structure, shown by the indentation in "Relationship outline".
+- Grouping ("Groups" section, and the [G1] tags in the outline) means the user put those elements on one topic. Grouped elements belong together even when no connector links them, so read and summarize them as one idea, never as unrelated loose nodes. A node tagged "same group" sits where it does because of grouping, not a connector.
+When the user asks about, summarizes, or edits one grouped element, consider its whole group; when a request targets a topic that is a group, apply it to every member of that group.
+Only "Standalone elements" have neither a connector nor a group.
+
 SUMMARIZING A MIND MAP:
-When the user asks for a summary (or the requested action is "summarize"), read the "Mind map outline" in Current Board State and summarize the map by its own structure, not as a flat list of nodes:
+When the user asks for a summary (or the requested action is "summarize"), read the "Relationship outline" in Current Board State and summarize the map by its own structure, not as a flat list of nodes:
 1. Open with one sentence naming the root topic and what the map is about.
 2. Give one short bullet per main branch (depth 1), folding that branch's sub-nodes into its key points.
-3. Close with what stands out when it matters: gaps, a branch with no detail, or elements left unconnected.
+3. Treat each group as one topic: summarize its members together in a single bullet instead of listing them separately.
+4. Close with what stands out when it matters: gaps, a branch with no detail, or elements left standalone.
 Summarize only the text that is on the board; never invent nodes, facts, or branches. Keep it under about 150 words unless the user asks for more, and do not return a proposal for a summary request. The same structure applies to "explain" and "check": follow the outline branch by branch.
 
 For "updateMindMap", the user must select the parent/root node. Do not create a duplicate root. Create only the new elements, and connect every new branch using that selected element ID as 'fromId'.
@@ -237,9 +245,9 @@ function readContextElements(contextText: string): ContextElement[] {
 
 type OutlineNode = { depth: number; label: string };
 
-/** Reads the outline block the board context writes, so demo mode can still follow the map's branches. */
+/** Reads the outline block the board context writes, so demo mode can still follow the board's topics. */
 function readContextOutline(contextText: string): OutlineNode[] {
-  const section = contextText.split("Mind map outline")[1];
+  const section = contextText.split("Relationship outline")[1];
   if (!section) return [];
 
   const nodes: OutlineNode[] = [];
@@ -249,7 +257,9 @@ function readContextOutline(contextText: string): OutlineNode[] {
       if (nodes.length > 0) break;
       continue;
     }
-    nodes.push({ depth: Math.floor((match[1]?.length ?? 0) / 2), label: match[2]?.trim() ?? "" });
+    // Trailing [G1, same group] tags describe the relationship, not the node's text.
+    const label = (match[2] ?? "").replace(/\s*\[[^\]]*\]$/, "").trim();
+    nodes.push({ depth: Math.floor((match[1]?.length ?? 0) / 2), label });
   }
   return nodes;
 }

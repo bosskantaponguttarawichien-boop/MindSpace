@@ -156,12 +156,12 @@ describe("MockAiProvider summarize", () => {
     "Board Scope: Entire Board",
     "Total Elements: 5",
     "",
-    "Mind map outline (root first, indented by depth):",
+    "Relationship outline (root first, indented by depth):",
     "- Launch plan",
-    "  - Marketing",
+    "  - Marketing [G1]",
     "    - Launch video",
     "  - Engineering",
-    "Standalone elements (not connected): Parking lot",
+    "Standalone elements (no connector and no group): Parking lot",
     "",
     "Connections:",
     '- (ID: connection:1) "Launch plan" -> "Marketing" [shape: straight, head: arrow, style: end, line: solid]',
@@ -182,6 +182,13 @@ describe("MockAiProvider summarize", () => {
 
     expect(result.text).toContain("สรุป Mind map");
     expect(result.text).toContain("Marketing: Launch video");
+  });
+
+  it("reads node labels without their relationship tags", async () => {
+    const result = await new MockAiProvider().chat({ contextText, messages: [], action: "summarize" });
+
+    expect(result.text).toContain("1. Marketing: Launch video");
+    expect(result.text).not.toContain("[G1]");
   });
 
   it("falls back to a board-level summary when the board has no connected map", async () => {

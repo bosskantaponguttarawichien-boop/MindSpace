@@ -33,11 +33,22 @@ export type BoardAiConnectionSummary = {
   color?: string;
 };
 
-/** One node of the connection tree, flattened in reading order with its depth. */
+/** A set of elements the user grouped, which belong together even with no connector between them. */
+export type BoardAiGroupSummary = {
+  id: string;
+  /** Short prompt-facing name (G1, G2, ...); the board itself only stores the raw id. */
+  name: string;
+  elementIds: BoardElementId[];
+};
+
+/** One node of the relationship tree, flattened in reading order with its depth. */
 export type BoardAiOutlineNode = {
   id: BoardElementId;
   label: string;
   depth: number;
+  groupName?: string;
+  /** True when grouping, not a connector, placed this node here. */
+  viaGroup?: boolean;
 };
 
 export type BoardAiContext = {
@@ -45,6 +56,7 @@ export type BoardAiContext = {
   elementCount: number;
   elements: BoardAiElementSummary[];
   connections: BoardAiConnectionSummary[];
+  groups: BoardAiGroupSummary[];
   outline: BoardAiOutlineNode[];
 };
 
@@ -101,12 +113,15 @@ export function extractBoardContext(
       color: conn.color,
     }));
 
+  const groups = buildGroups(elementsSummary);
+
   return {
     scope,
     elementCount: elementsSummary.length,
     elements: elementsSummary,
     connections: connectionsSummary,
-    outline: buildOutline(elementsSummary, connectionsSummary),
+    groups,
+    outline: buildOutline(elementsSummary, connectionsSummary, groups),
   };
 }
 
@@ -114,14 +129,29 @@ function labelFor(element: BoardAiElementSummary): string {
   return element.text ?? `[empty ${element.kind}]`;
 }
 
+/** Collects grouped elements in board order. A group needs at least two members in scope to mean anything. */
+function buildGroups(elements: BoardAiElementSummary[]): BoardAiGroupSummary[] {
+  const membersByGroupId = new Map<string, BoardElementId[]>();
+  for (const element of elements) {
+    if (!element.groupId) continue;
+    membersByGroupId.set(element.groupId, [...(membersByGroupId.get(element.groupId) ?? []), element.id]);
+  }
+
+  return [...membersByGroupId.entries()]
+    .filter(([, elementIds]) => elementIds.length >= 2)
+    .map(([id, elementIds], index) => ({ id, name: `G${index + 1}`, elementIds }));
+}
+
 /**
- * Walks the connections as a tree so a summary can follow the map's own branches
- * instead of a flat element list. Cycles and nodes whose parent sits outside the
- * scope are still emitted once, at the top level.
+ * Walks the board as one relationship tree so a summary can follow the real topics
+ * instead of a flat element list. Connectors give parent/child; grouping keeps
+ * grouped elements on the same topic even when no connector links them. Cycles and
+ * nodes whose parent sits outside the scope are still emitted once, at the top level.
  */
 function buildOutline(
   elements: BoardAiElementSummary[],
   connections: BoardAiConnectionSummary[],
+  groups: BoardAiGroupSummary[],
 ): BoardAiOutlineNode[] {
   const elementById = new Map(elements.map((element) => [element.id, element]));
   const childIds = new Map<BoardElementId, BoardElementId[]>();
@@ -136,14 +166,26 @@ function buildOutline(
     linkedIds.add(connection.toId);
   }
 
+  const groupByElementId = new Map<BoardElementId, BoardAiGroupSummary>();
+  for (const group of groups) {
+    for (const elementId of group.elementIds) groupByElementId.set(elementId, group);
+  }
+
   const outline: BoardAiOutlineNode[] = [];
   const visited = new Set<BoardElementId>();
 
-  const walk = (id: BoardElementId, depth: number) => {
+  const walk = (id: BoardElementId, depth: number, viaGroup = false) => {
     const element = elementById.get(id);
     if (!element || visited.has(id)) return;
     visited.add(id);
-    outline.push({ id, label: labelFor(element), depth });
+    const group = groupByElementId.get(id);
+    outline.push({ id, label: labelFor(element), depth, groupName: group?.name, ...(viaGroup ? { viaGroup } : {}) });
+
+    // Grouped siblings sit on the same topic, so they join this node unless a connector already places them.
+    for (const siblingId of group?.elementIds ?? []) {
+      if (siblingId !== id && !hasParent.has(siblingId)) walk(siblingId, depth, true);
+    }
+
     for (const childId of childIds.get(id) ?? []) walk(childId, depth + 1);
   };
 
@@ -153,12 +195,16 @@ function buildOutline(
   for (const element of elements) {
     if (linkedIds.has(element.id)) walk(element.id, 0);
   }
+  // A group whose members are all unconnected is still one topic: emit it as its own cluster.
+  for (const group of groups) {
+    for (const elementId of group.elementIds) walk(elementId, 0);
+  }
 
   return outline;
 }
 
 /** Describes every board attribute the AI is allowed to change, so edits can target real state. */
-function describeElement(element: BoardAiElementSummary): string {
+function describeElement(element: BoardAiElementSummary, groupName?: string): string {
   const attributes = [
     `pos ${element.x},${element.y}`,
     `size ${element.width}x${element.height}`,
@@ -166,13 +212,18 @@ function describeElement(element: BoardAiElementSummary): string {
     `text ${element.fontSize}/${element.fontWeight}/${element.textAlign}/${element.verticalAlign}`,
   ];
   if (element.rows && element.cols) attributes.push(`table ${element.rows}x${element.cols}`);
-  if (element.groupId) attributes.push(`group ${element.groupId}`);
+  if (groupName) attributes.push(`group ${groupName}`);
   return attributes.join(", ");
 }
 
 export function formatContextForPrompt(context: BoardAiContext): string {
   if (context.elements.length === 0) {
     return "The board currently contains no elements or selected items.";
+  }
+
+  const groupNameByElementId = new Map<BoardElementId, string>();
+  for (const group of context.groups) {
+    for (const elementId of group.elementIds) groupNameByElementId.set(elementId, group.name);
   }
 
   const lines: string[] = [];
@@ -182,18 +233,31 @@ export function formatContextForPrompt(context: BoardAiContext): string {
 
   for (const [index, element] of context.elements.entries()) {
     const desc = element.text ? `"${element.text}"` : `[empty ${element.kind}]`;
-    lines.push(`${index + 1}. [${element.kind}] (ID: ${element.id}) ${desc} {${describeElement(element)}}`);
+    lines.push(`${index + 1}. [${element.kind}] (ID: ${element.id}) ${desc} {${describeElement(element, groupNameByElementId.get(element.id))}}`);
+  }
+
+  if (context.groups.length > 0) {
+    lines.push("\nGroups (grouped elements are one topic even with no connector between them):");
+    for (const group of context.groups) {
+      const members = group.elementIds
+        .map((elementId) => context.elements.find((element) => element.id === elementId))
+        .filter((element): element is BoardAiElementSummary => Boolean(element))
+        .map((element) => `${labelFor(element)} (${element.id})`);
+      lines.push(`- ${group.name}: ${members.join(", ")}`);
+    }
   }
 
   if (context.outline.length > 0) {
     const outlineIds = new Set(context.outline.map((node) => node.id));
-    lines.push("\nMind map outline (root first, indented by depth):");
+    lines.push("\nRelationship outline (root first, indented by depth; [G1] marks a group, \"same group\" means grouping links it, not a connector):");
     for (const node of context.outline) {
-      lines.push(`${"  ".repeat(node.depth)}- ${node.label}`);
+      const tags = [node.groupName, node.viaGroup ? "same group" : undefined].filter(Boolean);
+      const suffix = tags.length > 0 ? ` [${tags.join(", ")}]` : "";
+      lines.push(`${"  ".repeat(node.depth)}- ${node.label}${suffix}`);
     }
     const standalone = context.elements.filter((element) => !outlineIds.has(element.id));
     if (standalone.length > 0) {
-      lines.push(`Standalone elements (not connected): ${standalone.map(labelFor).join(", ")}`);
+      lines.push(`Standalone elements (no connector and no group): ${standalone.map(labelFor).join(", ")}`);
     }
   }
 

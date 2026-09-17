@@ -3,13 +3,13 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BoardToolbar } from "@/features/board/components/board-toolbar";
-import type { LocalPdf } from "@/features/board/components/local-pdf-viewer";
 import { ZoomControls } from "@/features/board/components/zoom-controls";
 import type { BoardEngine, BoardTool } from "@/infrastructure/board-engine/board-engine";
 import { type BoardDocument, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
 import { DEFAULT_TEXT_STYLES, textStyleScopeFor, type BoardTextStyleScope, type BoardTextStyles } from "@/domain/board/text-style-scope";
 import { isSupportedPdf } from "@/domain/files/file-validation";
 import { ImageUploadError, type ImageUploadFailure } from "@/infrastructure/files/firebase-board-images";
+import { PdfImportError, renderPdfFirstPage, type PdfImportFailure } from "@/infrastructure/files/pdf-page-image";
 import { useLocale } from "@/lib/i18n/locale-provider";
 import type { MessageKey } from "@/lib/i18n/messages";
 
@@ -25,6 +25,12 @@ const uploadFailureMessages: Record<ImageUploadFailure, MessageKey> = {
   failed: "imageErrorFailed",
 };
 
+const pdfFailureMessages: Record<PdfImportFailure, MessageKey> = {
+  unreadable: "pdfErrorUnreadable",
+  encrypted: "pdfErrorEncrypted",
+  renderFailed: "pdfErrorRenderFailed",
+};
+
 const KonvaBoard = dynamic(
   () => import("@/infrastructure/board-engine/konva-board").then((module) => module.KonvaBoard),
   { ssr: false },
@@ -34,17 +40,20 @@ function imageUrls(document: BoardDocument) {
   return new Set(document.elements.flatMap((element) => element.kind === "image" && element.assetUrl ? [element.assetUrl] : []));
 }
 
-export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploadImage, onDeleteImages, onOpenPdf, onSelectionIdsChange }: { onEngineReady: (engine: BoardEngine) => void; document: BoardDocument; onDocumentChange: (document: BoardDocument) => void; onUploadImage: (file: File) => Promise<{ url: string; width: number; height: number }>; onDeleteImages: (urls: string[]) => Promise<void>; onOpenPdf: (pdf: LocalPdf) => void; onSelectionIdsChange?: (ids: BoardElementId[]) => void }) {
+export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploadImage, onDeleteImages, onSelectionIdsChange }: { onEngineReady: (engine: BoardEngine) => void; document: BoardDocument; onDocumentChange: (document: BoardDocument) => void; onUploadImage: (file: File) => Promise<{ url: string; width: number; height: number }>; onDeleteImages: (urls: string[]) => Promise<void>; onSelectionIdsChange?: (ids: BoardElementId[]) => void }) {
   const { t } = useLocale();
   const [engine, setEngine] = useState<BoardEngine | null>(null);
   const [activeTool, setActiveTool] = useState<BoardTool>("select");
   const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[] }>({ selectedShapeKind: null, hasSelection: false, selectedElementKind: null, selectedTextStyle: null, selectedIds: [] });
   const [textStyles, setTextStyles] = useState<BoardTextStyles>(DEFAULT_TEXT_STYLES);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [importingPdf, setImportingPdf] = useState(false);
+  const [notice, setNotice] = useState<MessageKey | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const documentRef = useRef(document);
   const deleteTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onEngineReadyRef = useRef(onEngineReady);
   useEffect(() => {
@@ -72,6 +81,11 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
     setTextStyles((current) => ({ ...current, [scope]: { ...current[scope], ...patch } }));
     engine?.setSelectionTextStyle(patch);
   }, [engine]);
+  const showNotice = useCallback((key: MessageKey) => {
+    setNotice(key);
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = setTimeout(() => setNotice(null), 6000);
+  }, []);
   const importImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -85,15 +99,29 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
       setUploadingImage(false);
     }
   };
-  const importPdf = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // A PDF lands on the board the same way an image does: its first page is rasterized here and
+  // then travels through the image upload path, so the board keeps a picture, not PDF bytes.
+  const importPdf = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file) return;
+    if (!file || !engine) return;
     if (!isSupportedPdf(file)) {
-      window.alert("Choose a PDF file that is 25 MB or smaller.");
+      window.alert(t("pdfErrorUnsupported"));
       return;
     }
-    onOpenPdf({ name: file.name, url: URL.createObjectURL(file) });
+    setImportingPdf(true);
+    setNotice(null);
+    try {
+      const page = await renderPdfFirstPage(file);
+      engine.addImage(await onUploadImage(page.file));
+      if (page.pageCount > 1) showNotice("pdfFirstPageOnly");
+    } catch (error: unknown) {
+      // Only rendering raises PdfImportError, so anything else comes from the upload that follows it.
+      if (error instanceof PdfImportError) window.alert(t(pdfFailureMessages[error.reason]));
+      else window.alert(t(error instanceof ImageUploadError ? uploadFailureMessages[error.reason] : "imageErrorFailed"));
+    } finally {
+      setImportingPdf(false);
+    }
   };
   const handleDocumentChange = useCallback((next: BoardDocument) => {
     const before = imageUrls(documentRef.current);
@@ -120,6 +148,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
   useEffect(() => () => {
     deleteTimersRef.current.forEach((timer) => clearTimeout(timer));
     deleteTimersRef.current.clear();
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
   }, []);
 
   return (
@@ -130,6 +159,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
       <BoardToolbar
         ready={engine !== null}
         uploadingImage={uploadingImage}
+        importingPdf={importingPdf}
         activeTool={activeTool}
         textStyles={textStyles}
         selectedShapeKind={selectionState.selectedShapeKind}
@@ -153,7 +183,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
         onDeleteSelection={() => engine?.deleteSelection()}
       />
       <ZoomControls engine={engine} />
-      {uploadingImage ? <div className="pointer-events-none absolute bottom-20 end-3 sm:bottom-4 sm:end-4 z-30 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur" role="status">{t("imageUploading")}</div> : null}
+      {uploadingImage || importingPdf || notice ? <div className="pointer-events-none absolute bottom-20 end-3 sm:bottom-4 sm:end-4 z-30 max-w-64 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur" role="status">{t(importingPdf ? "pdfImporting" : uploadingImage ? "imageUploading" : notice ?? "imageUploading")}</div> : null}
     </div>
   );
 }

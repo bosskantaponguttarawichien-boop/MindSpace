@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { measureAppHeight } from "@/shared/lib/app-viewport";
 
 export type VisualViewportSize = {
   height: number;
@@ -12,11 +13,13 @@ export type VisualViewportSize = {
  * viewport so the overlay shrinks when the on-screen keyboard opens, unlike the
  * layout viewport.
  *
- * iOS needs one correction: in an installed PWA painting under a translucent
+ * iOS needs one correction: in an installed app painting under a translucent
  * status bar, `visualViewport.height` is already short by the top safe-area
  * inset while no keyboard is open, which would leave a strip of the screen
- * uncovered. That resting gap is measured per layout size and added back, so
- * only a real keyboard shrinks the box.
+ * uncovered. The box is therefore compared against `measureAppHeight()` — the
+ * screen the app really owns, not the short height the layout viewport reports
+ * on that same device — and the resting gap between them is added back, so only
+ * a real keyboard shrinks the box.
  */
 export function useVisualViewport(): VisualViewportSize | null {
   const [viewport, setViewport] = useState<VisualViewportSize | null>(null);
@@ -25,7 +28,7 @@ export function useVisualViewport(): VisualViewportSize | null {
   useEffect(() => {
     const visualViewport = window.visualViewport;
     const updateViewport = () => {
-      const layoutHeight = document.documentElement.clientHeight || window.innerHeight;
+      const layoutHeight = measureAppHeight();
       const visibleHeight = visualViewport?.height ?? window.innerHeight;
       const offsetTop = visualViewport?.offsetTop ?? 0;
       const gap = Math.max(0, layoutHeight - visibleHeight - offsetTop);

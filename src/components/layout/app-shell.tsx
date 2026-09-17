@@ -18,7 +18,9 @@ export function AppShell({
   return (
     // The shell spans the whole screen including the safe areas: the board must
     // bleed edge to edge. Chrome that surrounds it carries the insets instead.
-    <main className="flex h-[var(--app-height)] min-h-0 w-full overflow-hidden bg-background sm:min-h-[620px]">
+    // It is fixed rather than in flow so `--app-height` can exceed the viewport
+    // height an installed iOS app reports and still reach the real bottom edge.
+    <main className="fixed inset-x-0 top-0 flex h-[var(--app-height)] min-h-0 w-full overflow-hidden bg-background sm:min-h-[620px]">
       <div
         className={cn(
           "h-full shrink-0 border-e border-border bg-sidebar transition-[width,opacity] duration-200 ease-in-out max-lg:hidden",

@@ -135,6 +135,9 @@
 /* Single source of truth for device safe areas. Only meaningful once the
    root layout sets `viewport-fit=cover`; elsewhere they collapse to 0px. */
 :root {
+  /* The height the shell fills. `AppHeightProbe` swaps in a measured value in
+     an installed PWA, where `100dvh` can resolve short of the real screen. */
+  --app-height: 100dvh;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);

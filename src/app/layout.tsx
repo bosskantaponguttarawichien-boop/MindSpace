@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Noto_Sans_Thai } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { PwaRegistration } from "@/components/pwa/pwa-registration";
+import { AppHeightProbe } from "@/components/layout/app-height-probe";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <LocaleProvider>
           <TooltipProvider delayDuration={250}>{children}</TooltipProvider>
         </LocaleProvider>
+        <AppHeightProbe />
         <PwaRegistration />
       </body>
     </html>

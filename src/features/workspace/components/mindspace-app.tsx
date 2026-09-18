@@ -191,12 +191,13 @@ export function MindSpaceApp() {
       </button>
 
       {/* Mobile AI Popup Container (Persistent to preserve background processing and conversation state) */}
-      {/* The top gap has a floor: when iOS keeps the status bar opaque it reserves
-          that strip itself and reports `safe-area-inset-top: 0`, so an inset-only
-          pad would leave the card hugging the clock. */}
+      {/* On a phone the panel is a full-screen sheet: it fills the web view edge
+          to edge, so the only strip it cannot paint — the one iOS keeps for the
+          status bar — sits directly above the sheet's own background and reads as
+          part of it. A tablet keeps the floating card over a dimmed board. */}
       <div
         className={cn(
-          "fixed start-0 top-0 z-50 flex w-full flex-col justify-end p-2 pt-[max(calc(var(--safe-top)+0.75rem),1.5rem)] pb-[calc(var(--safe-bottom)+0.5rem)] ps-[calc(var(--safe-left)+0.5rem)] pe-[calc(var(--safe-right)+0.5rem)] sm:p-4 sm:pt-[max(calc(var(--safe-top)+1rem),2rem)] sm:pb-[calc(var(--safe-bottom)+1rem)] sm:ps-[calc(var(--safe-left)+1rem)] sm:pe-[calc(var(--safe-right)+1rem)] lg:hidden transition-[visibility] duration-300",
+          "fixed inset-0 z-50 flex flex-col justify-end sm:p-4 sm:pt-[max(calc(var(--safe-top)+1rem),2rem)] sm:pb-[calc(var(--safe-bottom)+1rem)] sm:ps-[calc(var(--safe-left)+1rem)] sm:pe-[calc(var(--safe-right)+1rem)] lg:hidden transition-[visibility] duration-300",
           mobileAiOpen ? "visible pointer-events-auto" : "invisible pointer-events-none delay-300"
         )}
         style={mobileViewport ? {
@@ -208,7 +209,7 @@ export function MindSpaceApp() {
         {/* Backdrop: Smooth fade in/out */}
         <div
           className={cn(
-            "absolute inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity duration-300 ease-out",
+            "absolute inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity duration-300 ease-out max-sm:hidden",
             mobileAiOpen ? "opacity-100" : "opacity-0"
           )}
           onClick={handleCloseMobileAi}
@@ -216,10 +217,14 @@ export function MindSpaceApp() {
         {/* Popup Card: Smooth slide-up with subtle scale & spring-like curve */}
         <div
           className={cn(
-            "relative z-10 mx-auto flex h-full max-h-[850px] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            "relative z-10 mx-auto flex h-full w-full flex-col overflow-hidden bg-background shadow-2xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            // The sheet carries the insets itself, so its background runs under
+            // the home indicator while the panel stays clear of it.
+            "pt-[var(--safe-top)] pb-[var(--safe-bottom)] ps-[var(--safe-left)] pe-[var(--safe-right)]",
+            "sm:max-h-[850px] sm:max-w-xl sm:rounded-2xl sm:border sm:border-border sm:p-0",
             mobileAiOpen
               ? "translate-y-0 scale-100 opacity-100"
-              : "translate-y-8 scale-[0.97] opacity-0"
+              : "translate-y-8 opacity-0 sm:scale-[0.97]"
           )}
         >
           <AiPanel

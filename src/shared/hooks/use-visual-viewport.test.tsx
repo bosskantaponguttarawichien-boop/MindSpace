@@ -25,7 +25,7 @@ describe("useVisualViewport", () => {
   });
 
   it("uses the visual viewport size after the mobile keyboard resizes it", () => {
-    installDeviceViewport({ viewportHeight: 760, screenHeight: 760 });
+    installDeviceViewport({ viewportHeight: 760 });
     const { visualViewport, listeners } = installVisualViewport(760);
     const { result } = renderHook(() => useVisualViewport());
 
@@ -38,14 +38,14 @@ describe("useVisualViewport", () => {
     expect(result.current).toEqual({ height: 360, offsetTop: 12 });
   });
 
-  it("covers the whole screen of an installed iOS app, whose viewport is short by the top inset", () => {
-    // Both the layout and the visual viewport report 797 on this device; only
-    // the screen reveals the 47pt the status bar sits over.
-    installDeviceViewport({ viewportHeight: 797, screenHeight: 844, topInset: 47, standalone: true });
+  it("covers the layout viewport a resting visual viewport reports short of", () => {
+    // Browser chrome overlapping the page leaves the visual viewport 47pt
+    // shorter than the box the page is laid out in, with no keyboard open.
+    installDeviceViewport({ viewportHeight: 844 });
     const { visualViewport, listeners } = installVisualViewport(797);
     const { result } = renderHook(() => useVisualViewport());
 
-    // The 47px the status bar sits over is not keyboard, so the overlay keeps it.
+    // That resting 47pt is not keyboard, so the overlay keeps covering it.
     expect(result.current).toEqual({ height: 844, offsetTop: 0 });
 
     // A keyboard on the same device shrinks the box by the keyboard only.
@@ -61,20 +61,13 @@ describe("useVisualViewport", () => {
   });
 
   it("recalibrates the resting gap when the layout viewport changes size", () => {
-    installDeviceViewport({ viewportHeight: 797, screenHeight: 844, topInset: 47, standalone: true });
+    installDeviceViewport({ viewportHeight: 844 });
     const { visualViewport, listeners } = installVisualViewport(797);
     const { result } = renderHook(() => useVisualViewport());
 
     expect(result.current).toEqual({ height: 844, offsetTop: 0 });
 
-    installDeviceViewport({
-      viewportHeight: 390,
-      screenHeight: 844,
-      screenWidth: 390,
-      topInset: 47,
-      standalone: true,
-      portrait: false,
-    });
+    installDeviceViewport({ viewportHeight: 390 });
     visualViewport.height = 390;
     act(() => listeners.get("resize")?.());
 

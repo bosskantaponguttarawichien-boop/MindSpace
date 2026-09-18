@@ -135,8 +135,9 @@
 /* Single source of truth for device safe areas. Only meaningful once the
    root layout sets `viewport-fit=cover`; elsewhere they collapse to 0px. */
 :root {
-  /* The height the shell fills. `AppHeightProbe` swaps in a measured value in
-     an installed PWA, where `100dvh` can resolve short of the real screen. */
+  /* The height the shell fills: the viewport the platform hands the page, which
+     in an installed app is the whole web view and in a tab shrinks and grows
+     with the browser's own toolbars. */
   --app-height: 100dvh;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
@@ -144,11 +145,7 @@
   --safe-left: env(safe-area-inset-left, 0px);
 }
 
-/* The shell is fixed, so nothing in flow can scroll the page. `overflow` stays
-   off the root on purpose: a non-visible overflow there is propagated to the
-   viewport, and an installed iOS app reports a viewport shorter than the screen
-   it paints on, which would clip the shell's last safe-area-inset-top pixels
-   back off the bottom edge. */
+/* The shell is fixed, so nothing in flow can scroll the page. */
 html,
 body {
   height: 100%;

@@ -43,6 +43,12 @@ describe("sameBoardDocument", () => {
     expect(sameBoardDocument(board(), recoloured)).toBe(false);
   });
 
+  it("keeps a missing optional title compatible with old boards and detects a new title", () => {
+    const titled = board({ elements: [{ ...board().elements[0]!, title: "Ideas" }] });
+    expect(sameBoardDocument(board(), titled)).toBe(false);
+    expect(sameBoardDocument(board(), board({ elements: [{ ...board().elements[0]!, title: undefined }] }))).toBe(true);
+  });
+
   it("handles table elements with rows, cols, and tableData", () => {
     const tableBoard = board({
       elements: [

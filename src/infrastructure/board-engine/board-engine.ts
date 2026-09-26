@@ -38,6 +38,7 @@ export type BoardEngine = {
   setSelectionColor: (color: BoardColor) => void;
   setSelectionShape: (shape: BoardTool) => void;
   setSelectionTextStyle: (patch: Partial<BoardTextStyle>) => void;
+  editSelectedTitle: () => void;
   setSelectionLocked: (locked: boolean) => void;
   setSelectionLayer: (placement: LayerPlacement) => void;
   updateSelectedConnection: (patch: Partial<BoardConnection>) => void;

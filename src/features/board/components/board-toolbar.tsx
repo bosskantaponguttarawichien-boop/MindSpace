@@ -1,6 +1,6 @@
 "use client";
 
-import { ALargeSmall, AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Bold, Columns3, Copy, FileText, GitBranchPlus, ImagePlus, Layers, Lock, LockOpen, Minus, Palette, Pencil, RectangleHorizontal, Rows3, Spline, Trash2, Waypoints } from "lucide-react";
+import { ALargeSmall, AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Bold, Columns3, Copy, FileText, GitBranchPlus, Heading, ImagePlus, Layers, Lock, LockOpen, Minus, Palette, Pencil, RectangleHorizontal, Rows3, Spline, Trash2, Waypoints } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { IconAction } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
@@ -68,6 +68,7 @@ export function BoardToolbar({
   onToolChange,
   onSetShape,
   onSetTextStyle,
+  onEditTitle,
   onImportImage,
   onImportPdf,
   onAddChildNode,
@@ -96,6 +97,7 @@ export function BoardToolbar({
   onToolChange: (tool: BoardTool) => void;
   onSetShape?: (shape: BoardTool) => void;
   onSetTextStyle: (scope: BoardTextStyleScope, patch: Partial<BoardTextStyle>) => void;
+  onEditTitle?: () => void;
   onImportImage: () => void;
   onImportPdf: () => void;
   onAddChildNode: () => void;
@@ -118,7 +120,7 @@ export function BoardToolbar({
   const [lastShapeTool, setLastShapeTool] = useState<BoardTool>("rectangle");
   const [lastInkTool, setLastInkTool] = useState<BoardTool>("draw");
   const [lastMindMapDirection, setLastMindMapDirection] = useState<MindMapLayoutDirection>("horizontal");
-  const [connection, setConnection] = useState<{ style: ConnectionStyle; lineStyle: ConnectionLineStyle; headType: ConnectionHeadType; pathStyle: ConnectionPathStyle }>({ style: "end", lineStyle: "solid", headType: "arrow", pathStyle: "straight" });
+  const [connection, setConnection] = useState<{ style: ConnectionStyle; lineStyle: ConnectionLineStyle; headType: ConnectionHeadType; pathStyle: ConnectionPathStyle }>({ style: "none", lineStyle: "solid", headType: "arrow", pathStyle: "curved" });
 
   useEffect(() => {
     if (!openCard) return;
@@ -260,6 +262,9 @@ export function BoardToolbar({
           ) : null}
           {id === "table" && selectedElementKind === "table" ? (
             <IconAction label={t("tableActions")} icon={Rows3} expandable expanded={openSubTool === "actions"} active={openSubTool === "actions"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("actions")} />
+          ) : null}
+          {(id === "note" || id === "table") && selectedElementKind === id && selectedIds?.length === 1 ? (
+            <IconAction label={t("editTitle")} icon={Heading} disabled={!ready || selectionLocked} className="max-sm:size-10" onClick={onEditTitle} />
           ) : null}
           {textFormattingSubTools(id)}
           <IconAction label={t(scopeColorLabels[id])} icon={Palette} expandable expanded={openSubTool === "color"} active={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />

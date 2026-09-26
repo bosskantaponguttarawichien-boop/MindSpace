@@ -268,7 +268,7 @@ function BoardTable({
               onCellDblClick(r, c, cellText);
             }}
           >
-            <Rect width={cellWidth} height={cellHeight} fill="transparent" />
+            <Rect width={cellWidth} height={cellHeight} fill="transparent" perfectDrawEnabled={false} hitStrokeWidth={0} />
             <Text
               width={cellWidth}
               height={cellHeight}
@@ -282,6 +282,7 @@ function BoardTable({
               verticalAlign={textStyle.verticalAlign ?? "middle"}
               align={textStyle.textAlign}
               wrap="word"
+              perfectDrawEnabled={false}
             />
           </Group>
         ))
@@ -376,6 +377,7 @@ function MarkdownText({ element, color }: { element: BoardElement; color: string
             lineHeight={1.35}
             align={supportsTextStyle(element) ? textStyle.textAlign : element.kind === "note" || isStructured ? "left" : "center"}
             wrap="word"
+            perfectDrawEnabled={false}
           />
         );
       })}
@@ -418,6 +420,8 @@ export function KonvaBoard({
   const drawStartRef = useRef<{ id: BoardElementId; document: BoardDocument } | null>(null);
   const eraseStartRef = useRef<BoardDocument | null>(null);
   const selectionMarqueeStartRef = useRef<SelectionMarqueeStart | null>(null);
+  const marqueeFrameRef = useRef<number | null>(null);
+  const pendingMarqueeRef = useRef<Bounds | null>(null);
   const moveFrameRef = useRef<number | null>(null);
   const pendingMoveRef = useRef<Map<BoardElementId, { x: number; y: number }>>(new Map());
   const drawFrameRef = useRef<number | null>(null);
@@ -617,18 +621,17 @@ export function KonvaBoard({
     return () => window.removeEventListener("blur", finishInterruptedGesture);
   }, [cancelPendingMove, updateElements]);
 
-  const updateConnectedArrows = useCallback((movedId: BoardElementId, x: number, y: number) => {
+  const updateConnectedArrows = useCallback((movedIds: Set<BoardElementId>) => {
     const resolveElement = (id: BoardElementId): BoardElement | undefined => {
       const element = documentRef.current.elements.find((candidate) => candidate.id === id);
       if (!element) return undefined;
-      return id === movedId ? { ...element, x, y } : element;
+      const preview = dragPreviewRef.current.get(id);
+      return preview ? { ...element, x: preview.x, y: preview.y } : element;
     };
 
-    // Elbow connections are handled per shared-fromId group below, since a moved element can shift
-    // every sibling's trunk/branch point, not just the connections touching it directly.
     const elbowGroupIds = new Set<BoardElementId>();
     for (const connection of documentRef.current.connections) {
-      if (connection.fromId !== movedId && connection.toId !== movedId) continue;
+      if (!movedIds.has(connection.fromId) && !movedIds.has(connection.toId)) continue;
       if ((connection.pathStyle ?? "straight") === "elbow") {
         elbowGroupIds.add(connection.fromId);
         continue;
@@ -661,10 +664,12 @@ export function KonvaBoard({
       const pending = pendingMoveRef.current;
       pendingMoveRef.current = new Map();
       if (pending.size === 0) return;
+      const movedIds = new Set<BoardElementId>();
       for (const [id, position] of pending) {
         dragPreviewRef.current.set(id, position);
-        updateConnectedArrows(id, position.x, position.y);
+        movedIds.add(id);
       }
+      updateConnectedArrows(movedIds);
       transformerRef.current?.update();
       transformerRef.current?.getLayer()?.batchDraw();
     });
@@ -699,6 +704,7 @@ export function KonvaBoard({
     if (moveFrameRef.current !== null) window.cancelAnimationFrame(moveFrameRef.current);
     if (drawFrameRef.current !== null) window.cancelAnimationFrame(drawFrameRef.current);
     if (wheelFrameRef.current !== null) window.cancelAnimationFrame(wheelFrameRef.current);
+    if (marqueeFrameRef.current !== null) window.cancelAnimationFrame(marqueeFrameRef.current);
     if (wheelCommitTimerRef.current !== null) window.clearTimeout(wheelCommitTimerRef.current);
     if (longPressTimerRef.current !== null) window.clearTimeout(longPressTimerRef.current);
   }, []);
@@ -1389,10 +1395,16 @@ export function KonvaBoard({
   function worldPointer() {
     const pointer = stageRef.current?.getPointerPosition();
     if (!pointer) return null;
-    return { x: (pointer.x - viewport.x) / viewport.scale, y: (pointer.y - viewport.y) / viewport.scale };
+    const vp = viewportRef.current;
+    return { x: (pointer.x - vp.x) / vp.scale, y: (pointer.y - vp.y) / vp.scale };
   }
 
   function clearSelectionMarquee() {
+    if (marqueeFrameRef.current !== null) {
+      window.cancelAnimationFrame(marqueeFrameRef.current);
+      marqueeFrameRef.current = null;
+    }
+    pendingMarqueeRef.current = null;
     selectionMarqueeStartRef.current = null;
     setSelectionMarquee(null);
   }
@@ -1461,7 +1473,15 @@ export function KonvaBoard({
     const selectionStart = selectionMarqueeStartRef.current;
     if (selectionStart) {
       const point = worldPointer();
-      if (point) setSelectionMarquee(boundsFromPoints(selectionStart.point, point));
+      if (point) {
+        pendingMarqueeRef.current = boundsFromPoints(selectionStart.point, point);
+        if (marqueeFrameRef.current === null) {
+          marqueeFrameRef.current = window.requestAnimationFrame(() => {
+            marqueeFrameRef.current = null;
+            if (pendingMarqueeRef.current) setSelectionMarquee(pendingMarqueeRef.current);
+          });
+        }
+      }
       return;
     }
     if (eraseStartRef.current) return eraseAtPointer();
@@ -1557,22 +1577,24 @@ export function KonvaBoard({
     });
   }
 
-  const elementMap = new Map(document.elements.map((element) => [element.id, element]));
+  const elementMap = useMemo(() => new Map(document.elements.map((element) => [element.id, element])), [document.elements]);
   const editingElement = editing ? elementMap.get(editing.id) : undefined;
 
   // Elbow connections sharing a source are merged into one trunk that splits toward each target,
   // so they're grouped by fromId and solved together rather than routed independently per pair.
-  const elbowGroups = new Map<BoardElementId, BoardConnection[]>();
-  for (const connection of document.connections) {
-    if ((connection.pathStyle ?? "straight") !== "elbow") continue;
-    const group = elbowGroups.get(connection.fromId);
-    if (group) group.push(connection); else elbowGroups.set(connection.fromId, [connection]);
-  }
-  const elbowPaths = new Map(
-    Array.from(elbowGroups.entries()).flatMap(([fromId, group]) =>
-      Array.from(getGroupedElbowPaths(fromId, group, (id) => elementMap.get(id))),
-    ),
-  );
+  const elbowPaths = useMemo(() => {
+    const elbowGroups = new Map<BoardElementId, BoardConnection[]>();
+    for (const connection of document.connections) {
+      if ((connection.pathStyle ?? "straight") !== "elbow") continue;
+      const group = elbowGroups.get(connection.fromId);
+      if (group) group.push(connection); else elbowGroups.set(connection.fromId, [connection]);
+    }
+    return new Map(
+      Array.from(elbowGroups.entries()).flatMap(([fromId, group]) =>
+        Array.from(getGroupedElbowPaths(fromId, group, (id) => elementMap.get(id))),
+      ),
+    );
+  }, [document.connections, elementMap]);
 
   function documentWithEditingText() {
     if (!editing) return documentRef.current;
@@ -1732,7 +1754,7 @@ export function KonvaBoard({
           })}
           {document.elements.map((element) => {
             if (element.kind === "draw") {
-              return <Line key={element.id} name={element.id} points={element.points ?? []} stroke={COLORS[element.color ?? "violet"].stroke} strokeWidth={3} hitStrokeWidth={20} lineCap="round" lineJoin="round" tension={0.25} />;
+              return <Line key={element.id} name={element.id} points={element.points ?? []} stroke={COLORS[element.color ?? "violet"].stroke} strokeWidth={3} hitStrokeWidth={20} lineCap="round" lineJoin="round" tension={0.25} perfectDrawEnabled={false} />;
             }
             const colors = COLORS[element.color ?? "grey"];
             return (
@@ -1773,7 +1795,7 @@ export function KonvaBoard({
                   }
                   setEditing({ id: element.id, value: element.text });
                 }}
-                onDragStart={(event) => {
+                onDragStart={() => {
                   gestureStartRef.current = cloneDocument(documentRef.current);
                   elementGestureActiveRef.current = true;
                 }}
@@ -1825,7 +1847,7 @@ export function KonvaBoard({
                     updateElements([{ id: element.id, patch: { x: event.target.x(), y: event.target.y() } }], true);
                   }
                 }}
-                onTransformStart={(event) => {
+                onTransformStart={() => {
                   gestureStartRef.current = cloneDocument(documentRef.current);
                   elementGestureActiveRef.current = true;
                 }}
@@ -1940,7 +1962,14 @@ export function KonvaBoard({
             </Group>
           ) : null}
           {selectionMarquee ? <Rect x={selectionMarquee.x} y={selectionMarquee.y} width={selectionMarquee.width} height={selectionMarquee.height} fill="rgba(124, 58, 237, 0.12)" stroke="#7c3aed" strokeWidth={1.5} dash={[6, 4]} listening={false} /> : null}
-          <Transformer ref={transformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={(oldBox, newBox) => newBox.width < 48 || newBox.height < 36 ? oldBox : newBox} />
+          <Transformer
+            ref={transformerRef}
+            rotateEnabled={false}
+            flipEnabled={false}
+            ignoreStroke={true}
+            shouldOverdrawWholeArea={true}
+            boundBoxFunc={(oldBox, newBox) => newBox.width < 48 || newBox.height < 36 ? oldBox : newBox}
+          />
         </Layer>
       </Stage>
       {(() => {

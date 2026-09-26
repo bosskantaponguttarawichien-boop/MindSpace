@@ -27,6 +27,22 @@ export function elementBounds(element: BoardElement): Bounds {
   };
 }
 
+export function elementsBoundingBox(elements: BoardElement[]): Bounds | null {
+  if (elements.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const element of elements) {
+    const b = elementBounds(element);
+    if (b.x < minX) minX = b.x;
+    if (b.y < minY) minY = b.y;
+    if (b.x + b.width > maxX) maxX = b.x + b.width;
+    if (b.y + b.height > maxY) maxY = b.y + b.height;
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
 export function isElementContainedByBounds(element: BoardElement, bounds: Bounds): boolean {
   const candidate = elementBounds(element);
   return candidate.x >= bounds.x &&

@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { BoardElement } from "@/domain/board/board-document";
-import { boundsFromPoints, elementBounds, elementCenter, getConnectionEndpoints, getConnectionPathPoints, getGroupedElbowPaths, getShapeIntersection, isElementContainedByBounds } from "@/domain/board/geometry";
+import { boundsFromPoints, elementBounds, elementCenter, elementsBoundingBox, getConnectionEndpoints, getConnectionPathPoints, getGroupedElbowPaths, getShapeIntersection, isElementContainedByBounds } from "@/domain/board/geometry";
 
 describe("geometry", () => {
+  it("calculates combined bounding box of multiple elements", () => {
+    const el1: BoardElement = { id: "element:1", kind: "rectangle", x: 10, y: 20, width: 100, height: 50, text: "" };
+    const el2: BoardElement = { id: "element:2", kind: "note", x: 150, y: 60, width: 80, height: 100, text: "" };
+    expect(elementsBoundingBox([el1, el2])).toEqual({
+      x: 10,
+      y: 20,
+      width: 220, // max X is 150+80=230, min X is 10, 230-10=220
+      height: 140, // max Y is 60+100=160, min Y is 20, 160-20=140
+    });
+    expect(elementsBoundingBox([])).toBeNull();
+  });
   it("calculates element center correctly", () => {
     const element: BoardElement = {
       id: "element:1",

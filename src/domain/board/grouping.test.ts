@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandSelectionWithGroups, groupElements, ungroupElements } from "@/domain/board/grouping";
+import { expandSelectionWithGroups, getGroupMembers, groupElements, ungroupElements } from "@/domain/board/grouping";
 import type { BoardElement } from "@/domain/board/board-document";
 
 const elements: BoardElement[] = [
@@ -58,5 +58,31 @@ describe("expandSelectionWithGroups", () => {
   it("merges groups reached through an additive multi-selection", () => {
     const result = expandSelectionWithGroups(["element:a", "element:c"], grouped);
     expect(new Set(result)).toEqual(new Set(["element:a", "element:b", "element:c"]));
+  });
+
+  it("does not expand members of the currently focused group", () => {
+    const result = expandSelectionWithGroups(["element:a"], grouped, "group:1");
+    expect(result).toEqual(["element:a"]);
+  });
+
+  it("still expands members of other groups when another group is focused", () => {
+    const multiGrouped = [
+      ...grouped,
+      { id: "element:d", kind: "rectangle", x: 500, y: 20, width: 100, height: 80, text: "D", groupId: "group:2" },
+      { id: "element:e", kind: "rectangle", x: 600, y: 20, width: 100, height: 80, text: "E", groupId: "group:2" },
+    ] as BoardElement[];
+    // Group 1 is focused, so selecting element:a inside group:1 does not expand to element:b
+    expect(expandSelectionWithGroups(["element:a"], multiGrouped, "group:1")).toEqual(["element:a"]);
+    // But selecting element:d in group:2 expands to group:2 members
+    expect(new Set(expandSelectionWithGroups(["element:d"], multiGrouped, "group:1"))).toEqual(new Set(["element:d", "element:e"]));
+  });
+});
+
+describe("getGroupMembers", () => {
+  const grouped = groupElements(elements, ["element:a", "element:b"], "group:1");
+
+  it("returns all IDs matching the groupId", () => {
+    expect(getGroupMembers(grouped, "group:1")).toEqual(["element:a", "element:b"]);
+    expect(getGroupMembers(grouped, "group:unknown")).toEqual([]);
   });
 });

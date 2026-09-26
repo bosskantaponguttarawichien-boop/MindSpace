@@ -7,7 +7,7 @@ import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Stage, T
 import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, textStyleFor, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
 import { textStyleForScope, type BoardTextStyles } from "@/domain/board/text-style-scope";
-import { boundsFromPoints, getConnectionEndpoints, getConnectionPathPoints, getGroupedElbowPaths, isElementContainedByBounds, type Bounds } from "@/domain/board/geometry";
+import { boundsFromPoints, elementsBoundingBox, getConnectionEndpoints, getConnectionPathPoints, getGroupedElbowPaths, isElementContainedByBounds, type Bounds } from "@/domain/board/geometry";
 import { isElementLocked, isSelectionLocked, setElementsLocked } from "@/domain/board/element-lock";
 import { reorderElements, type LayerPlacement } from "@/domain/board/element-order";
 import { expandSelectionWithGroups, groupElements, ungroupElements } from "@/domain/board/grouping";
@@ -193,12 +193,12 @@ function BoardTable({
         height={element.height}
         fill="#ffffff"
         stroke={colors.stroke}
-        strokeWidth={1.5}
-        cornerRadius={6}
+        strokeWidth={2}
+        cornerRadius={18}
         shadowColor="#0f172a"
-        shadowOpacity={0.06}
-        shadowBlur={6}
-        shadowOffsetY={2}
+        shadowOpacity={0.08}
+        shadowBlur={12}
+        shadowOffsetY={4}
         perfectDrawEnabled={false}
       />
       <Rect
@@ -207,26 +207,51 @@ function BoardTable({
         width={element.width}
         height={cellHeight}
         fill={colors.stroke}
-        opacity={0.12}
-        cornerRadius={[6, 6, 0, 0]}
+        opacity={0.35}
+        cornerRadius={[18, 18, 0, 0]}
         perfectDrawEnabled={false}
       />
+      <Line
+        points={[0, cellHeight, element.width, cellHeight]}
+        stroke={colors.stroke}
+        strokeWidth={1.5}
+        opacity={0.4}
+      />
+      {Array.from({ length: rows - 1 }, (_, index) => {
+        const r = index + 1;
+        if (r % 2 === 0) {
+          return (
+            <Rect
+              key={`zebra-${r}`}
+              x={0}
+              y={r * cellHeight}
+              width={element.width}
+              height={cellHeight}
+              fill={colors.fill}
+              opacity={0.35}
+              cornerRadius={r === rows - 1 ? [0, 0, 18, 18] : 0}
+              perfectDrawEnabled={false}
+            />
+          );
+        }
+        return null;
+      })}
       {vLines.map((x, i) => (
         <Line
           key={`v-${i}`}
-          points={[x, 0, x, element.height]}
+          points={[x, cellHeight, x, element.height]}
           stroke={colors.stroke}
           strokeWidth={1}
-          opacity={0.35}
+          opacity={0.16}
         />
       ))}
-      {hLines.map((y, i) => (
+      {hLines.slice(1).map((y, i) => (
         <Line
-          key={`h-${i}`}
+          key={`h-${i + 1}`}
           points={[0, y, element.width, y]}
           stroke={colors.stroke}
-          strokeWidth={i === 0 ? 1.5 : 1}
-          opacity={i === 0 ? 0.6 : 0.3}
+          strokeWidth={1}
+          opacity={0.18}
         />
       ))}
       {data.slice(0, rows).flatMap((row, r) =>
@@ -247,10 +272,10 @@ function BoardTable({
               width={cellWidth}
               height={cellHeight}
               text={cellText}
-              padding={6}
-              fill="#0f172a"
+              padding={8}
+              fill={r === 0 ? "#0f172a" : "#1e293b"}
               fontFamily="Geist, Noto Sans Thai, sans-serif"
-              fontSize={fontSize}
+              fontSize={r === 0 ? Math.max(12, fontSize) : fontSize}
               fontStyle={r === 0 || textStyle.fontWeight === "bold" ? "bold" : "normal"}
               lineHeight={1.25}
               verticalAlign={textStyle.verticalAlign ?? "middle"}
@@ -405,12 +430,32 @@ export function KonvaBoard({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [document, setDocument] = useState(() => cloneDocument(initialDocument));
   const [selection, setSelection] = useState<BoardElementId[]>([]);
+  const [focusedGroupId, setFocusedGroupId] = useState<string | null>(null);
+  const effectiveFocusedGroupId = useMemo(() => {
+    if (!focusedGroupId) return null;
+    return document.elements.some((element) => element.groupId === focusedGroupId) ? focusedGroupId : null;
+  }, [document.elements, focusedGroupId]);
+
+  const focusedGroupIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    focusedGroupIdRef.current = effectiveFocusedGroupId;
+  }, [effectiveFocusedGroupId]);
   const [connectorStart, setConnectorStart] = useState<BoardElementId | null>(null);
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: BoardElementId; value: string; row?: number; col?: number } | null>(null);
   const [viewport, setViewport] = useState(INITIAL_VIEWPORT);
   const [isSpacePanning, setIsSpacePanning] = useState(false);
   const [selectionMarquee, setSelectionMarquee] = useState<Bounds | null>(null);
+
+  const focusedGroupElements = useMemo(() => {
+    if (!effectiveFocusedGroupId) return [];
+    return document.elements.filter((element) => element.groupId === effectiveFocusedGroupId);
+  }, [document.elements, effectiveFocusedGroupId]);
+
+  const focusedGroupBounds = useMemo(() => {
+    if (focusedGroupElements.length === 0) return null;
+    return elementsBoundingBox(focusedGroupElements);
+  }, [focusedGroupElements]);
   const [isCoarsePointer, setIsCoarsePointer] = useState(() => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches);
   const [size, setSize] = useState<Size>({ width: 900, height: 650 });
   const { t } = useLocale();
@@ -624,6 +669,8 @@ export function KonvaBoard({
         dragPreviewRef.current.set(id, position);
         updateConnectedArrows(id, position.x, position.y);
       }
+      transformerRef.current?.update();
+      transformerRef.current?.getLayer()?.batchDraw();
     });
   }, [updateConnectedArrows]);
 
@@ -710,6 +757,7 @@ export function KonvaBoard({
   const ungroupSelection = useCallback(() => {
     const elements = ungroupElements(documentRef.current.elements, selectionRef.current);
     if (elements === documentRef.current.elements) return;
+    setFocusedGroupId(null);
     commit({ ...documentRef.current, elements });
   }, [commit]);
 
@@ -1162,6 +1210,22 @@ export function KonvaBoard({
         setIsSpacePanning(true);
         return;
       }
+      if (event.key === "Escape") {
+        if (focusedGroupIdRef.current) {
+          event.preventDefault();
+          const currentGroupMembers = documentRef.current.elements
+            .filter((el) => el.groupId === focusedGroupIdRef.current)
+            .map((el) => el.id);
+          setFocusedGroupId(null);
+          setSelection(currentGroupMembers);
+          return;
+        }
+        if (selectionRef.current.length > 0) {
+          event.preventDefault();
+          setSelection([]);
+          return;
+        }
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
         event.preventDefault();
         if (event.shiftKey) redo(); else undo();
@@ -1237,7 +1301,7 @@ export function KonvaBoard({
     if (effectiveTool === "eraser" || effectiveTool === "hand") return;
     clearLongPress();
     longPressTimerRef.current = window.setTimeout(() => {
-      const groupMembers = expandSelectionWithGroups([id], documentRef.current.elements);
+      const groupMembers = expandSelectionWithGroups([id], documentRef.current.elements, focusedGroupIdRef.current);
       setSelection((current) => current.includes(id)
         ? current.filter((selectedId) => !groupMembers.includes(selectedId))
         : [...new Set([...current, ...groupMembers])]);
@@ -1354,7 +1418,7 @@ export function KonvaBoard({
     const containedIds = documentRef.current.elements
       .filter((element) => isElementContainedByBounds(element, bounds))
       .map((element) => element.id);
-    const selectedIds = expandSelectionWithGroups(containedIds, documentRef.current.elements);
+    const selectedIds = expandSelectionWithGroups(containedIds, documentRef.current.elements, focusedGroupIdRef.current);
     setSelectedConnection(null);
     setSelection((current) => start.additive ? [...new Set([...current, ...selectedIds])] : selectedIds);
     return true;
@@ -1370,6 +1434,7 @@ export function KonvaBoard({
     }
     if (event.target !== event.target.getStage()) return;
     if (effectiveTool === "select") {
+      setFocusedGroupId(null);
       const point = worldPointer();
       if (event.evt.pointerType === "mouse" && event.evt.button === 0 && point) {
         selectionMarqueeStartRef.current = { point, additive: event.evt.shiftKey };
@@ -1448,7 +1513,12 @@ export function KonvaBoard({
     }
     if (effectiveTool !== "select") return;
     setSelectedConnection(null);
-    const groupMembers = expandSelectionWithGroups([id], documentRef.current.elements);
+    const clickedElement = documentRef.current.elements.find((el) => el.id === id);
+    if (focusedGroupIdRef.current && clickedElement?.groupId !== focusedGroupIdRef.current) {
+      setFocusedGroupId(null);
+    }
+    const currentFocusedGroup = clickedElement?.groupId === focusedGroupIdRef.current ? focusedGroupIdRef.current : null;
+    const groupMembers = expandSelectionWithGroups([id], documentRef.current.elements, currentFocusedGroup);
     if (!event.evt.shiftKey) {
       setSelection(groupMembers);
       return;
@@ -1657,8 +1727,8 @@ export function KonvaBoard({
                   onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }}
                   onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }}
                 />
-                {headType === "circle" && pointerAtEnding ? <Ellipse x={end.x} y={end.y} radiusX={6} radiusY={6} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
-                {headType === "circle" && pointerAtBeginning ? <Ellipse x={start.x} y={start.y} radiusX={6} radiusY={6} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
+                {headType === "circle" && pointerAtEnding ? <Ellipse x={end.x} y={end.y} radiusX={6.5} radiusY={6.5} fill={strokeColor} stroke="#ffffff" strokeWidth={2} shadowColor="#0f172a" shadowBlur={3} shadowOpacity={0.25} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
+                {headType === "circle" && pointerAtBeginning ? <Ellipse x={start.x} y={start.y} radiusX={6.5} radiusY={6.5} fill={strokeColor} stroke="#ffffff" strokeWidth={2} shadowColor="#0f172a" shadowBlur={3} shadowOpacity={0.25} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
                 {headType === "diamond" && pointerAtEnding ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={end.x} y={end.y} rotation={endAngleDeg} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
                 {headType === "diamond" && pointerAtBeginning ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={start.x} y={start.y} rotation={startAngleDeg + 180} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
               </Group>
@@ -1690,27 +1760,82 @@ export function KonvaBoard({
                 onDblClick={(event) => {
                   event.cancelBubble = true;
                   if (isElementLocked(element)) return;
+                  if (element.groupId && effectiveFocusedGroupId !== element.groupId) {
+                    setFocusedGroupId(element.groupId);
+                    setSelection([element.id]);
+                    return;
+                  }
                   setEditing({ id: element.id, value: element.text });
                 }}
                 onDblTap={(event) => {
                   event.cancelBubble = true;
                   if (isElementLocked(element)) return;
+                  if (element.groupId && effectiveFocusedGroupId !== element.groupId) {
+                    setFocusedGroupId(element.groupId);
+                    setSelection([element.id]);
+                    return;
+                  }
                   setEditing({ id: element.id, value: element.text });
                 }}
                 onDragStart={(event) => {
                   gestureStartRef.current = cloneDocument(documentRef.current);
                   elementGestureActiveRef.current = true;
                   event.target.cache();
+                  if (selectionRef.current.includes(element.id) && selectionRef.current.length > 1) {
+                    for (const id of selectionRef.current) {
+                      if (id !== element.id) shapeRefs.current.get(id)?.cache();
+                    }
+                  }
                 }}
                 onDragMove={(event) => {
-                  scheduleMove([{ id: element.id, x: event.target.x(), y: event.target.y() }]);
+                  if (selectionRef.current.includes(element.id) && selectionRef.current.length > 1) {
+                    const original = gestureStartRef.current?.elements.find((e) => e.id === element.id) ?? element;
+                    const dx = event.target.x() - original.x;
+                    const dy = event.target.y() - original.y;
+                    const moves: { id: BoardElementId; x: number; y: number }[] = [];
+                    for (const id of selectionRef.current) {
+                      if (id === element.id) {
+                        moves.push({ id, x: event.target.x(), y: event.target.y() });
+                      } else {
+                        const startPos = gestureStartRef.current?.elements.find((e) => e.id === id);
+                        if (startPos) {
+                          const nextX = startPos.x + dx;
+                          const nextY = startPos.y + dy;
+                          moves.push({ id, x: nextX, y: nextY });
+                          shapeRefs.current.get(id)?.position({ x: nextX, y: nextY });
+                        }
+                      }
+                    }
+                    scheduleMove(moves);
+                  } else {
+                    scheduleMove([{ id: element.id, x: event.target.x(), y: event.target.y() }]);
+                  }
                 }}
                 onDragEnd={(event) => {
                   cancelPendingMove();
                   dragPreviewRef.current = new Map();
                   elementGestureActiveRef.current = false;
                   event.target.clearCache();
-                  updateElements([{ id: element.id, patch: { x: event.target.x(), y: event.target.y() } }], true);
+                  if (selectionRef.current.includes(element.id) && selectionRef.current.length > 1) {
+                    const original = gestureStartRef.current?.elements.find((e) => e.id === element.id) ?? element;
+                    const dx = event.target.x() - original.x;
+                    const dy = event.target.y() - original.y;
+                    const patches: { id: BoardElementId; patch: { x: number; y: number } }[] = [];
+                    for (const id of selectionRef.current) {
+                      shapeRefs.current.get(id)?.clearCache();
+                      if (id === element.id) {
+                        patches.push({ id, patch: { x: event.target.x(), y: event.target.y() } });
+                      } else {
+                        const startPos = gestureStartRef.current?.elements.find((e) => e.id === id);
+                        if (startPos) {
+                          patches.push({ id, patch: { x: startPos.x + dx, y: startPos.y + dy } });
+                        }
+                      }
+                    }
+                    updateElements(patches, true);
+                  } else {
+                    updateElements([{ id: element.id, patch: { x: event.target.x(), y: event.target.y() } }], true);
+                  }
                 }}
                 onTransformStart={(event) => {
                   gestureStartRef.current = cloneDocument(documentRef.current);
@@ -1730,7 +1855,14 @@ export function KonvaBoard({
                 {element.kind === "image"
                   ? <BoardImage element={element} />
                   : element.kind === "table"
-                    ? <BoardTable element={element} colors={colors} onCellDblClick={(r, c, text) => setEditing({ id: element.id, value: text, row: r, col: c })} />
+                    ? <BoardTable element={element} colors={colors} onCellDblClick={(r, c, text) => {
+                        if (element.groupId && effectiveFocusedGroupId !== element.groupId) {
+                          setFocusedGroupId(element.groupId);
+                          setSelection([element.id]);
+                          return;
+                        }
+                        setEditing({ id: element.id, value: text, row: r, col: c });
+                      }} />
                   : element.kind === "ellipse"
                   ? <Ellipse x={element.width / 2} y={element.height / 2} radiusX={element.width / 2} radiusY={element.height / 2} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />
                   : element.kind === "diamond"
@@ -1748,10 +1880,10 @@ export function KonvaBoard({
                               fill={colors.fill}
                               lineJoin="round"
                               shadowColor="#0f172a"
-                              shadowOpacity={isCoarsePointer ? 0 : 0.16}
-                              shadowBlur={isCoarsePointer ? 0 : 12}
-                              shadowOffsetY={6}
-                              shadowOffsetX={2}
+                              shadowOpacity={isCoarsePointer ? 0 : 0.12}
+                              shadowBlur={isCoarsePointer ? 0 : 14}
+                              shadowOffsetY={5}
+                              shadowOffsetX={1}
                               perfectDrawEnabled={false}
                               shadowForStrokeEnabled={false}
                             />
@@ -1763,14 +1895,14 @@ export function KonvaBoard({
                               lineJoin="round"
                             />
                             <Rect
-                              x={element.width / 2 - 24}
+                              x={element.width / 2 - 26}
                               y={-8}
-                              width={48}
-                              height={14}
-                              fill="rgba(255, 255, 255, 0.65)"
-                              stroke="rgba(148, 163, 184, 0.45)"
+                              width={52}
+                              height={16}
+                              fill="rgba(254, 240, 138, 0.55)"
+                              stroke="rgba(234, 179, 8, 0.3)"
                               strokeWidth={1}
-                              cornerRadius={2}
+                              cornerRadius={3}
                               rotation={-1.5}
                             />
                           </Group>
@@ -1778,7 +1910,7 @@ export function KonvaBoard({
                       })()
                   : element.kind === "text"
                     ? <Rect width={element.width} height={element.height} fill="rgba(0, 0, 0, 0.001)" />
-                    : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} cornerRadius={16} shadowColor="#475569" shadowOpacity={isCoarsePointer ? 0 : 0.12} shadowBlur={isCoarsePointer ? 0 : 10} shadowOffsetY={4} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
+                    : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2.5} cornerRadius={18} shadowColor="#0f172a" shadowOpacity={isCoarsePointer ? 0 : 0.08} shadowBlur={isCoarsePointer ? 0 : 12} shadowOffsetY={4} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
                 {element.kind === "image" || element.kind === "table" || editing?.id === element.id ? null : <MarkdownText element={element} color={colors.text} />}
                 {isElementLocked(element) ? (
                   <Group x={element.width - 18} y={-20} listening={false} opacity={0.85}>
@@ -1789,6 +1921,38 @@ export function KonvaBoard({
               </Group>
             );
           })}
+          {focusedGroupBounds ? (
+            <Group listening={false}>
+              <Rect
+                x={focusedGroupBounds.x - 8}
+                y={focusedGroupBounds.y - 8}
+                width={focusedGroupBounds.width + 16}
+                height={focusedGroupBounds.height + 16}
+                stroke="#3b82f6"
+                strokeWidth={1.5}
+                dash={[6, 4]}
+                cornerRadius={8}
+                opacity={0.8}
+              />
+              <Group x={focusedGroupBounds.x - 8} y={focusedGroupBounds.y - 26}>
+                <Rect
+                  width={50}
+                  height={18}
+                  fill="#3b82f6"
+                  cornerRadius={4}
+                />
+                <Text
+                  text="Group"
+                  x={7}
+                  y={3}
+                  fill="#ffffff"
+                  fontSize={11}
+                  fontFamily="sans-serif"
+                  fontStyle="bold"
+                />
+              </Group>
+            </Group>
+          ) : null}
           {selectionMarquee ? <Rect x={selectionMarquee.x} y={selectionMarquee.y} width={selectionMarquee.width} height={selectionMarquee.height} fill="rgba(124, 58, 237, 0.12)" stroke="#7c3aed" strokeWidth={1.5} dash={[6, 4]} listening={false} /> : null}
           <Transformer ref={transformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={(oldBox, newBox) => newBox.width < 48 || newBox.height < 36 ? oldBox : newBox} />
         </Layer>

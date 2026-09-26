@@ -22,11 +22,20 @@ export function ungroupElements(elements: BoardElement[], ids: BoardElementId[])
   });
 }
 
-/** Expands a selection so selecting one grouped element selects every sibling sharing its group(s). */
-export function expandSelectionWithGroups(ids: BoardElementId[], elements: BoardElement[]): BoardElementId[] {
+/**
+ * Expands a selection so selecting one grouped element selects every sibling sharing its group(s),
+ * unless that group is currently focused (drill-down isolation mode).
+ */
+export function expandSelectionWithGroups(
+  ids: BoardElementId[],
+  elements: BoardElement[],
+  focusedGroupId?: string | null,
+): BoardElementId[] {
   const idSet = new Set(ids);
   const groupIds = new Set(
-    elements.filter((element) => idSet.has(element.id) && element.groupId).map((element) => element.groupId as string),
+    elements
+      .filter((element) => idSet.has(element.id) && element.groupId && element.groupId !== focusedGroupId)
+      .map((element) => element.groupId as string),
   );
   if (groupIds.size === 0) return ids;
   const expanded = new Set(ids);
@@ -34,4 +43,9 @@ export function expandSelectionWithGroups(ids: BoardElementId[], elements: Board
     if (element.groupId && groupIds.has(element.groupId)) expanded.add(element.id);
   }
   return [...expanded];
+}
+
+/** Returns the element IDs belonging to a specific group. */
+export function getGroupMembers(elements: BoardElement[], groupId: string): BoardElementId[] {
+  return elements.filter((element) => element.groupId === groupId).map((element) => element.id);
 }

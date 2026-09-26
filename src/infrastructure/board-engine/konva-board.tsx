@@ -196,9 +196,10 @@ function BoardTable({
         strokeWidth={2}
         cornerRadius={18}
         shadowColor="#0f172a"
-        shadowOpacity={0.08}
-        shadowBlur={12}
-        shadowOffsetY={4}
+        shadowOpacity={0.06}
+        shadowBlur={6}
+        shadowOffsetY={3}
+        shadowForStrokeEnabled={false}
         perfectDrawEnabled={false}
       />
       <Rect
@@ -609,10 +610,7 @@ export function KonvaBoard({
       const preview = dragPreviewRef.current;
       dragPreviewRef.current = new Map();
       if (preview.size === 0) return;
-      const patches = [...preview].map(([id, position]) => {
-        shapeRefs.current.get(id)?.clearCache();
-        return { id, patch: position };
-      });
+      const patches = [...preview].map(([id, position]) => ({ id, patch: position }));
       updateElements(patches, true);
     }
     window.addEventListener("blur", finishInterruptedGesture);
@@ -641,7 +639,6 @@ export function KonvaBoard({
       const { start, end } = getConnectionEndpoints(from, to);
       const arrow = arrowRefs.current.get(connection.id);
       arrow?.points(getConnectionPathPoints(connection.pathStyle, start, end));
-      arrow?.getLayer()?.batchDraw();
     }
 
     for (const fromId of elbowGroupIds) {
@@ -652,7 +649,6 @@ export function KonvaBoard({
       for (const [connectionId, { points }] of paths) {
         const arrow = arrowRefs.current.get(connectionId);
         arrow?.points(points);
-        arrow?.getLayer()?.batchDraw();
       }
     }
   }, []);
@@ -1727,8 +1723,8 @@ export function KonvaBoard({
                   onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }}
                   onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }}
                 />
-                {headType === "circle" && pointerAtEnding ? <Ellipse x={end.x} y={end.y} radiusX={6.5} radiusY={6.5} fill={strokeColor} stroke="#ffffff" strokeWidth={2} shadowColor="#0f172a" shadowBlur={3} shadowOpacity={0.25} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
-                {headType === "circle" && pointerAtBeginning ? <Ellipse x={start.x} y={start.y} radiusX={6.5} radiusY={6.5} fill={strokeColor} stroke="#ffffff" strokeWidth={2} shadowColor="#0f172a" shadowBlur={3} shadowOpacity={0.25} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
+                {headType === "circle" && pointerAtEnding ? <Ellipse x={end.x} y={end.y} radiusX={6.5} radiusY={6.5} fill={strokeColor} stroke="#ffffff" strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
+                {headType === "circle" && pointerAtBeginning ? <Ellipse x={start.x} y={start.y} radiusX={6.5} radiusY={6.5} fill={strokeColor} stroke="#ffffff" strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
                 {headType === "diamond" && pointerAtEnding ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={end.x} y={end.y} rotation={endAngleDeg} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
                 {headType === "diamond" && pointerAtBeginning ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={start.x} y={start.y} rotation={startAngleDeg + 180} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
               </Group>
@@ -1780,12 +1776,6 @@ export function KonvaBoard({
                 onDragStart={(event) => {
                   gestureStartRef.current = cloneDocument(documentRef.current);
                   elementGestureActiveRef.current = true;
-                  event.target.cache();
-                  if (selectionRef.current.includes(element.id) && selectionRef.current.length > 1) {
-                    for (const id of selectionRef.current) {
-                      if (id !== element.id) shapeRefs.current.get(id)?.cache();
-                    }
-                  }
                 }}
                 onDragMove={(event) => {
                   if (selectionRef.current.includes(element.id) && selectionRef.current.length > 1) {
@@ -1815,14 +1805,12 @@ export function KonvaBoard({
                   cancelPendingMove();
                   dragPreviewRef.current = new Map();
                   elementGestureActiveRef.current = false;
-                  event.target.clearCache();
                   if (selectionRef.current.includes(element.id) && selectionRef.current.length > 1) {
                     const original = gestureStartRef.current?.elements.find((e) => e.id === element.id) ?? element;
                     const dx = event.target.x() - original.x;
                     const dy = event.target.y() - original.y;
                     const patches: { id: BoardElementId; patch: { x: number; y: number } }[] = [];
                     for (const id of selectionRef.current) {
-                      shapeRefs.current.get(id)?.clearCache();
                       if (id === element.id) {
                         patches.push({ id, patch: { x: event.target.x(), y: event.target.y() } });
                       } else {
@@ -1840,7 +1828,6 @@ export function KonvaBoard({
                 onTransformStart={(event) => {
                   gestureStartRef.current = cloneDocument(documentRef.current);
                   elementGestureActiveRef.current = true;
-                  event.target.cache();
                 }}
                 onTransformEnd={(event) => {
                   const node = event.target;
@@ -1848,7 +1835,6 @@ export function KonvaBoard({
                   const height = Math.max(36, element.height * node.scaleY());
                   node.scale({ x: 1, y: 1 });
                   elementGestureActiveRef.current = false;
-                  node.clearCache();
                   updateElement(element.id, { x: node.x(), y: node.y(), width, height }, true);
                 }}
               >
@@ -1880,9 +1866,9 @@ export function KonvaBoard({
                               fill={colors.fill}
                               lineJoin="round"
                               shadowColor="#0f172a"
-                              shadowOpacity={isCoarsePointer ? 0 : 0.12}
-                              shadowBlur={isCoarsePointer ? 0 : 14}
-                              shadowOffsetY={5}
+                              shadowOpacity={isCoarsePointer ? 0 : 0.08}
+                              shadowBlur={isCoarsePointer ? 0 : 8}
+                              shadowOffsetY={4}
                               shadowOffsetX={1}
                               perfectDrawEnabled={false}
                               shadowForStrokeEnabled={false}
@@ -1910,7 +1896,7 @@ export function KonvaBoard({
                       })()
                   : element.kind === "text"
                     ? <Rect width={element.width} height={element.height} fill="rgba(0, 0, 0, 0.001)" />
-                    : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2.5} cornerRadius={18} shadowColor="#0f172a" shadowOpacity={isCoarsePointer ? 0 : 0.08} shadowBlur={isCoarsePointer ? 0 : 12} shadowOffsetY={4} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
+                    : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2.5} cornerRadius={18} shadowColor="#0f172a" shadowOpacity={isCoarsePointer ? 0 : 0.06} shadowBlur={isCoarsePointer ? 0 : 8} shadowOffsetY={3} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
                 {element.kind === "image" || element.kind === "table" || editing?.id === element.id ? null : <MarkdownText element={element} color={colors.text} />}
                 {isElementLocked(element) ? (
                   <Group x={element.width - 18} y={-20} listening={false} opacity={0.85}>

@@ -170,6 +170,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
         onToolChange={setActiveTool}
         onSetShape={(shape) => engine?.setSelectionShape(shape)}
         onSetTextStyle={setTextFormatting}
+        onEditTitle={() => engine?.editSelectedTitle()}
         onImportImage={() => inputRef.current?.click()}
         onImportPdf={() => pdfInputRef.current?.click()}
         onAddChildNode={() => engine?.addChildNode()}

@@ -3,7 +3,7 @@
 import Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
+import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Path, Rect, Stage, Text, Transformer } from "react-konva";
 import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, textStyleFor, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
 import { textStyleForScope, type BoardTextStyles } from "@/domain/board/text-style-scope";
@@ -150,15 +150,20 @@ function BoardTable({
   element,
   colors,
   onCellDblClick,
+  onTitleDblClick,
+  titleEditing,
 }: {
   element: BoardElement;
   colors: { fill: string; stroke: string; text: string };
   onCellDblClick: (r: number, c: number, text: string) => void;
+  onTitleDblClick: () => void;
+  titleEditing: boolean;
 }) {
   const rows = Math.max(1, element.rows ?? 3);
   const cols = Math.max(1, element.cols ?? 3);
+  const titleHeight = element.title || titleEditing ? 38 : 0;
   const cellWidth = element.width / cols;
-  const cellHeight = element.height / rows;
+  const cellHeight = Math.max(1, element.height - titleHeight) / rows;
 
   const data: string[][] = useMemo(() => {
     if (element.tableData && element.tableData.length > 0) {
@@ -204,16 +209,16 @@ function BoardTable({
       />
       <Rect
         x={0}
-        y={0}
+        y={titleHeight}
         width={element.width}
         height={cellHeight}
         fill={colors.stroke}
         opacity={0.35}
-        cornerRadius={[18, 18, 0, 0]}
+        cornerRadius={titleHeight ? 0 : [18, 18, 0, 0]}
         perfectDrawEnabled={false}
       />
       <Line
-        points={[0, cellHeight, element.width, cellHeight]}
+        points={[0, titleHeight + cellHeight, element.width, titleHeight + cellHeight]}
         stroke={colors.stroke}
         strokeWidth={1.5}
         opacity={0.4}
@@ -225,7 +230,7 @@ function BoardTable({
             <Rect
               key={`zebra-${r}`}
               x={0}
-              y={r * cellHeight}
+              y={titleHeight + r * cellHeight}
               width={element.width}
               height={cellHeight}
               fill={colors.fill}
@@ -240,7 +245,7 @@ function BoardTable({
       {vLines.map((x, i) => (
         <Line
           key={`v-${i}`}
-          points={[x, cellHeight, x, element.height]}
+          points={[x, titleHeight, x, element.height]}
           stroke={colors.stroke}
           strokeWidth={1}
           opacity={0.16}
@@ -249,7 +254,7 @@ function BoardTable({
       {hLines.slice(1).map((y, i) => (
         <Line
           key={`h-${i + 1}`}
-          points={[0, y, element.width, y]}
+          points={[0, titleHeight + y, element.width, titleHeight + y]}
           stroke={colors.stroke}
           strokeWidth={1}
           opacity={0.18}
@@ -260,7 +265,7 @@ function BoardTable({
           <Group
             key={`cell-${r}-${c}`}
             x={c * cellWidth}
-            y={r * cellHeight}
+            y={titleHeight + r * cellHeight}
             width={cellWidth}
             height={cellHeight}
             onDblClick={(event) => {
@@ -287,6 +292,15 @@ function BoardTable({
           </Group>
         ))
       )}
+      {titleHeight ? (
+        <Group onDblClick={(event) => { event.cancelBubble = true; onTitleDblClick(); }}>
+          <Rect width={element.width} height={titleHeight} fill="transparent" />
+          <Rect x={12} y={7} width={24} height={24} cornerRadius={6} fill={colors.fill} />
+          <Path x={17} y={12} data="M1 1H15V15H1z M1 5H15 M5 1V15" stroke={colors.stroke} strokeWidth={1.5} listening={false} />
+          <Text x={44} y={9} width={element.width - 55} text={titleEditing ? "" : element.title ?? ""} fill="#1e293b" fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={16} fontStyle="bold" />
+          <Line points={[0, titleHeight, element.width, titleHeight]} stroke={colors.stroke} opacity={0.25} strokeWidth={1} />
+        </Group>
+      ) : null}
     </Group>
   );
 }
@@ -348,13 +362,14 @@ function MarkdownText({ element, color }: { element: BoardElement; color: string
 
   const totalTextHeight = lineHeights.reduce((sum, item) => sum + item.height, 0);
   const verticalAlign = textStyle.verticalAlign ?? "top";
-  let startY = padding;
+  const titleOffset = element.kind === "note" && element.title ? 40 : 0;
+  let startY = padding + titleOffset;
   if (element.kind !== "text") {
-    const availableHeight = Math.max(0, element.height - padding * 2);
+    const availableHeight = Math.max(0, element.height - padding * 2 - titleOffset);
     if (verticalAlign === "middle") {
-      startY = Math.max(padding, padding + (availableHeight - totalTextHeight) / 2);
+      startY = Math.max(padding + titleOffset, padding + titleOffset + (availableHeight - totalTextHeight) / 2);
     } else if (verticalAlign === "bottom") {
-      startY = Math.max(padding, element.height - padding - totalTextHeight);
+      startY = Math.max(padding + titleOffset, element.height - padding - totalTextHeight);
     }
   }
 
@@ -411,12 +426,13 @@ export function KonvaBoard({
   const pastRef = useRef<BoardDocument[]>([]);
   const futureRef = useRef<BoardDocument[]>([]);
   const clipboardRef = useRef<BoardDocument | null>(null);
-  const connectionDefaultsRef = useRef<Partial<Pick<BoardConnection, "style" | "lineStyle" | "headType" | "pathStyle" | "color">>>({});
+  const connectionDefaultsRef = useRef<Partial<Pick<BoardConnection, "style" | "lineStyle" | "headType" | "pathStyle" | "color">>>({ style: "none", pathStyle: "curved", color: "violet" });
   const elementColorRef = useRef<BoardColor | null>(null);
   const gestureStartRef = useRef<BoardDocument | null>(null);
   const elementGestureActiveRef = useRef(false);
   const dragPreviewRef = useRef<Map<BoardElementId, { x: number; y: number }>>(new Map());
   const arrowRefs = useRef(new Map<string, Konva.Arrow>());
+  const anchorRefs = useRef(new Map<string, Konva.Ellipse>());
   const drawStartRef = useRef<{ id: BoardElementId; document: BoardDocument } | null>(null);
   const eraseStartRef = useRef<BoardDocument | null>(null);
   const selectionMarqueeStartRef = useRef<SelectionMarqueeStart | null>(null);
@@ -447,7 +463,7 @@ export function KonvaBoard({
   }, [effectiveFocusedGroupId]);
   const [connectorStart, setConnectorStart] = useState<BoardElementId | null>(null);
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ id: BoardElementId; value: string; row?: number; col?: number } | null>(null);
+  const [editing, setEditing] = useState<{ id: BoardElementId; value: string; row?: number; col?: number; title?: boolean } | null>(null);
   const [viewport, setViewport] = useState(INITIAL_VIEWPORT);
   const [isSpacePanning, setIsSpacePanning] = useState(false);
   const [selectionMarquee, setSelectionMarquee] = useState<Bounds | null>(null);
@@ -639,9 +655,11 @@ export function KonvaBoard({
       const from = resolveElement(connection.fromId);
       const to = resolveElement(connection.toId);
       if (!from || !to) continue;
-      const { start, end } = getConnectionEndpoints(from, to);
+      const { start, end } = getConnectionEndpoints(from, to, connection.pathStyle === "curved" ? 0 : 16);
       const arrow = arrowRefs.current.get(connection.id);
       arrow?.points(getConnectionPathPoints(connection.pathStyle, start, end));
+      anchorRefs.current.get(`${connection.id}:0`)?.position(start);
+      anchorRefs.current.get(`${connection.id}:1`)?.position(end);
     }
 
     for (const fromId of elbowGroupIds) {
@@ -930,6 +948,14 @@ export function KonvaBoard({
     };
   }, []);
 
+  const editSelectedTitle = useCallback(() => {
+    const ids = selectionRef.current;
+    if (ids.length !== 1) return;
+    const element = documentRef.current.elements.find((item) => item.id === ids[0]);
+    if (!element || isElementLocked(element) || (element.kind !== "note" && element.kind !== "table")) return;
+    setEditing({ id: element.id, value: element.title ?? "", title: true });
+  }, []);
+
   const updateSelectedConnection = useCallback((patch: Partial<BoardConnection>) => {
     if (!selectedConnectionRef.current) return;
     const targetId = selectedConnectionRef.current;
@@ -1186,12 +1212,13 @@ export function KonvaBoard({
     setSelectionLayer,
     updateSelectedConnection,
     setConnectionDefaults,
+    editSelectedTitle,
     addTableRow,
     deleteTableRow,
     addTableCol,
     deleteTableCol,
     applyProposal,
-  }), [addChildNode, addImage, addTableCol, addTableRow, applyProposal, arrangeMindMap, copySelection, deleteTableCol, deleteTableRow, deleteSelection, duplicateSelection, groupSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionLayer, setSelectionLocked, setSelectionShape, setSelectionTextStyle, undo, ungroupSelection, updateSelectedConnection, zoomAtCenter, zoomToFit]);
+  }), [addChildNode, addImage, addTableCol, addTableRow, applyProposal, arrangeMindMap, copySelection, deleteTableCol, deleteTableRow, deleteSelection, duplicateSelection, editSelectedTitle, groupSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionLayer, setSelectionLocked, setSelectionShape, setSelectionTextStyle, undo, ungroupSelection, updateSelectedConnection, zoomAtCenter, zoomToFit]);
 
   useEffect(() => onReadyRef.current(engine), [engine]);
 
@@ -1614,7 +1641,14 @@ export function KonvaBoard({
     if (!editing) return;
     const element = documentRef.current.elements.find((candidate) => candidate.id === editing.id);
     if (element) {
-      if (editing.row !== undefined && editing.col !== undefined && element.kind === "table") {
+      if (editing.title && (element.kind === "note" || element.kind === "table")) {
+        const title = editing.value.trim();
+        if ((element.title ?? "") !== title) {
+          commit({ ...documentRef.current, elements: documentRef.current.elements.map((candidate) =>
+            candidate.id === element.id ? { ...candidate, title: title || undefined } : candidate,
+          ) });
+        }
+      } else if (editing.row !== undefined && editing.col !== undefined && element.kind === "table") {
         const rows = Math.max(1, element.rows ?? 3);
         const cols = Math.max(1, element.cols ?? 3);
         const currentData: string[][] = element.tableData ?? (element.text || "").split("\n").map((l) => l.split("|").map((c) => c.trim()));
@@ -1699,7 +1733,7 @@ export function KonvaBoard({
             const to = elementMap.get(connection.toId);
             if (!from || !to) return null;
             const groupedPath = elbowPaths.get(connection.id);
-            const { start, end } = groupedPath ?? getConnectionEndpoints(from, to);
+            const { start, end } = groupedPath ?? getConnectionEndpoints(from, to, connection.pathStyle === "curved" ? 0 : 16);
             const isSelected = selectedConnection === connection.id;
             const colorKey = connection.color;
             const strokeColor = isSelected ? "#7c3aed" : colorKey ? COLORS[colorKey].stroke : "#64748b";
@@ -1749,6 +1783,7 @@ export function KonvaBoard({
                 {headType === "circle" && pointerAtBeginning ? <Ellipse x={start.x} y={start.y} radiusX={6.5} radiusY={6.5} fill={strokeColor} stroke="#ffffff" strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
                 {headType === "diamond" && pointerAtEnding ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={end.x} y={end.y} rotation={endAngleDeg} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
                 {headType === "diamond" && pointerAtBeginning ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={start.x} y={start.y} rotation={startAngleDeg + 180} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
+                {pathStyle === "curved" && style === "none" ? [start, end].map((point, index) => <Ellipse key={`anchor-${index}`} ref={(node) => { const key = `${connection.id}:${index}`; if (node) anchorRefs.current.set(key, node); else anchorRefs.current.delete(key); }} x={point.x} y={point.y} radiusX={4.5} radiusY={4.5} fill="#ffffff" stroke={strokeColor} strokeWidth={1.7} listening={false} perfectDrawEnabled={false} />) : null}
               </Group>
             );
           })}
@@ -1863,7 +1898,7 @@ export function KonvaBoard({
                 {element.kind === "image"
                   ? <BoardImage element={element} />
                   : element.kind === "table"
-                    ? <BoardTable element={element} colors={colors} onCellDblClick={(r, c, text) => {
+                    ? <BoardTable element={element} colors={colors} titleEditing={editing?.id === element.id && editing.title === true} onTitleDblClick={() => { if (!isElementLocked(element)) setEditing({ id: element.id, value: element.title ?? "", title: true }); }} onCellDblClick={(r, c, text) => {
                         if (element.groupId && effectiveFocusedGroupId !== element.groupId) {
                           setFocusedGroupId(element.groupId);
                           setSelection([element.id]);
@@ -1919,6 +1954,14 @@ export function KonvaBoard({
                   : element.kind === "text"
                     ? <Rect width={element.width} height={element.height} fill="rgba(0, 0, 0, 0.001)" />
                     : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2.5} cornerRadius={18} shadowColor="#0f172a" shadowOpacity={isCoarsePointer ? 0 : 0.06} shadowBlur={isCoarsePointer ? 0 : 8} shadowOffsetY={3} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
+                {element.kind === "note" && (element.title || (editing?.id === element.id && editing.title)) ? (
+                  <Group onDblClick={(event) => { event.cancelBubble = true; if (!isElementLocked(element)) setEditing({ id: element.id, value: element.title ?? "", title: true }); }}>
+                    <Rect width={element.width} height={50} fill="transparent" />
+                    <Path x={18} y={19} data="M6 11A5 5 0 1 1 11 6c0 2-1 3-2.5 4.5V13h-5v-2.5C2 9 1 8 1 6A5 5 0 0 1 6 1 M3.5 15h5 M4.5 17h3" stroke={colors.text} strokeWidth={1.4} listening={false} />
+                    <Text x={43} y={18} width={element.width - 61} text={editing?.id === element.id && editing.title ? "" : element.title ?? ""} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={17} fontStyle="bold" />
+                    <Line points={[18, 51, element.width - 18, 51]} stroke={colors.stroke} opacity={0.27} strokeWidth={1} />
+                  </Group>
+                ) : null}
                 {element.kind === "image" || element.kind === "table" || editing?.id === element.id ? null : <MarkdownText element={element} color={colors.text} />}
                 {isElementLocked(element) ? (
                   <Group x={element.width - 18} y={-20} listening={false} opacity={0.85}>
@@ -1978,30 +2021,31 @@ export function KonvaBoard({
         const cols = Math.max(1, editingElement.cols ?? 3);
         const rows = Math.max(1, editingElement.rows ?? 3);
         const cellWidth = editingElement.width / cols;
-        const cellHeight = editingElement.height / rows;
+        const titleHeight = editingElement.kind === "table" && (editingElement.title || editing.title) ? 38 : 0;
+        const cellHeight = Math.max(1, editingElement.height - titleHeight) / rows;
         const cellX = isCellEdit ? editingElement.x + (editing.col! * cellWidth) : editingElement.x;
-        const cellY = isCellEdit ? editingElement.y + (editing.row! * cellHeight) : editingElement.y;
+        const cellY = isCellEdit ? editingElement.y + titleHeight + (editing.row! * cellHeight) : editingElement.y;
         const editWidth = isCellEdit ? cellWidth : editingElement.width;
-        const editHeight = isCellEdit ? cellHeight : editingElement.height;
+        const editHeight = editing.title ? (editingElement.kind === "note" ? 50 : 38) : isCellEdit ? cellHeight : editingElement.height;
 
         return (
           <textarea
             ref={textareaRef}
             autoFocus
-            aria-label={t("editElement")}
+            aria-label={t(editing.title ? "editTitle" : "editElement")}
             className={isCellEdit ? "absolute z-20 resize-none rounded-md border-2 border-primary bg-background/95 p-2 text-sm shadow-xl outline-none" : "absolute z-20 resize-none border-0 bg-transparent outline-none"}
             style={{
               left: viewport.x + cellX * viewport.scale,
               top: viewport.y + cellY * viewport.scale,
               width: Math.max(isCellEdit ? 48 : 140, editWidth * viewport.scale),
-              height: Math.max(isCellEdit ? 32 : 60, editHeight * viewport.scale),
+              height: Math.max(isCellEdit ? 32 : editing.title ? 35 : 60, editHeight * viewport.scale),
               boxSizing: "border-box",
-              padding: isCellEdit ? "8px" : editingElement.kind === "text" ? 0 : "18px",
+              padding: isCellEdit ? "8px" : editing.title ? (editingElement.kind === "table" ? "8px 17px 8px 44px" : "18px 18px 18px 43px") : editingElement.kind === "text" ? 0 : editingElement.kind === "note" && editingElement.title ? "58px 18px 18px" : "18px",
               borderRadius: isCellEdit ? undefined : editingElement.kind === "ellipse" ? "50%" : undefined,
               color: COLORS[editingElement.color ?? "grey"].text,
               fontFamily: "Geist, Noto Sans Thai, sans-serif",
               fontSize: supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).fontSize : 16,
-              fontWeight: supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).fontWeight : "bold",
+              fontWeight: editing.title ? "bold" : supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).fontWeight : "bold",
               lineHeight: 1.35,
               textAlign: supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).textAlign : editingElement.kind === "note" ? "left" : "center",
             }}
@@ -2014,12 +2058,12 @@ export function KonvaBoard({
                 event.currentTarget.blur();
                 return;
               }
-              if (event.key === "Tab") {
+              if (event.key === "Tab" && !editing.title) {
                 event.preventDefault();
                 continueMindMap("child");
               }
               if (event.key === "Enter" && !event.shiftKey) {
-                if (isCellEdit) {
+                if (isCellEdit || editing.title) {
                   event.preventDefault();
                   finishEditing();
                   return;

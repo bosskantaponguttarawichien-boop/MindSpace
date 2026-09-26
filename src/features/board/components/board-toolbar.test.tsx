@@ -26,6 +26,17 @@ function renderToolbar(overrides: Partial<Parameters<typeof BoardToolbar>[0]> = 
 }
 
 describe("BoardToolbar", () => {
+  it("offers optional title editing only for a single selected note or table", async () => {
+    const user = userEvent.setup();
+    const onEditTitle = vi.fn();
+    const view = renderToolbar({ hasSelection: true, selectedElementKind: "note", selectedIds: ["element:n"], onEditTitle });
+    await user.click(screen.getByRole("button", { name: "Add or edit title" }));
+    expect(onEditTitle).toHaveBeenCalledOnce();
+    view.rerender(<LocaleProvider><TooltipProvider><BoardToolbar {...view} selectedElementKind="table" selectedIds={["element:t"]} /></TooltipProvider></LocaleProvider>);
+    expect(screen.getByRole("button", { name: "Add or edit title" })).toBeInTheDocument();
+    view.rerender(<LocaleProvider><TooltipProvider><BoardToolbar {...view} selectedElementKind="rectangle" selectedIds={["element:s"]} /></TooltipProvider></LocaleProvider>);
+    expect(screen.queryByRole("button", { name: "Add or edit title" })).toBeNull();
+  });
   it("keeps every tool in a touch-scrollable row without alignment", () => {
     renderToolbar();
 

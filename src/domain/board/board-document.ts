@@ -49,6 +49,8 @@ export type BoardElement = {
   width: number;
   height: number;
   text: string;
+  // Optional visible heading for notes and tables. Existing boards have no heading.
+  title?: string;
   color?: BoardColor;
   points?: number[];
   assetUrl?: string;

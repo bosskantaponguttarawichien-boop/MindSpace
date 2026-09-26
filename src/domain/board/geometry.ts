@@ -13,17 +13,30 @@ export function boundsFromPoints(first: Point, second: Point): Bounds {
 }
 
 export function elementBounds(element: BoardElement): Bounds {
-  if (element.kind !== "draw" || !element.points || element.points.length < 2) {
+  const points = element.points;
+  if (element.kind !== "draw" || !points || points.length < 2) {
     return { x: element.x, y: element.y, width: element.width, height: element.height };
   }
 
-  const xs = element.points.filter((_, index) => index % 2 === 0);
-  const ys = element.points.filter((_, index) => index % 2 === 1);
+  let minX = points[0]!;
+  let maxX = points[0]!;
+  let minY = points[1]!;
+  let maxY = points[1]!;
+
+  for (let i = 2; i < points.length; i += 2) {
+    const px = points[i]!;
+    const py = points[i + 1]!;
+    if (px < minX) minX = px;
+    else if (px > maxX) maxX = px;
+    if (py < minY) minY = py;
+    else if (py > maxY) maxY = py;
+  }
+
   return {
-    x: Math.min(...xs),
-    y: Math.min(...ys),
-    width: Math.max(...xs) - Math.min(...xs),
-    height: Math.max(...ys) - Math.min(...ys),
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
   };
 }
 

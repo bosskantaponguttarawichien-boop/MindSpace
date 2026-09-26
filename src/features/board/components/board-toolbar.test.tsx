@@ -26,15 +26,18 @@ function renderToolbar(overrides: Partial<Parameters<typeof BoardToolbar>[0]> = 
 }
 
 describe("BoardToolbar", () => {
-  it("offers optional title editing only for a single selected note or table", async () => {
+  it("offers optional title toggle for a single selected note, table, or shape", async () => {
     const user = userEvent.setup();
-    const onEditTitle = vi.fn();
-    const view = renderToolbar({ hasSelection: true, selectedElementKind: "note", selectedIds: ["element:n"], onEditTitle });
+    const onToggleTitle = vi.fn();
+    const view = renderToolbar({ hasSelection: true, selectedElementKind: "note", selectedIds: ["element:n"], onToggleTitle });
     await user.click(screen.getByRole("button", { name: "Add or edit title" }));
-    expect(onEditTitle).toHaveBeenCalledOnce();
-    view.rerender(<LocaleProvider><TooltipProvider><BoardToolbar {...view} selectedElementKind="table" selectedIds={["element:t"]} /></TooltipProvider></LocaleProvider>);
+    expect(onToggleTitle).toHaveBeenCalledOnce();
+    view.rerender(<LocaleProvider><TooltipProvider><BoardToolbar {...view} selectedElementKind="table" selectedIds={["element:t"]} hasTitle={true} onToggleTitle={onToggleTitle} /></TooltipProvider></LocaleProvider>);
+    expect(screen.getByRole("button", { name: "Remove title" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove title" })).toHaveAttribute("aria-pressed", "true");
+    view.rerender(<LocaleProvider><TooltipProvider><BoardToolbar {...view} selectedElementKind="rectangle" selectedIds={["element:s"]} hasTitle={false} onToggleTitle={onToggleTitle} /></TooltipProvider></LocaleProvider>);
     expect(screen.getByRole("button", { name: "Add or edit title" })).toBeInTheDocument();
-    view.rerender(<LocaleProvider><TooltipProvider><BoardToolbar {...view} selectedElementKind="rectangle" selectedIds={["element:s"]} /></TooltipProvider></LocaleProvider>);
+    view.rerender(<LocaleProvider><TooltipProvider><BoardToolbar {...view} selectedElementKind="shape" selectedIds={["element:s1", "element:s2"]} /></TooltipProvider></LocaleProvider>);
     expect(screen.queryByRole("button", { name: "Add or edit title" })).toBeNull();
   });
   it("keeps every tool in a touch-scrollable row without alignment", () => {

@@ -5,10 +5,10 @@
 
 ## Decision
 
-- Add optional `title` to board elements. It is rendered and edited independently of `text` only for notes and tables. Existing boards without a title retain their previous layout. An empty title is removed on save.
-- A selected note or table exposes a title action in its existing toolbar. Title changes go through the board document commit so they participate in undo/redo, autosave, and exports. Shape text remains the shape's sole label.
+- Add optional `title` to board elements. It is rendered and edited independently of `text` for shapes, notes, and tables. Existing boards without a title retain their previous layout. An empty title is removed on save.
+- A selected shape, note, or table exposes a title toggle action in its toolbar. When a title exists, the action is marked active and clicking it removes the title. When no title exists, clicking it enters title editing. Title changes go through the board document commit so they participate in undo/redo, autosave, and exports.
 - New connectors default to a curved violet plain line with small outlined circular endpoints. The existing path, arrow, line-style and color controls remain available. Existing connectors retain their persisted styles and historical fallbacks.
-- Show small outline icons inside the optional title areas of notes and tables. The title areas are absent when the title is absent.
+- Show small outline icons inside the optional title areas of shapes, notes, and tables. The title areas are absent when the title is absent.
 
 ## Consequences
 

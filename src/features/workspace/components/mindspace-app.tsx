@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Bot, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,7 @@ export function MindSpaceApp() {
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const mobileViewport = useVisualViewport();
   const activeBoard = boards.find((board) => board.id === activeBoardId);
+  const boardSummaries = useMemo(() => boards.map((b) => ({ id: b.id, name: b.name })), [boards]);
   const selectedElements = activeBoard?.document.elements.filter((element) => selectedIds.includes(element.id)) ?? [];
   const canGroup = selectedElements.length > 1;
   const canUngroup = selectedElements.some((element) => element.groupId);
@@ -72,16 +73,26 @@ export function MindSpaceApp() {
     setAiStatus((prev) => ({ ...prev, hasUnread: false }));
   }, []);
 
+  const handleOpenAccount = useCallback(() => {
+    setAccountDialogOpen(true);
+  }, []);
+
   const handleEngineReady = useCallback((readyEngine: BoardEngine) => setEngine(readyEngine), []);
   const handleDocumentChange = useCallback((document: BoardDocument) => {
     if (activeBoardId) updateBoardDocument(activeBoardId, document);
   }, [activeBoardId, updateBoardDocument]);
-  const selectBoard = (id: string) => { setActiveBoardId(id); setEngine(null); setSelectedIds([]); };
-  const requestExport = () => {
+  const selectBoard = useCallback((id: string) => {
+    setActiveBoardId(id);
+    setEngine(null);
+    setSelectedIds([]);
+  }, [setActiveBoardId]);
+
+  const requestExport = useCallback(() => {
     const preview = engine?.renderExport() ?? null;
     if (!preview) return window.alert(t("exportFailed"));
     setExportPreview(preview);
-  };
+  }, [engine, t]);
+
   return (
     <>
       <AppShell
@@ -89,7 +100,7 @@ export function MindSpaceApp() {
         rightPanelOpen={rightPanelOpen}
         sidebar={
           <WorkspaceSidebar
-            boards={boards}
+            boards={boardSummaries}
             activeBoardId={activeBoardId}
             nextBoardName={nextBoardName}
             onCreateBoard={createBoard}
@@ -102,7 +113,7 @@ export function MindSpaceApp() {
           <WorkspaceTopbar
             engine={engine}
             boardName={activeBoard?.name ?? "MindSpace"}
-            boards={boards}
+            boards={boardSummaries}
             activeBoardId={activeBoardId}
             nextBoardName={nextBoardName}
             syncStatus={syncStatus}
@@ -119,7 +130,7 @@ export function MindSpaceApp() {
             onToggleSidebar={handleToggleSidebar}
             onToggleRightPanel={handleToggleRightPanel}
             accountLabel={accountStatus === "loading" ? t("accountLoading") : account?.isAnonymous ? t("signIn") : (account?.email ?? t("account"))}
-            onOpenAccount={() => setAccountDialogOpen(true)}
+            onOpenAccount={handleOpenAccount}
             account={account}
             onSignOut={signOut}
           />

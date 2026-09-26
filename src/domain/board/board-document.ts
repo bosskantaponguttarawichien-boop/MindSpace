@@ -107,6 +107,17 @@ export function isBoardDocument(value: unknown): value is BoardDocument {
 
 /** Compares two documents by content, ignoring key order and fields left undefined. */
 export function sameBoardDocument(left: BoardDocument, right: BoardDocument): boolean {
+  if (left === right) return true;
+  if (!left || !right) return left === right;
+  if (
+    left.id !== right.id ||
+    left.name !== right.name ||
+    left.version !== right.version ||
+    left.elements.length !== right.elements.length ||
+    left.connections.length !== right.connections.length
+  ) {
+    return false;
+  }
   return JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
 }
 

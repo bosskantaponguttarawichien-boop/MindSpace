@@ -39,6 +39,7 @@ export type BoardEngine = {
   setSelectionShape: (shape: BoardTool) => void;
   setSelectionTextStyle: (patch: Partial<BoardTextStyle>) => void;
   editSelectedTitle: () => void;
+  toggleSelectedTitle: () => void;
   setSelectionLocked: (locked: boolean) => void;
   setSelectionLayer: (placement: LayerPlacement) => void;
   updateSelectedConnection: (patch: Partial<BoardConnection>) => void;

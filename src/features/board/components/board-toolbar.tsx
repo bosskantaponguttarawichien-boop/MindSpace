@@ -1,7 +1,7 @@
 "use client";
 
 import { ALargeSmall, AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Bold, Columns3, Copy, FileText, GitBranchPlus, Heading, ImagePlus, Layers, Lock, LockOpen, Minus, Palette, Pencil, RectangleHorizontal, Rows3, Spline, Trash2, Waypoints } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, memo, useEffect, useRef, useState } from "react";
 import { IconAction } from "@/components/ui/icon-action";
 import { Separator } from "@/components/ui/separator";
 import { ColorRow, CollapsibleSubTools, OptionRow, SubToolGroup, ToolCard, ToolCardRow, ToolCardSeparator } from "@/features/board/components/tool-card";
@@ -54,7 +54,7 @@ const scopeGroupLabels: Record<BoardTextStyleScope, MessageKey> = {
 
 const alignIcons = { left: AlignLeft, center: AlignCenter, right: AlignRight } as const;
 
-export function BoardToolbar({
+export const BoardToolbar = memo(function BoardToolbar({
   ready,
   uploadingImage = false,
   importingPdf = false,
@@ -65,10 +65,12 @@ export function BoardToolbar({
   selectedIds,
   hasSelection = false,
   selectionLocked = false,
+  hasTitle = false,
   onToolChange,
   onSetShape,
   onSetTextStyle,
   onEditTitle,
+  onToggleTitle,
   onImportImage,
   onImportPdf,
   onAddChildNode,
@@ -94,10 +96,12 @@ export function BoardToolbar({
   selectedIds?: string[];
   hasSelection?: boolean;
   selectionLocked?: boolean;
+  hasTitle?: boolean;
   onToolChange: (tool: BoardTool) => void;
   onSetShape?: (shape: BoardTool) => void;
   onSetTextStyle: (scope: BoardTextStyleScope, patch: Partial<BoardTextStyle>) => void;
   onEditTitle?: () => void;
+  onToggleTitle?: () => void;
   onImportImage: () => void;
   onImportPdf: () => void;
   onAddChildNode: () => void;
@@ -255,6 +259,8 @@ export function BoardToolbar({
 
   function renderToolSubTools(id: ToolCardId): ReactNode {
     if (isTextScope(id)) {
+      const isShape = id === "shape";
+      const isScopeSelected = selectedElementKind === id || (isShape && (selectedElementKind === "shape" || selectedElementKind === "rectangle" || selectedElementKind === "ellipse" || selectedElementKind === "diamond" || selectedElementKind === "triangle"));
       return (
         <SubToolGroup label={t(scopeGroupLabels[id])}>
           {id === "shape" ? (
@@ -263,8 +269,15 @@ export function BoardToolbar({
           {id === "table" && selectedElementKind === "table" ? (
             <IconAction label={t("tableActions")} icon={Rows3} expandable expanded={openSubTool === "actions"} active={openSubTool === "actions"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("actions")} />
           ) : null}
-          {(id === "note" || id === "table") && selectedElementKind === id && selectedIds?.length === 1 ? (
-            <IconAction label={t("editTitle")} icon={Heading} disabled={!ready || selectionLocked} className="max-sm:size-10" onClick={onEditTitle} />
+          {(id === "note" || id === "table" || id === "shape") && isScopeSelected && selectedIds?.length === 1 ? (
+            <IconAction
+              label={hasTitle ? t("removeTitle") : t("editTitle")}
+              icon={Heading}
+              active={hasTitle}
+              disabled={!ready || selectionLocked}
+              className="max-sm:size-10"
+              onClick={onToggleTitle ?? onEditTitle}
+            />
           ) : null}
           {textFormattingSubTools(id)}
           <IconAction label={t(scopeColorLabels[id])} icon={Palette} expandable expanded={openSubTool === "color"} active={openSubTool === "color"} disabled={!ready} className="max-sm:size-10" onClick={() => toggleSubTool("color")} />
@@ -426,4 +439,5 @@ export function BoardToolbar({
       ) : null}
     </div>
   );
-}
+});
+

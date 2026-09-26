@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useLocale } from "@/lib/i18n/locale-provider";
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { BoardEngine } from "@/infrastructure/board-engine/board-engine";
 import { LanguageSwitcher } from "@/features/workspace/components/language-switcher";
 import type { BoardSyncStatus } from "@/features/workspace/hooks/use-persisted-boards";
@@ -16,7 +16,7 @@ import type { Account } from "@/domain/auth/account";
 
 type BoardSummary = { id: string; name: string };
 
-export function WorkspaceTopbar({
+export const WorkspaceTopbar = memo(function WorkspaceTopbar({
   engine,
   boardName,
   boards,
@@ -281,4 +281,5 @@ export function WorkspaceTopbar({
       </Dialog>
     </header>
   );
-}
+});
+

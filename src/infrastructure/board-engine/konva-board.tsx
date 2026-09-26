@@ -2,7 +2,7 @@
 
 import Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Path, Rect, Stage, Text, Transformer } from "react-konva";
 import { sampleBoard } from "@/domain/board/sample-board";
 import { sameBoardDocument, textStyleFor, type BoardColor, type BoardConnection, type BoardDocument, type BoardElement, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
@@ -26,6 +26,10 @@ type TouchGesture = { distance: number; midpoint: ScreenPoint; viewport: Viewpor
 type SelectionMarqueeStart = { point: ScreenPoint; additive: boolean };
 type MindMapNodeKind = MindMapDefaults["kind"];
 const mindMapNodeKinds = new Set<MindMapNodeKind>(["text", "note", "rectangle", "ellipse", "diamond", "triangle"]);
+
+function isShapeKind(kind?: string | null): boolean {
+  return kind === "rectangle" || kind === "ellipse" || kind === "diamond" || kind === "triangle";
+}
 
 const COLORS: Record<BoardColor, { fill: string; stroke: string; text: string }> = {
   violet: { fill: "#ede9fe", stroke: "#7c3aed", text: "#3b0764" },
@@ -75,17 +79,36 @@ function createElementId(): BoardElementId {
 
 function boardBounds(elements: BoardElement[]) {
   if (elements.length === 0) return { minX: 0, minY: 0, maxX: 800, maxY: 600 };
-  const points = elements.flatMap((element) => {
-    if (element.kind !== "draw" || !element.points?.length) return [element.x, element.y, element.x + element.width, element.y + element.height];
-    return element.points;
-  });
-  const xs = points.filter((_, index) => index % 2 === 0);
-  const ys = points.filter((_, index) => index % 2 === 1);
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const element of elements) {
+    if (element.kind === "draw" && element.points && element.points.length >= 2) {
+      for (let i = 0; i < element.points.length; i += 2) {
+        const px = element.points[i]!;
+        const py = element.points[i + 1]!;
+        if (px < minX) minX = px;
+        if (px > maxX) maxX = px;
+        if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
+      }
+    } else {
+      if (element.x < minX) minX = element.x;
+      if (element.y < minY) minY = element.y;
+      const right = element.x + element.width;
+      const bottom = element.y + element.height;
+      if (right > maxX) maxX = right;
+      if (bottom > maxY) maxY = bottom;
+    }
+  }
+
   return {
-    minX: Math.min(...xs),
-    minY: Math.min(...ys),
-    maxX: Math.max(...xs),
-    maxY: Math.max(...ys),
+    minX: minX === Infinity ? 0 : minX,
+    minY: minY === Infinity ? 0 : minY,
+    maxX: maxX === -Infinity ? 800 : maxX,
+    maxY: maxY === -Infinity ? 600 : maxY,
   };
 }
 
@@ -146,7 +169,50 @@ function effectiveTextStyleFor(element: Pick<BoardElement, "kind" | "textStyle">
   return style;
 }
 
-function BoardTable({
+const imageElementCache = new Map<string, HTMLImageElement>();
+
+const BoardImage = memo(function BoardImage({ element }: { element: BoardElement }) {
+  const assetUrl = element.assetUrl;
+  const cached = assetUrl ? imageElementCache.get(assetUrl) ?? null : null;
+  const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
+  const image = cached ?? loadedImage;
+
+  useEffect(() => {
+    if (!assetUrl || imageElementCache.has(assetUrl)) return;
+    let cancelled = false;
+    let pending: HTMLImageElement | null = null;
+
+    function load(source: string, anonymous: boolean) {
+      const next = new window.Image();
+      pending = next;
+      if (anonymous) next.crossOrigin = "anonymous";
+      next.onload = () => {
+        imageElementCache.set(source, next);
+        if (!cancelled) setLoadedImage(next);
+      };
+      next.onerror = () => {
+        if (cancelled) return;
+        if (anonymous) load(source, false);
+        else setLoadedImage(null);
+      };
+      next.src = source;
+    }
+
+    load(assetUrl, true);
+    return () => {
+      cancelled = true;
+      if (!pending) return;
+      pending.onload = null;
+      pending.onerror = null;
+    };
+  }, [assetUrl]);
+
+  return image
+    ? <KonvaImage image={image} width={element.width} height={element.height} cornerRadius={12} perfectDrawEnabled={false} />
+    : <Rect width={element.width} height={element.height} fill="#e2e8f0" stroke="#94a3b8" strokeWidth={2} cornerRadius={12} perfectDrawEnabled={false} />;
+});
+
+const BoardTable = memo(function BoardTable({
   element,
   colors,
   onCellDblClick,
@@ -176,19 +242,19 @@ function BoardTable({
     });
   }, [element.tableData, element.text, rows, cols]);
 
-  const vLines: number[] = [];
-  for (let c = 1; c < cols; c++) {
-    vLines.push(c * cellWidth);
-  }
+  const vLines: number[] = useMemo(() => {
+    const list: number[] = [];
+    for (let c = 1; c < cols; c++) list.push(c * cellWidth);
+    return list;
+  }, [cols, cellWidth]);
 
-  const hLines: number[] = [];
-  for (let r = 1; r < rows; r++) {
-    hLines.push(r * cellHeight);
-  }
+  const hLines: number[] = useMemo(() => {
+    const list: number[] = [];
+    for (let r = 1; r < rows; r++) list.push(r * cellHeight);
+    return list;
+  }, [rows, cellHeight]);
 
   const textStyle = effectiveTextStyleFor(element);
-  // Tables saved before cell text was styleable keep auto-fitting to their row height;
-  // once a size is picked in the table tool, that choice wins.
   const fontSize = element.textStyle?.fontSize ?? Math.max(11, Math.min(14, cellHeight * 0.35));
 
   return (
@@ -222,6 +288,7 @@ function BoardTable({
         stroke={colors.stroke}
         strokeWidth={1.5}
         opacity={0.4}
+        perfectDrawEnabled={false}
       />
       {Array.from({ length: rows - 1 }, (_, index) => {
         const r = index + 1;
@@ -249,15 +316,17 @@ function BoardTable({
           stroke={colors.stroke}
           strokeWidth={1}
           opacity={0.16}
+          perfectDrawEnabled={false}
         />
       ))}
-      {hLines.slice(1).map((y, i) => (
+      {hLines.map((y, i) => (
         <Line
           key={`h-${i + 1}`}
           points={[0, titleHeight + y, element.width, titleHeight + y]}
           stroke={colors.stroke}
           strokeWidth={1}
           opacity={0.18}
+          perfectDrawEnabled={false}
         />
       ))}
       {data.slice(0, rows).flatMap((row, r) =>
@@ -294,56 +363,18 @@ function BoardTable({
       )}
       {titleHeight ? (
         <Group onDblClick={(event) => { event.cancelBubble = true; onTitleDblClick(); }}>
-          <Rect width={element.width} height={titleHeight} fill="transparent" />
-          <Rect x={12} y={7} width={24} height={24} cornerRadius={6} fill={colors.fill} />
-          <Path x={17} y={12} data="M1 1H15V15H1z M1 5H15 M5 1V15" stroke={colors.stroke} strokeWidth={1.5} listening={false} />
-          <Text x={44} y={9} width={element.width - 55} text={titleEditing ? "" : element.title ?? ""} fill="#1e293b" fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={16} fontStyle="bold" />
-          <Line points={[0, titleHeight, element.width, titleHeight]} stroke={colors.stroke} opacity={0.25} strokeWidth={1} />
+          <Rect width={element.width} height={titleHeight} fill="transparent" perfectDrawEnabled={false} />
+          <Rect x={12} y={7} width={24} height={24} cornerRadius={6} fill={colors.fill} perfectDrawEnabled={false} />
+          <Path x={17} y={12} data="M1 1H15V15H1z M1 5H15 M5 1V15" stroke={colors.stroke} strokeWidth={1.5} listening={false} perfectDrawEnabled={false} />
+          <Text x={44} y={9} width={element.width - 55} text={titleEditing ? "" : element.title ?? ""} fill="#1e293b" fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={16} fontStyle="bold" perfectDrawEnabled={false} />
+          <Line points={[0, titleHeight, element.width, titleHeight]} stroke={colors.stroke} opacity={0.25} strokeWidth={1} perfectDrawEnabled={false} />
         </Group>
       ) : null}
     </Group>
   );
-}
+});
 
-function BoardImage({ element }: { element: BoardElement }) {
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
-
-  useEffect(() => {
-    const assetUrl = element.assetUrl;
-    if (!assetUrl) return;
-    let cancelled = false;
-    let pending: HTMLImageElement | null = null;
-
-    // An anonymous request keeps the export canvas untainted, but a bucket without a CORS rule
-    // rejects it. Retrying without it shows the image and gives up only on image-perfect export.
-    function load(source: string, anonymous: boolean) {
-      const next = new window.Image();
-      pending = next;
-      if (anonymous) next.crossOrigin = "anonymous";
-      next.onload = () => { if (!cancelled) setImage(next); };
-      next.onerror = () => {
-        if (cancelled) return;
-        if (anonymous) load(source, false);
-        else setImage(null);
-      };
-      next.src = source;
-    }
-
-    load(assetUrl, true);
-    return () => {
-      cancelled = true;
-      if (!pending) return;
-      pending.onload = null;
-      pending.onerror = null;
-    };
-  }, [element.assetUrl]);
-
-  return image
-    ? <KonvaImage image={image} width={element.width} height={element.height} cornerRadius={12} />
-    : <Rect width={element.width} height={element.height} fill="#e2e8f0" stroke="#94a3b8" strokeWidth={2} cornerRadius={12} />;
-}
-
-function MarkdownText({ element, color }: { element: BoardElement; color: string }) {
+const MarkdownText = memo(function MarkdownText({ element, color }: { element: BoardElement; color: string }) {
   const lines = parseMarkdown(element.text);
   const isStructured = lines.length > 1 || lines.some((line) => line.kind !== "paragraph");
   const padding = element.kind === "text" ? 0 : 18;
@@ -357,12 +388,14 @@ function MarkdownText({ element, color }: { element: BoardElement; color: string
     const totalLength = (prefix + line.text).length;
     const charsPerLine = Math.max(1, Math.floor(availableWidth / (fontSize * 0.55)));
     const estimatedLines = Math.max(1, Math.ceil(totalLength / charsPerLine));
-    return { fontSize, prefix, height: fontSize * 1.45 * estimatedLines };
+    const height = fontSize * 1.45 * estimatedLines;
+    return { fontSize, prefix, height };
   });
 
   const totalTextHeight = lineHeights.reduce((sum, item) => sum + item.height, 0);
+
   const verticalAlign = textStyle.verticalAlign ?? "top";
-  const titleOffset = element.kind === "note" && element.title ? 40 : 0;
+  const titleOffset = (element.kind === "note" || isShapeKind(element.kind)) && element.title ? 40 : 0;
   let startY = padding + titleOffset;
   if (element.kind !== "text") {
     const availableHeight = Math.max(0, element.height - padding * 2 - titleOffset);
@@ -373,11 +406,17 @@ function MarkdownText({ element, color }: { element: BoardElement; color: string
     }
   }
 
+  const lineYPositions = lineHeights.reduce<number[]>((acc, item, index) => {
+    const prevY = index === 0 ? startY : acc[index - 1]! + lineHeights[index - 1]!.height;
+    acc.push(prevY);
+    return acc;
+  }, []);
+
   return (
     <Group listening={false}>
       {lines.map((line, index) => {
         const item = lineHeights[index]!;
-        const lineY = startY + lineHeights.slice(0, index).reduce((offset, prev) => offset + prev.height, 0);
+        const lineY = lineYPositions[index]!;
         return (
           <Text
             key={`${line.kind}-${index}`}
@@ -398,7 +437,293 @@ function MarkdownText({ element, color }: { element: BoardElement; color: string
       })}
     </Group>
   );
-}
+});
+
+type BoardConnectionNodeProps = {
+  connection: BoardConnection;
+  from: BoardElement;
+  to: BoardElement;
+  groupedPath?: { points: number[] };
+  isSelected: boolean;
+  onSelect: (id: string, event: KonvaEventObject<MouseEvent | TouchEvent>) => void;
+  registerArrow: (id: string, node: Konva.Arrow | null) => void;
+  registerAnchor: (key: string, node: Konva.Ellipse | null) => void;
+};
+
+const BoardConnectionNode = memo(function BoardConnectionNode({
+  connection,
+  from,
+  to,
+  groupedPath,
+  isSelected,
+  onSelect,
+  registerArrow,
+  registerAnchor,
+}: BoardConnectionNodeProps) {
+  const { start, end } = getConnectionEndpoints(from, to, connection.pathStyle === "curved" ? 0 : 16);
+  const colorKey = connection.color;
+  const strokeColor = isSelected ? "#7c3aed" : colorKey ? COLORS[colorKey].stroke : "#64748b";
+  const style = connection.style ?? "end";
+  const lineStyle = connection.lineStyle ?? "solid";
+  const headType = connection.headType ?? "arrow";
+  const pointerAtBeginning = style === "both" || style === "start";
+  const pointerAtEnding = style === "both" || style === "end";
+  const dash = lineStyle === "dashed" ? [10, 6] : lineStyle === "dotted" ? [3, 5] : [];
+  let pointerLength = 10;
+  let pointerWidth = 10;
+  if (headType === "arrow") {
+    pointerLength = 10;
+    pointerWidth = 12;
+  } else if (headType === "triangle") {
+    pointerLength = 14;
+    pointerWidth = 10;
+  }
+  const pathStyle = connection.pathStyle ?? "straight";
+  const points = groupedPath ? groupedPath.points : getConnectionPathPoints(pathStyle, start, end);
+  const isCustomMarker = headType === "circle" || headType === "diamond";
+  const endAngleDeg = (Math.atan2(points[points.length - 1]! - points[points.length - 3]!, points[points.length - 2]! - points[points.length - 4]!) * 180) / Math.PI;
+  const startAngleDeg = (Math.atan2(points[1]! - points[3]!, points[0]! - points[2]!) * 180) / Math.PI;
+
+  return (
+    <Group>
+      <Arrow
+        name={connection.id}
+        hitStrokeWidth={18}
+        ref={(node) => registerArrow(connection.id, node)}
+        points={points}
+        tension={pathStyle === "curved" ? 0.5 : 0}
+        stroke={strokeColor}
+        fill={strokeColor}
+        strokeWidth={isSelected ? 4 : 2}
+        dash={dash}
+        pointerAtBeginning={isCustomMarker ? false : pointerAtBeginning}
+        pointerAtEnding={isCustomMarker ? false : pointerAtEnding}
+        pointerLength={pointerLength}
+        pointerWidth={pointerWidth}
+        perfectDrawEnabled={false}
+        onClick={(event) => onSelect(connection.id, event)}
+        onTap={(event) => onSelect(connection.id, event)}
+      />
+      {headType === "circle" && pointerAtEnding ? <Ellipse x={end.x} y={end.y} radiusX={6.5} radiusY={6.5} fill={strokeColor} stroke="#ffffff" strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} onClick={(event) => onSelect(connection.id, event)} onTap={(event) => onSelect(connection.id, event)} /> : null}
+      {headType === "circle" && pointerAtBeginning ? <Ellipse x={start.x} y={start.y} radiusX={6.5} radiusY={6.5} fill={strokeColor} stroke="#ffffff" strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} onClick={(event) => onSelect(connection.id, event)} onTap={(event) => onSelect(connection.id, event)} /> : null}
+      {headType === "diamond" && pointerAtEnding ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={end.x} y={end.y} rotation={endAngleDeg} fill={strokeColor} stroke={strokeColor} perfectDrawEnabled={false} onClick={(event) => onSelect(connection.id, event)} onTap={(event) => onSelect(connection.id, event)} /> : null}
+      {headType === "diamond" && pointerAtBeginning ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={start.x} y={start.y} rotation={startAngleDeg + 180} fill={strokeColor} stroke={strokeColor} perfectDrawEnabled={false} onClick={(event) => onSelect(connection.id, event)} onTap={(event) => onSelect(connection.id, event)} /> : null}
+      {pathStyle === "curved" && style === "none" ? [start, end].map((point, index) => <Ellipse key={`anchor-${index}`} ref={(node) => registerAnchor(`${connection.id}:${index}`, node)} x={point.x} y={point.y} radiusX={4.5} radiusY={4.5} fill="#ffffff" stroke={strokeColor} strokeWidth={1.7} listening={false} perfectDrawEnabled={false} />) : null}
+    </Group>
+  );
+});
+
+type BoardElementNodeProps = {
+  element: BoardElement;
+  colors: { fill: string; stroke: string; text: string };
+  effectiveTool: BoardTool;
+  isLocked: boolean;
+  isCoarsePointer: boolean;
+  isEditing: boolean;
+  isTitleEditing: boolean;
+  onSelect: (id: BoardElementId, event: KonvaEventObject<MouseEvent | TouchEvent>) => void;
+  onStartLongPress: (id: BoardElementId, event: KonvaEventObject<TouchEvent>) => void;
+  onClearLongPress: () => void;
+  onStartMouseLongPress: (id: BoardElementId) => void;
+  onDblClick: (element: BoardElement, event: KonvaEventObject<MouseEvent | TouchEvent>) => void;
+  onDblTap: (element: BoardElement, event: KonvaEventObject<TouchEvent>) => void;
+  onDragStart: () => void;
+  onDragMove: (element: BoardElement, event: KonvaEventObject<DragEvent>) => void;
+  onDragEnd: (element: BoardElement, event: KonvaEventObject<DragEvent>) => void;
+  onTransformStart: () => void;
+  onTransformEnd: (element: BoardElement, event: KonvaEventObject<Event>) => void;
+  onCellDblClick: (element: BoardElement, r: number, c: number, text: string) => void;
+  onTitleDblClick: (element: BoardElement) => void;
+  registerShape: (id: BoardElementId, node: Konva.Node | null) => void;
+};
+
+const BoardElementNode = memo(function BoardElementNode({
+  element,
+  colors,
+  effectiveTool,
+  isLocked,
+  isCoarsePointer,
+  isEditing,
+  isTitleEditing,
+  onSelect,
+  onStartLongPress,
+  onClearLongPress,
+  onStartMouseLongPress,
+  onDblClick,
+  onDblTap,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  onTransformStart,
+  onTransformEnd,
+  onCellDblClick,
+  onTitleDblClick,
+  registerShape,
+}: BoardElementNodeProps) {
+  if (element.kind === "draw") {
+    return (
+      <Line
+        name={element.id}
+        ref={(node) => registerShape(element.id, node)}
+        points={element.points ?? []}
+        stroke={colors.stroke}
+        strokeWidth={3}
+        hitStrokeWidth={20}
+        lineCap="round"
+        lineJoin="round"
+        tension={0.25}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+
+  return (
+    <Group
+      name={element.id}
+      ref={(node) => registerShape(element.id, node)}
+      x={element.x}
+      y={element.y}
+      width={element.width}
+      height={element.height}
+      draggable={effectiveTool === "select" && !isLocked}
+      onClick={(event) => onSelect(element.id, event)}
+      onTap={(event) => onSelect(element.id, event)}
+      onTouchStart={(event) => onStartLongPress(element.id, event)}
+      onTouchMove={onClearLongPress}
+      onTouchEnd={onClearLongPress}
+      onMouseDown={() => onStartMouseLongPress(element.id)}
+      onMouseMove={onClearLongPress}
+      onMouseUp={onClearLongPress}
+      onDblClick={(event) => onDblClick(element, event)}
+      onDblTap={(event) => onDblTap(element, event)}
+      onDragStart={onDragStart}
+      onDragMove={(event) => onDragMove(element, event)}
+      onDragEnd={(event) => onDragEnd(element, event)}
+      onTransformStart={onTransformStart}
+      onTransformEnd={(event) => onTransformEnd(element, event)}
+    >
+      {element.kind === "image" ? (
+        <BoardImage element={element} />
+      ) : element.kind === "table" ? (
+        <BoardTable
+          element={element}
+          colors={colors}
+          titleEditing={isTitleEditing}
+          onTitleDblClick={() => onTitleDblClick(element)}
+          onCellDblClick={(r, c, text) => onCellDblClick(element, r, c, text)}
+        />
+      ) : element.kind === "ellipse" ? (
+        <Ellipse
+          x={element.width / 2}
+          y={element.height / 2}
+          radiusX={element.width / 2}
+          radiusY={element.height / 2}
+          fill={colors.fill}
+          stroke={colors.stroke}
+          strokeWidth={2}
+          perfectDrawEnabled={false}
+        />
+      ) : element.kind === "diamond" ? (
+        <Line
+          points={[element.width / 2, 0, element.width, element.height / 2, element.width / 2, element.height, 0, element.height / 2]}
+          closed
+          fill={colors.fill}
+          stroke={colors.stroke}
+          strokeWidth={2}
+          perfectDrawEnabled={false}
+        />
+      ) : element.kind === "triangle" ? (
+        <Line
+          points={[element.width / 2, 0, element.width, element.height, 0, element.height]}
+          closed
+          fill={colors.fill}
+          stroke={colors.stroke}
+          strokeWidth={2}
+          perfectDrawEnabled={false}
+        />
+      ) : element.kind === "note" ? (
+        (() => {
+          const fold = Math.min(24, Math.min(element.width, element.height) * 0.2);
+          return (
+            <Group>
+              <Line
+                points={[0, 0, element.width, 0, element.width, element.height - fold, element.width - fold, element.height, 0, element.height]}
+                closed
+                fill={colors.fill}
+                lineJoin="round"
+                shadowColor="#0f172a"
+                shadowOpacity={isCoarsePointer ? 0 : 0.08}
+                shadowBlur={isCoarsePointer ? 0 : 8}
+                shadowOffsetY={4}
+                shadowOffsetX={1}
+                perfectDrawEnabled={false}
+                shadowForStrokeEnabled={false}
+              />
+              <Line
+                points={[element.width - fold, element.height - fold, element.width, element.height - fold, element.width - fold, element.height]}
+                closed
+                fill={colors.stroke}
+                opacity={0.35}
+                lineJoin="round"
+                perfectDrawEnabled={false}
+              />
+              <Rect
+                x={element.width / 2 - 26}
+                y={-8}
+                width={52}
+                height={16}
+                fill="rgba(254, 240, 138, 0.55)"
+                stroke="rgba(234, 179, 8, 0.3)"
+                strokeWidth={1}
+                cornerRadius={3}
+                rotation={-1.5}
+                perfectDrawEnabled={false}
+              />
+            </Group>
+          );
+        })()
+      ) : element.kind === "text" ? (
+        <Rect width={element.width} height={element.height} fill="rgba(0, 0, 0, 0.001)" perfectDrawEnabled={false} />
+      ) : (
+        <Rect
+          width={element.width}
+          height={element.height}
+          fill={colors.fill}
+          stroke={colors.stroke}
+          strokeWidth={2.5}
+          cornerRadius={18}
+          shadowColor="#0f172a"
+          shadowOpacity={isCoarsePointer ? 0 : 0.06}
+          shadowBlur={isCoarsePointer ? 0 : 8}
+          shadowOffsetY={3}
+          perfectDrawEnabled={false}
+          shadowForStrokeEnabled={false}
+        />
+      )}
+      {(element.kind === "note" || isShapeKind(element.kind)) && (element.title || isTitleEditing) ? (
+        <Group onDblClick={() => onTitleDblClick(element)}>
+          <Rect width={element.width} height={50} fill="transparent" perfectDrawEnabled={false} />
+          {element.kind === "note" ? (
+            <Path x={18} y={19} data="M6 11A5 5 0 1 1 11 6c0 2-1 3-2.5 4.5V13h-5v-2.5C2 9 1 8 1 6A5 5 0 0 1 6 1 M3.5 15h5 M4.5 17h3" stroke={colors.text} strokeWidth={1.4} listening={false} perfectDrawEnabled={false} />
+          ) : (
+            <Path x={18} y={18} scaleX={0.85} scaleY={0.85} data="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0 M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" stroke={colors.text} strokeWidth={1.5} lineCap="round" lineJoin="round" listening={false} perfectDrawEnabled={false} />
+          )}
+          <Text x={43} y={18} width={element.width - 61} text={isTitleEditing ? "" : element.title ?? ""} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={17} fontStyle="bold" perfectDrawEnabled={false} />
+          {element.text?.trim() ? (
+            <Line points={[18, 51, element.width - 18, 51]} stroke={colors.stroke} opacity={0.27} strokeWidth={1} perfectDrawEnabled={false} />
+          ) : null}
+        </Group>
+      ) : null}
+      {element.kind === "image" || element.kind === "table" || isEditing ? null : <MarkdownText element={element} color={colors.text} />}
+      {isLocked ? (
+        <Group x={element.width - 18} y={-20} listening={false} opacity={0.85}>
+          <Rect y={5} width={14} height={10} cornerRadius={2} fill="#475569" perfectDrawEnabled={false} />
+          <Line points={[3.5, 5, 3.5, 2.5, 10.5, 2.5, 10.5, 5]} stroke="#475569" strokeWidth={1.8} lineCap="round" perfectDrawEnabled={false} />
+        </Group>
+      ) : null}
+    </Group>
+  );
+});
 
 export function KonvaBoard({
   initialDocument,
@@ -415,13 +740,17 @@ export function KonvaBoard({
   textStyles: BoardTextStyles;
   onToolChange: (tool: BoardTool) => void;
   onReady: (engine: BoardEngine) => void;
-  onSelectionChange?: (info: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: BoardElement["kind"] | "connector" | "shape" | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[]; selectionLocked?: boolean }) => void;
+  onSelectionChange?: (info: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: BoardElement["kind"] | "connector" | "shape" | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[]; hasTitle?: boolean; selectionLocked?: boolean }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const shapeRefs = useRef(new Map<BoardElementId, Konva.Node>());
   const documentRef = useRef(cloneDocument(sampleBoard));
+  const elementsByIdRef = useRef<Map<BoardElementId, BoardElement>>(new Map(sampleBoard.elements.map((el) => [el.id, el])));
+  const gestureStartPositionsRef = useRef<Map<BoardElementId, { x: number; y: number }>>(new Map());
+  const activeDrawPointsRef = useRef<number[]>([]);
+  const lastSelectionPayloadRef = useRef<string>("");
   const selectionRef = useRef<BoardElementId[]>([]);
   const pastRef = useRef<BoardDocument[]>([]);
   const futureRef = useRef<BoardDocument[]>([]);
@@ -441,7 +770,6 @@ export function KonvaBoard({
   const moveFrameRef = useRef<number | null>(null);
   const pendingMoveRef = useRef<Map<BoardElementId, { x: number; y: number }>>(new Map());
   const drawFrameRef = useRef<number | null>(null);
-  const pendingDrawPointRef = useRef<{ id: BoardElementId; x: number; y: number } | null>(null);
   const wheelFrameRef = useRef<number | null>(null);
   const wheelCommitTimerRef = useRef<number | null>(null);
   const pendingWheelRef = useRef<{ x: number; y: number; deltaX: number; deltaY: number; zoom: boolean } | null>(null);
@@ -514,6 +842,7 @@ export function KonvaBoard({
   useEffect(() => {
     if (sameBoardDocument(initialDocument, documentRef.current)) return;
     documentRef.current = cloneDocument(initialDocument);
+    elementsByIdRef.current = new Map(documentRef.current.elements.map((el) => [el.id, el]));
     setDocument(documentRef.current);
     const elementIds = new Set(documentRef.current.elements.map((element) => element.id));
     setSelection((current) => current.every((id) => elementIds.has(id)) ? current : current.filter((id) => elementIds.has(id)));
@@ -555,6 +884,7 @@ export function KonvaBoard({
     transformerRef.current?.getLayer()?.batchDraw();
 
     const hasSelection = selection.length > 0 || selectedConnection !== null;
+    let nextPayloadKey = "";
     if (selection.length > 0) {
       const shapeKinds: BoardTool[] = ["rectangle", "ellipse", "diamond", "triangle"];
       const selectedElements = documentRef.current.elements.filter((element) => selection.includes(element.id));
@@ -570,10 +900,20 @@ export function KonvaBoard({
           style.textAlign === firstTextStyle.textAlign &&
           (style.verticalAlign ?? "top") === (firstTextStyle.verticalAlign ?? "top");
       }) ? firstTextStyle : null;
-      onSelectionChangeRef.current?.({ selectedShapeKind: shapeElement ? (shapeElement.kind as BoardTool) : null, hasSelection, selectedElementKind, selectedTextStyle, selectedIds: selection, selectionLocked: isSelectionLocked(documentRef.current.elements, selection) });
+      const hasTitle = selectedElements.length === 1 && Boolean(selectedElements[0]?.title);
+      const selectionLocked = isSelectionLocked(documentRef.current.elements, selection);
+      nextPayloadKey = `${shapeElement?.kind}:${hasSelection}:${selectedElementKind}:${selectedTextStyle?.fontSize}:${selectedTextStyle?.fontWeight}:${selectedTextStyle?.textAlign}:${selectedTextStyle?.verticalAlign}:${selection.join(",")}:${hasTitle}:${selectionLocked}`;
+      if (nextPayloadKey !== lastSelectionPayloadRef.current) {
+        lastSelectionPayloadRef.current = nextPayloadKey;
+        onSelectionChangeRef.current?.({ selectedShapeKind: shapeElement ? (shapeElement.kind as BoardTool) : null, hasSelection, selectedElementKind, selectedTextStyle, selectedIds: selection, hasTitle, selectionLocked });
+      }
     } else {
       const isConnectionSelected = selectedConnection !== null;
-      onSelectionChangeRef.current?.({ selectedShapeKind: null, hasSelection: isConnectionSelected, selectedElementKind: isConnectionSelected ? "connector" : null, selectedTextStyle: null, selectedIds: [], selectionLocked: false });
+      nextPayloadKey = `none:${isConnectionSelected}:${selectedConnection ?? ""}`;
+      if (nextPayloadKey !== lastSelectionPayloadRef.current) {
+        lastSelectionPayloadRef.current = nextPayloadKey;
+        onSelectionChangeRef.current?.({ selectedShapeKind: null, hasSelection: isConnectionSelected, selectedElementKind: isConnectionSelected ? "connector" : null, selectedTextStyle: null, selectedIds: [], selectionLocked: false });
+      }
     }
   }, [selection, selectedConnection, document]);
 
@@ -590,6 +930,7 @@ export function KonvaBoard({
 
   const replaceDocument = useCallback((next: BoardDocument) => {
     documentRef.current = next;
+    elementsByIdRef.current = new Map(next.elements.map((el) => [el.id, el]));
     setDocument(next);
     onDocumentChangeRef.current(next);
   }, []);
@@ -639,7 +980,7 @@ export function KonvaBoard({
 
   const updateConnectedArrows = useCallback((movedIds: Set<BoardElementId>) => {
     const resolveElement = (id: BoardElementId): BoardElement | undefined => {
-      const element = documentRef.current.elements.find((candidate) => candidate.id === id);
+      const element = elementsByIdRef.current.get(id);
       if (!element) return undefined;
       const preview = dragPreviewRef.current.get(id);
       return preview ? { ...element, x: preview.x, y: preview.y } : element;
@@ -698,25 +1039,31 @@ export function KonvaBoard({
       window.cancelAnimationFrame(drawFrameRef.current);
       drawFrameRef.current = null;
     }
-    const pending = pendingDrawPointRef.current;
-    pendingDrawPointRef.current = null;
-    if (!pending) return;
-    replaceDocument({
-      ...documentRef.current,
-      elements: documentRef.current.elements.map((element) => element.id === pending.id
-        ? { ...element, points: [...(element.points ?? []), pending.x, pending.y] }
-        : element),
-    });
+    const drawing = drawStartRef.current;
+    if (!drawing) return;
+    const finalPoints = [...activeDrawPointsRef.current];
+    if (finalPoints.length > 0) {
+      replaceDocument({
+        ...documentRef.current,
+        elements: documentRef.current.elements.map((element) =>
+          element.id === drawing.id ? { ...element, points: finalPoints } : element,
+        ),
+      });
+    }
   }, [replaceDocument]);
 
   const scheduleDrawPoint = useCallback((id: BoardElementId, x: number, y: number) => {
-    pendingDrawPointRef.current = { id, x, y };
+    activeDrawPointsRef.current.push(x, y);
     if (drawFrameRef.current !== null) return;
     drawFrameRef.current = window.requestAnimationFrame(() => {
       drawFrameRef.current = null;
-      flushPendingDrawPoint();
+      const line = shapeRefs.current.get(id) as Konva.Line | undefined;
+      if (line) {
+        line.points(activeDrawPointsRef.current);
+        line.getLayer()?.batchDraw();
+      }
     });
-  }, [flushPendingDrawPoint]);
+  }, []);
 
   useEffect(() => () => {
     if (moveFrameRef.current !== null) window.cancelAnimationFrame(moveFrameRef.current);
@@ -952,9 +1299,27 @@ export function KonvaBoard({
     const ids = selectionRef.current;
     if (ids.length !== 1) return;
     const element = documentRef.current.elements.find((item) => item.id === ids[0]);
-    if (!element || isElementLocked(element) || (element.kind !== "note" && element.kind !== "table")) return;
+    if (!element || isElementLocked(element) || (element.kind !== "note" && element.kind !== "table" && !isShapeKind(element.kind))) return;
     setEditing({ id: element.id, value: element.title ?? "", title: true });
   }, []);
+
+  const toggleSelectedTitle = useCallback(() => {
+    const ids = selectionRef.current;
+    if (ids.length !== 1) return;
+    const element = documentRef.current.elements.find((item) => item.id === ids[0]);
+    if (!element || isElementLocked(element) || (element.kind !== "note" && element.kind !== "table" && !isShapeKind(element.kind))) return;
+
+    if (element.title) {
+      commit({
+        ...documentRef.current,
+        elements: documentRef.current.elements.map((item) =>
+          item.id === element.id ? { ...item, title: undefined } : item,
+        ),
+      });
+    } else {
+      setEditing({ id: element.id, value: "", title: true });
+    }
+  }, [commit]);
 
   const updateSelectedConnection = useCallback((patch: Partial<BoardConnection>) => {
     if (!selectedConnectionRef.current) return;
@@ -1213,12 +1578,13 @@ export function KonvaBoard({
     updateSelectedConnection,
     setConnectionDefaults,
     editSelectedTitle,
+    toggleSelectedTitle,
     addTableRow,
     deleteTableRow,
     addTableCol,
     deleteTableCol,
     applyProposal,
-  }), [addChildNode, addImage, addTableCol, addTableRow, applyProposal, arrangeMindMap, copySelection, deleteTableCol, deleteTableRow, deleteSelection, duplicateSelection, editSelectedTitle, groupSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionLayer, setSelectionLocked, setSelectionShape, setSelectionTextStyle, undo, ungroupSelection, updateSelectedConnection, zoomAtCenter, zoomToFit]);
+  }), [addChildNode, addImage, addTableCol, addTableRow, applyProposal, arrangeMindMap, copySelection, deleteTableCol, deleteTableRow, deleteSelection, duplicateSelection, editSelectedTitle, groupSelection, pasteClipboard, redo, renderExport, setConnectionDefaults, setSelectionColor, setSelectionLayer, setSelectionLocked, setSelectionShape, setSelectionTextStyle, toggleSelectedTitle, undo, ungroupSelection, updateSelectedConnection, zoomAtCenter, zoomToFit]);
 
   useEffect(() => onReadyRef.current(engine), [engine]);
 
@@ -1483,6 +1849,7 @@ export function KonvaBoard({
     if (!point) return;
     if (effectiveTool === "draw") {
       const element: BoardElement = { id: createElementId(), kind: "draw", x: 0, y: 0, width: 1, height: 1, text: "", color: elementColorRef.current ?? "violet", points: [point.x, point.y] };
+      activeDrawPointsRef.current = [point.x, point.y];
       drawStartRef.current = { id: element.id, document: cloneDocument(documentRef.current) };
       replaceDocument({ ...documentRef.current, elements: [...documentRef.current.elements, element] });
       return;
@@ -1641,7 +2008,7 @@ export function KonvaBoard({
     if (!editing) return;
     const element = documentRef.current.elements.find((candidate) => candidate.id === editing.id);
     if (element) {
-      if (editing.title && (element.kind === "note" || element.kind === "table")) {
+      if (editing.title && (element.kind === "note" || element.kind === "table" || isShapeKind(element.kind))) {
         const title = editing.value.trim();
         if ((element.title ?? "") !== title) {
           commit({ ...documentRef.current, elements: documentRef.current.elements.map((candidate) =>
@@ -1703,6 +2070,129 @@ export function KonvaBoard({
     setEditing(null);
   }
 
+  const handleElementDblClick = useCallback((element: BoardElement, event: KonvaEventObject<MouseEvent | TouchEvent>) => {
+    event.cancelBubble = true;
+    if (isElementLocked(element)) return;
+    if (element.groupId && effectiveFocusedGroupId !== element.groupId) {
+      setFocusedGroupId(element.groupId);
+      setSelection([element.id]);
+      return;
+    }
+    setEditing({ id: element.id, value: element.text });
+  }, [effectiveFocusedGroupId]);
+
+  const handleElementDragStart = useCallback(() => {
+    gestureStartRef.current = cloneDocument(documentRef.current);
+    gestureStartPositionsRef.current = new Map(documentRef.current.elements.map((e) => [e.id, { x: e.x, y: e.y }]));
+    elementGestureActiveRef.current = true;
+  }, []);
+
+  const handleElementDragMove = useCallback((element: BoardElement, event: KonvaEventObject<DragEvent>) => {
+    if (selectionRef.current.includes(element.id) && selectionRef.current.length > 1) {
+      const original = gestureStartPositionsRef.current.get(element.id) ?? element;
+      const dx = event.target.x() - original.x;
+      const dy = event.target.y() - original.y;
+      const moves: { id: BoardElementId; x: number; y: number }[] = [];
+      for (const id of selectionRef.current) {
+        if (id === element.id) {
+          moves.push({ id, x: event.target.x(), y: event.target.y() });
+        } else {
+          const startPos = gestureStartPositionsRef.current.get(id);
+          if (startPos) {
+            const nextX = startPos.x + dx;
+            const nextY = startPos.y + dy;
+            moves.push({ id, x: nextX, y: nextY });
+            shapeRefs.current.get(id)?.position({ x: nextX, y: nextY });
+          }
+        }
+      }
+      scheduleMove(moves);
+    } else {
+      scheduleMove([{ id: element.id, x: event.target.x(), y: event.target.y() }]);
+    }
+  }, [scheduleMove]);
+
+  const handleElementDragEnd = useCallback((element: BoardElement, event: KonvaEventObject<DragEvent>) => {
+    cancelPendingMove();
+    dragPreviewRef.current = new Map();
+    elementGestureActiveRef.current = false;
+    if (selectionRef.current.includes(element.id) && selectionRef.current.length > 1) {
+      const original = gestureStartPositionsRef.current.get(element.id) ?? element;
+      const dx = event.target.x() - original.x;
+      const dy = event.target.y() - original.y;
+      const patches: { id: BoardElementId; patch: { x: number; y: number } }[] = [];
+      for (const id of selectionRef.current) {
+        if (id === element.id) {
+          patches.push({ id, patch: { x: event.target.x(), y: event.target.y() } });
+        } else {
+          const startPos = gestureStartPositionsRef.current.get(id);
+          if (startPos) {
+            patches.push({ id, patch: { x: startPos.x + dx, y: startPos.y + dy } });
+          }
+        }
+      }
+      gestureStartPositionsRef.current.clear();
+      updateElements(patches, true);
+    } else {
+      gestureStartPositionsRef.current.clear();
+      updateElements([{ id: element.id, patch: { x: event.target.x(), y: event.target.y() } }], true);
+    }
+  }, [cancelPendingMove, updateElements]);
+
+  const handleElementTransformStart = useCallback(() => {
+    gestureStartRef.current = cloneDocument(documentRef.current);
+    elementGestureActiveRef.current = true;
+  }, []);
+
+  const handleElementTransformEnd = useCallback((element: BoardElement, event: KonvaEventObject<Event>) => {
+    const node = event.target;
+    const width = Math.max(48, element.width * node.scaleX());
+    const height = Math.max(36, element.height * node.scaleY());
+    node.scale({ x: 1, y: 1 });
+    elementGestureActiveRef.current = false;
+    updateElement(element.id, { x: node.x(), y: node.y(), width, height }, true);
+  }, [updateElement]);
+
+  const handleTableCellDblClick = useCallback((element: BoardElement, r: number, c: number, text: string) => {
+    if (element.groupId && effectiveFocusedGroupId !== element.groupId) {
+      setFocusedGroupId(element.groupId);
+      setSelection([element.id]);
+      return;
+    }
+    setEditing({ id: element.id, value: text, row: r, col: c });
+  }, [effectiveFocusedGroupId]);
+
+  const handleElementTitleDblClick = useCallback((element: BoardElement) => {
+    if (isElementLocked(element)) return;
+    if (element.groupId && effectiveFocusedGroupId !== element.groupId) {
+      setFocusedGroupId(element.groupId);
+      setSelection([element.id]);
+      return;
+    }
+    setEditing({ id: element.id, value: element.title ?? "", title: true });
+  }, [effectiveFocusedGroupId]);
+
+  const registerShapeNode = useCallback((id: BoardElementId, node: Konva.Node | null) => {
+    if (node) shapeRefs.current.set(id, node);
+    else shapeRefs.current.delete(id);
+  }, []);
+
+  const registerArrowNode = useCallback((id: string, node: Konva.Arrow | null) => {
+    if (node) arrowRefs.current.set(id, node);
+    else arrowRefs.current.delete(id);
+  }, []);
+
+  const registerAnchorNode = useCallback((key: string, node: Konva.Ellipse | null) => {
+    if (node) anchorRefs.current.set(key, node);
+    else anchorRefs.current.delete(key);
+  }, []);
+
+  const handleSelectConnection = useCallback((id: string, event: KonvaEventObject<MouseEvent | TouchEvent>) => {
+    event.cancelBubble = true;
+    setSelection([]);
+    setSelectedConnection(id);
+  }, []);
+
   return (
     <div ref={containerRef} className={`konva-board h-full w-full touch-none ${effectiveTool === "hand" ? "cursor-grab" : "cursor-default"}`} data-testid="konva-board" data-element-count={document.elements.length} data-space-panning={isSpacePanning || undefined}>
       <Stage
@@ -1732,246 +2222,46 @@ export function KonvaBoard({
             const from = elementMap.get(connection.fromId);
             const to = elementMap.get(connection.toId);
             if (!from || !to) return null;
-            const groupedPath = elbowPaths.get(connection.id);
-            const { start, end } = groupedPath ?? getConnectionEndpoints(from, to, connection.pathStyle === "curved" ? 0 : 16);
-            const isSelected = selectedConnection === connection.id;
-            const colorKey = connection.color;
-            const strokeColor = isSelected ? "#7c3aed" : colorKey ? COLORS[colorKey].stroke : "#64748b";
-            const style = connection.style ?? "end";
-            const lineStyle = connection.lineStyle ?? "solid";
-            const headType = connection.headType ?? "arrow";
-            const pointerAtBeginning = style === "both" || style === "start";
-            const pointerAtEnding = style === "both" || style === "end";
-            const dash = lineStyle === "dashed" ? [10, 6] : lineStyle === "dotted" ? [3, 5] : [];
-            let pointerLength = 10;
-            let pointerWidth = 10;
-            if (headType === "arrow") {
-              pointerLength = 10;
-              pointerWidth = 12;
-            } else if (headType === "triangle") {
-              pointerLength = 14;
-              pointerWidth = 10;
-            }
-            const pathStyle = connection.pathStyle ?? "straight";
-            const points = groupedPath ? groupedPath.points : getConnectionPathPoints(pathStyle, start, end);
-            const isCustomMarker = headType === "circle" || headType === "diamond";
-            // Markers rotate to the path's local end/start segment, not the overall start-end vector,
-            // so curved and elbow connectors still point their circle/diamond heads along the line.
-            const endAngleDeg = (Math.atan2(points[points.length - 1]! - points[points.length - 3]!, points[points.length - 2]! - points[points.length - 4]!) * 180) / Math.PI;
-            const startAngleDeg = (Math.atan2(points[1]! - points[3]!, points[0]! - points[2]!) * 180) / Math.PI;
             return (
-              <Group key={connection.id}>
-                <Arrow
-                  name={connection.id}
-                  hitStrokeWidth={18}
-                  ref={(node) => { if (node) arrowRefs.current.set(connection.id, node); else arrowRefs.current.delete(connection.id); }}
-                  points={points}
-                  tension={pathStyle === "curved" ? 0.5 : 0}
-                  stroke={strokeColor}
-                  fill={strokeColor}
-                  strokeWidth={isSelected ? 4 : 2}
-                  dash={dash}
-                  pointerAtBeginning={isCustomMarker ? false : pointerAtBeginning}
-                  pointerAtEnding={isCustomMarker ? false : pointerAtEnding}
-                  pointerLength={pointerLength}
-                  pointerWidth={pointerWidth}
-                  perfectDrawEnabled={false}
-                  onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }}
-                  onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }}
-                />
-                {headType === "circle" && pointerAtEnding ? <Ellipse x={end.x} y={end.y} radiusX={6.5} radiusY={6.5} fill={strokeColor} stroke="#ffffff" strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
-                {headType === "circle" && pointerAtBeginning ? <Ellipse x={start.x} y={start.y} radiusX={6.5} radiusY={6.5} fill={strokeColor} stroke="#ffffff" strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
-                {headType === "diamond" && pointerAtEnding ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={end.x} y={end.y} rotation={endAngleDeg} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
-                {headType === "diamond" && pointerAtBeginning ? <Line points={[-6, 0, 0, -5, 6, 0, 0, 5]} closed x={start.x} y={start.y} rotation={startAngleDeg + 180} fill={strokeColor} stroke={strokeColor} onClick={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} onTap={(event) => { event.cancelBubble = true; setSelection([]); setSelectedConnection(connection.id); }} /> : null}
-                {pathStyle === "curved" && style === "none" ? [start, end].map((point, index) => <Ellipse key={`anchor-${index}`} ref={(node) => { const key = `${connection.id}:${index}`; if (node) anchorRefs.current.set(key, node); else anchorRefs.current.delete(key); }} x={point.x} y={point.y} radiusX={4.5} radiusY={4.5} fill="#ffffff" stroke={strokeColor} strokeWidth={1.7} listening={false} perfectDrawEnabled={false} />) : null}
-              </Group>
+              <BoardConnectionNode
+                key={connection.id}
+                connection={connection}
+                from={from}
+                to={to}
+                groupedPath={elbowPaths.get(connection.id)}
+                isSelected={selectedConnection === connection.id}
+                onSelect={handleSelectConnection}
+                registerArrow={registerArrowNode}
+                registerAnchor={registerAnchorNode}
+              />
             );
           })}
-          {document.elements.map((element) => {
-            if (element.kind === "draw") {
-              return <Line key={element.id} name={element.id} points={element.points ?? []} stroke={COLORS[element.color ?? "violet"].stroke} strokeWidth={3} hitStrokeWidth={20} lineCap="round" lineJoin="round" tension={0.25} perfectDrawEnabled={false} />;
-            }
-            const colors = COLORS[element.color ?? "grey"];
-            return (
-              <Group
-                key={element.id}
-                name={element.id}
-                ref={(node) => { if (node) shapeRefs.current.set(element.id, node); else shapeRefs.current.delete(element.id); }}
-                x={element.x}
-                y={element.y}
-                width={element.width}
-                height={element.height}
-                draggable={effectiveTool === "select" && !isElementLocked(element)}
-                onClick={(event) => selectElement(element.id, event)}
-                onTap={(event) => selectElement(element.id, event)}
-                onTouchStart={(event) => startLongPress(element.id, event)}
-                onTouchMove={clearLongPress}
-                onTouchEnd={clearLongPress}
-                onMouseDown={() => startMouseLongPress(element.id)}
-                onMouseMove={clearLongPress}
-                onMouseUp={clearLongPress}
-                onDblClick={(event) => {
-                  event.cancelBubble = true;
-                  if (isElementLocked(element)) return;
-                  if (element.groupId && effectiveFocusedGroupId !== element.groupId) {
-                    setFocusedGroupId(element.groupId);
-                    setSelection([element.id]);
-                    return;
-                  }
-                  setEditing({ id: element.id, value: element.text });
-                }}
-                onDblTap={(event) => {
-                  event.cancelBubble = true;
-                  if (isElementLocked(element)) return;
-                  if (element.groupId && effectiveFocusedGroupId !== element.groupId) {
-                    setFocusedGroupId(element.groupId);
-                    setSelection([element.id]);
-                    return;
-                  }
-                  setEditing({ id: element.id, value: element.text });
-                }}
-                onDragStart={() => {
-                  gestureStartRef.current = cloneDocument(documentRef.current);
-                  elementGestureActiveRef.current = true;
-                }}
-                onDragMove={(event) => {
-                  if (selectionRef.current.includes(element.id) && selectionRef.current.length > 1) {
-                    const original = gestureStartRef.current?.elements.find((e) => e.id === element.id) ?? element;
-                    const dx = event.target.x() - original.x;
-                    const dy = event.target.y() - original.y;
-                    const moves: { id: BoardElementId; x: number; y: number }[] = [];
-                    for (const id of selectionRef.current) {
-                      if (id === element.id) {
-                        moves.push({ id, x: event.target.x(), y: event.target.y() });
-                      } else {
-                        const startPos = gestureStartRef.current?.elements.find((e) => e.id === id);
-                        if (startPos) {
-                          const nextX = startPos.x + dx;
-                          const nextY = startPos.y + dy;
-                          moves.push({ id, x: nextX, y: nextY });
-                          shapeRefs.current.get(id)?.position({ x: nextX, y: nextY });
-                        }
-                      }
-                    }
-                    scheduleMove(moves);
-                  } else {
-                    scheduleMove([{ id: element.id, x: event.target.x(), y: event.target.y() }]);
-                  }
-                }}
-                onDragEnd={(event) => {
-                  cancelPendingMove();
-                  dragPreviewRef.current = new Map();
-                  elementGestureActiveRef.current = false;
-                  if (selectionRef.current.includes(element.id) && selectionRef.current.length > 1) {
-                    const original = gestureStartRef.current?.elements.find((e) => e.id === element.id) ?? element;
-                    const dx = event.target.x() - original.x;
-                    const dy = event.target.y() - original.y;
-                    const patches: { id: BoardElementId; patch: { x: number; y: number } }[] = [];
-                    for (const id of selectionRef.current) {
-                      if (id === element.id) {
-                        patches.push({ id, patch: { x: event.target.x(), y: event.target.y() } });
-                      } else {
-                        const startPos = gestureStartRef.current?.elements.find((e) => e.id === id);
-                        if (startPos) {
-                          patches.push({ id, patch: { x: startPos.x + dx, y: startPos.y + dy } });
-                        }
-                      }
-                    }
-                    updateElements(patches, true);
-                  } else {
-                    updateElements([{ id: element.id, patch: { x: event.target.x(), y: event.target.y() } }], true);
-                  }
-                }}
-                onTransformStart={() => {
-                  gestureStartRef.current = cloneDocument(documentRef.current);
-                  elementGestureActiveRef.current = true;
-                }}
-                onTransformEnd={(event) => {
-                  const node = event.target;
-                  const width = Math.max(48, element.width * node.scaleX());
-                  const height = Math.max(36, element.height * node.scaleY());
-                  node.scale({ x: 1, y: 1 });
-                  elementGestureActiveRef.current = false;
-                  updateElement(element.id, { x: node.x(), y: node.y(), width, height }, true);
-                }}
-              >
-                {element.kind === "image"
-                  ? <BoardImage element={element} />
-                  : element.kind === "table"
-                    ? <BoardTable element={element} colors={colors} titleEditing={editing?.id === element.id && editing.title === true} onTitleDblClick={() => { if (!isElementLocked(element)) setEditing({ id: element.id, value: element.title ?? "", title: true }); }} onCellDblClick={(r, c, text) => {
-                        if (element.groupId && effectiveFocusedGroupId !== element.groupId) {
-                          setFocusedGroupId(element.groupId);
-                          setSelection([element.id]);
-                          return;
-                        }
-                        setEditing({ id: element.id, value: text, row: r, col: c });
-                      }} />
-                  : element.kind === "ellipse"
-                  ? <Ellipse x={element.width / 2} y={element.height / 2} radiusX={element.width / 2} radiusY={element.height / 2} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />
-                  : element.kind === "diamond"
-                    ? <Line points={[element.width / 2, 0, element.width, element.height / 2, element.width / 2, element.height, 0, element.height / 2]} closed fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />
-                    : element.kind === "triangle"
-                      ? <Line points={[element.width / 2, 0, element.width, element.height, 0, element.height]} closed fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />
-                  : element.kind === "note"
-                    ? (() => {
-                        const fold = Math.min(24, Math.min(element.width, element.height) * 0.2);
-                        return (
-                          <Group>
-                            <Line
-                              points={[0, 0, element.width, 0, element.width, element.height - fold, element.width - fold, element.height, 0, element.height]}
-                              closed
-                              fill={colors.fill}
-                              lineJoin="round"
-                              shadowColor="#0f172a"
-                              shadowOpacity={isCoarsePointer ? 0 : 0.08}
-                              shadowBlur={isCoarsePointer ? 0 : 8}
-                              shadowOffsetY={4}
-                              shadowOffsetX={1}
-                              perfectDrawEnabled={false}
-                              shadowForStrokeEnabled={false}
-                            />
-                            <Line
-                              points={[element.width - fold, element.height - fold, element.width, element.height - fold, element.width - fold, element.height]}
-                              closed
-                              fill={colors.stroke}
-                              opacity={0.35}
-                              lineJoin="round"
-                            />
-                            <Rect
-                              x={element.width / 2 - 26}
-                              y={-8}
-                              width={52}
-                              height={16}
-                              fill="rgba(254, 240, 138, 0.55)"
-                              stroke="rgba(234, 179, 8, 0.3)"
-                              strokeWidth={1}
-                              cornerRadius={3}
-                              rotation={-1.5}
-                            />
-                          </Group>
-                        );
-                      })()
-                  : element.kind === "text"
-                    ? <Rect width={element.width} height={element.height} fill="rgba(0, 0, 0, 0.001)" />
-                    : <Rect width={element.width} height={element.height} fill={colors.fill} stroke={colors.stroke} strokeWidth={2.5} cornerRadius={18} shadowColor="#0f172a" shadowOpacity={isCoarsePointer ? 0 : 0.06} shadowBlur={isCoarsePointer ? 0 : 8} shadowOffsetY={3} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />}
-                {element.kind === "note" && (element.title || (editing?.id === element.id && editing.title)) ? (
-                  <Group onDblClick={(event) => { event.cancelBubble = true; if (!isElementLocked(element)) setEditing({ id: element.id, value: element.title ?? "", title: true }); }}>
-                    <Rect width={element.width} height={50} fill="transparent" />
-                    <Path x={18} y={19} data="M6 11A5 5 0 1 1 11 6c0 2-1 3-2.5 4.5V13h-5v-2.5C2 9 1 8 1 6A5 5 0 0 1 6 1 M3.5 15h5 M4.5 17h3" stroke={colors.text} strokeWidth={1.4} listening={false} />
-                    <Text x={43} y={18} width={element.width - 61} text={editing?.id === element.id && editing.title ? "" : element.title ?? ""} fill={colors.text} fontFamily="Geist, Noto Sans Thai, sans-serif" fontSize={17} fontStyle="bold" />
-                    <Line points={[18, 51, element.width - 18, 51]} stroke={colors.stroke} opacity={0.27} strokeWidth={1} />
-                  </Group>
-                ) : null}
-                {element.kind === "image" || element.kind === "table" || editing?.id === element.id ? null : <MarkdownText element={element} color={colors.text} />}
-                {isElementLocked(element) ? (
-                  <Group x={element.width - 18} y={-20} listening={false} opacity={0.85}>
-                    <Rect y={5} width={14} height={10} cornerRadius={2} fill="#475569" />
-                    <Line points={[3.5, 5, 3.5, 2.5, 10.5, 2.5, 10.5, 5]} stroke="#475569" strokeWidth={1.8} lineCap="round" />
-                  </Group>
-                ) : null}
-              </Group>
-            );
-          })}
+          {document.elements.map((element) => (
+            <BoardElementNode
+              key={element.id}
+              element={element}
+              colors={COLORS[element.color ?? "grey"]}
+              effectiveTool={effectiveTool}
+              isLocked={isElementLocked(element)}
+              isCoarsePointer={isCoarsePointer}
+              isEditing={editing?.id === element.id}
+              isTitleEditing={editing?.id === element.id && Boolean(editing.title)}
+              onSelect={selectElement}
+              onStartLongPress={startLongPress}
+              onClearLongPress={clearLongPress}
+              onStartMouseLongPress={startMouseLongPress}
+              onDblClick={handleElementDblClick}
+              onDblTap={handleElementDblClick}
+              onDragStart={handleElementDragStart}
+              onDragMove={handleElementDragMove}
+              onDragEnd={handleElementDragEnd}
+              onTransformStart={handleElementTransformStart}
+              onTransformEnd={handleElementTransformEnd}
+              onCellDblClick={handleTableCellDblClick}
+              onTitleDblClick={handleElementTitleDblClick}
+              registerShape={registerShapeNode}
+            />
+          ))}
           {focusedGroupBounds ? (
             <Group listening={false}>
               <Rect
@@ -2010,8 +2300,49 @@ export function KonvaBoard({
             rotateEnabled={false}
             flipEnabled={false}
             ignoreStroke={true}
-            shouldOverdrawWholeArea={true}
             boundBoxFunc={(oldBox, newBox) => newBox.width < 48 || newBox.height < 36 ? oldBox : newBox}
+            onDblClick={(event) => {
+              event.cancelBubble = true;
+              const ids = selectionRef.current;
+              if (ids.length > 0) {
+                const firstElement = documentRef.current.elements.find((el) => ids.includes(el.id));
+                if (firstElement?.groupId && effectiveFocusedGroupId !== firstElement.groupId) {
+                  const pointer = worldPointer();
+                  let targetId = firstElement.id;
+                  if (pointer) {
+                    const hit = documentRef.current.elements.find(
+                      (el) => ids.includes(el.id) &&
+                        pointer.x >= el.x && pointer.x <= el.x + el.width &&
+                        pointer.y >= el.y && pointer.y <= el.y + el.height,
+                    );
+                    if (hit) targetId = hit.id;
+                  }
+                  setFocusedGroupId(firstElement.groupId);
+                  setSelection([targetId]);
+                }
+              }
+            }}
+            onDblTap={(event) => {
+              event.cancelBubble = true;
+              const ids = selectionRef.current;
+              if (ids.length > 0) {
+                const firstElement = documentRef.current.elements.find((el) => ids.includes(el.id));
+                if (firstElement?.groupId && effectiveFocusedGroupId !== firstElement.groupId) {
+                  const pointer = worldPointer();
+                  let targetId = firstElement.id;
+                  if (pointer) {
+                    const hit = documentRef.current.elements.find(
+                      (el) => ids.includes(el.id) &&
+                        pointer.x >= el.x && pointer.x <= el.x + el.width &&
+                        pointer.y >= el.y && pointer.y <= el.y + el.height,
+                    );
+                    if (hit) targetId = hit.id;
+                  }
+                  setFocusedGroupId(firstElement.groupId);
+                  setSelection([targetId]);
+                }
+              }
+            }}
           />
         </Layer>
       </Stage>
@@ -2025,8 +2356,9 @@ export function KonvaBoard({
         const cellHeight = Math.max(1, editingElement.height - titleHeight) / rows;
         const cellX = isCellEdit ? editingElement.x + (editing.col! * cellWidth) : editingElement.x;
         const cellY = isCellEdit ? editingElement.y + titleHeight + (editing.row! * cellHeight) : editingElement.y;
+        const isShape = isShapeKind(editingElement.kind);
         const editWidth = isCellEdit ? cellWidth : editingElement.width;
-        const editHeight = editing.title ? (editingElement.kind === "note" ? 50 : 38) : isCellEdit ? cellHeight : editingElement.height;
+        const editHeight = editing.title ? (editingElement.kind === "table" ? 38 : 50) : isCellEdit ? cellHeight : editingElement.height;
 
         return (
           <textarea
@@ -2040,7 +2372,7 @@ export function KonvaBoard({
               width: Math.max(isCellEdit ? 48 : 140, editWidth * viewport.scale),
               height: Math.max(isCellEdit ? 32 : editing.title ? 35 : 60, editHeight * viewport.scale),
               boxSizing: "border-box",
-              padding: isCellEdit ? "8px" : editing.title ? (editingElement.kind === "table" ? "8px 17px 8px 44px" : "18px 18px 18px 43px") : editingElement.kind === "text" ? 0 : editingElement.kind === "note" && editingElement.title ? "58px 18px 18px" : "18px",
+              padding: isCellEdit ? "8px" : editing.title ? (editingElement.kind === "table" ? "8px 17px 8px 44px" : "18px 18px 18px 43px") : editingElement.kind === "text" ? 0 : (editingElement.kind === "note" || isShape) && editingElement.title ? "58px 18px 18px" : "18px",
               borderRadius: isCellEdit ? undefined : editingElement.kind === "ellipse" ? "50%" : undefined,
               color: COLORS[editingElement.color ?? "grey"].text,
               fontFamily: "Geist, Noto Sans Thai, sans-serif",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import Image from "next/image";
 import { Cloud, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { useLocale } from "@/lib/i18n/locale-provider";
 type BoardSummary = { id: string; name: string };
 type NameDialog = { board: BoardSummary | null; value: string };
 
-export function WorkspaceSidebar({
+export const WorkspaceSidebar = memo(function WorkspaceSidebar({
   boards,
   activeBoardId,
   nextBoardName,
@@ -118,4 +118,5 @@ export function WorkspaceSidebar({
       </Dialog>
     </aside>
   );
-}
+});
+

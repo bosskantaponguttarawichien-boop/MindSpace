@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BoardToolbar } from "@/features/board/components/board-toolbar";
 import { ZoomControls } from "@/features/board/components/zoom-controls";
 import type { BoardEngine, BoardTool } from "@/infrastructure/board-engine/board-engine";
-import { type BoardDocument, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
+import { type BoardColor, type BoardConnection, type BoardDocument, type BoardElementId, type BoardTextStyle } from "@/domain/board/board-document";
+import type { LayerPlacement } from "@/domain/board/element-order";
+import type { MindMapLayoutDirection } from "@/domain/board/mind-map";
 import { DEFAULT_TEXT_STYLES, textStyleScopeFor, type BoardTextStyleScope, type BoardTextStyles } from "@/domain/board/text-style-scope";
 import { isSupportedPdf } from "@/domain/files/file-validation";
 import { ImageUploadError, type ImageUploadFailure } from "@/infrastructure/files/firebase-board-images";
@@ -44,7 +46,7 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
   const { t } = useLocale();
   const [engine, setEngine] = useState<BoardEngine | null>(null);
   const [activeTool, setActiveTool] = useState<BoardTool>("select");
-  const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[]; selectionLocked?: boolean }>({ selectedShapeKind: null, hasSelection: false, selectedElementKind: null, selectedTextStyle: null, selectedIds: [], selectionLocked: false });
+  const [selectionState, setSelectionState] = useState<{ selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[]; hasTitle?: boolean; selectionLocked?: boolean }>({ selectedShapeKind: null, hasSelection: false, selectedElementKind: null, selectedTextStyle: null, selectedIds: [], hasTitle: false, selectionLocked: false });
   const [textStyles, setTextStyles] = useState<BoardTextStyles>(DEFAULT_TEXT_STYLES);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [importingPdf, setImportingPdf] = useState(false);
@@ -56,36 +58,97 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onEngineReadyRef = useRef(onEngineReady);
+  const onDocumentChangeRef = useRef(onDocumentChange);
+  const onSelectionIdsChangeRef = useRef(onSelectionIdsChange);
+  const engineRef = useRef<BoardEngine | null>(null);
+  const lastSelectionIdsRef = useRef<BoardElementId[]>([]);
+
   useEffect(() => {
     onEngineReadyRef.current = onEngineReady;
   }, [onEngineReady]);
 
+  useEffect(() => {
+    onDocumentChangeRef.current = onDocumentChange;
+  }, [onDocumentChange]);
+
+  useEffect(() => {
+    onSelectionIdsChangeRef.current = onSelectionIdsChange;
+  }, [onSelectionIdsChange]);
+
   const handleReady = useCallback((readyEngine: BoardEngine) => {
+    engineRef.current = readyEngine;
     setEngine(readyEngine);
     onEngineReadyRef.current(readyEngine);
   }, []);
 
-  const handleSelectionChange = useCallback((next: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[]; selectionLocked?: boolean }) => {
-    setSelectionState(next);
-    // A selected object only ever refreshes the scope it belongs to, so picking a note never
-    // rewrites the style the shape or table tool will use next.
+  const handleSelectionChange = useCallback((next: { selectedShapeKind: BoardTool | null; hasSelection: boolean; selectedElementKind?: string | null; selectedTextStyle: BoardTextStyle | null; selectedIds?: BoardElementId[]; hasTitle?: boolean; selectionLocked?: boolean }) => {
+    setSelectionState((prev) => {
+      if (
+        prev.selectedShapeKind === next.selectedShapeKind &&
+        prev.hasSelection === next.hasSelection &&
+        prev.selectedElementKind === next.selectedElementKind &&
+        prev.hasTitle === next.hasTitle &&
+        prev.selectionLocked === next.selectionLocked &&
+        prev.selectedTextStyle === next.selectedTextStyle &&
+        (prev.selectedIds === next.selectedIds ||
+          (prev.selectedIds?.length === next.selectedIds?.length &&
+            prev.selectedIds?.every((id, i) => id === next.selectedIds?.[i])))
+      ) {
+        return prev;
+      }
+      return next;
+    });
+
     const scope = textStyleScopeFor(next.selectedElementKind);
     const selectedTextStyle = next.selectedTextStyle;
     if (scope && selectedTextStyle) {
-      setTextStyles((current) => ({ ...current, [scope]: selectedTextStyle }));
+      setTextStyles((current) => {
+        if (current[scope] === selectedTextStyle) return current;
+        return { ...current, [scope]: selectedTextStyle };
+      });
     }
-    if (next.selectedIds && onSelectionIdsChange) onSelectionIdsChange(next.selectedIds);
-  }, [onSelectionIdsChange]);
+
+    const nextIds = next.selectedIds ?? [];
+    const prevIds = lastSelectionIdsRef.current;
+    const sameIds = nextIds.length === prevIds.length && nextIds.every((id, idx) => id === prevIds[idx]);
+    if (!sameIds) {
+      lastSelectionIdsRef.current = nextIds;
+      onSelectionIdsChangeRef.current?.(nextIds);
+    }
+  }, []);
 
   const setTextFormatting = useCallback((scope: BoardTextStyleScope, patch: Partial<BoardTextStyle>) => {
     setTextStyles((current) => ({ ...current, [scope]: { ...current[scope], ...patch } }));
-    engine?.setSelectionTextStyle(patch);
-  }, [engine]);
+    engineRef.current?.setSelectionTextStyle(patch);
+  }, []);
+
   const showNotice = useCallback((key: MessageKey) => {
     setNotice(key);
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     noticeTimerRef.current = setTimeout(() => setNotice(null), 6000);
   }, []);
+
+  const handleSetShape = useCallback((shape: BoardTool) => engineRef.current?.setSelectionShape(shape), []);
+  const handleEditTitle = useCallback(() => engineRef.current?.editSelectedTitle(), []);
+  const handleToggleTitle = useCallback(() => engineRef.current?.toggleSelectedTitle(), []);
+  const handleImportImage = useCallback(() => inputRef.current?.click(), []);
+  const handleImportPdf = useCallback(() => pdfInputRef.current?.click(), []);
+  const handleAddChildNode = useCallback(() => engineRef.current?.addChildNode(), []);
+  const handleLayoutMindMap = useCallback((direction?: MindMapLayoutDirection) => engineRef.current?.layoutMindMap(direction), []);
+  const handleSetColor = useCallback((color: BoardColor) => engineRef.current?.setSelectionColor(color), []);
+  const handleUpdateConnection = useCallback((patch: Partial<BoardConnection>) => {
+    engineRef.current?.setConnectionDefaults(patch);
+    engineRef.current?.updateSelectedConnection(patch);
+  }, []);
+  const handleAddTableRow = useCallback(() => engineRef.current?.addTableRow(), []);
+  const handleDeleteTableRow = useCallback(() => engineRef.current?.deleteTableRow(), []);
+  const handleAddTableCol = useCallback(() => engineRef.current?.addTableCol(), []);
+  const handleDeleteTableCol = useCallback(() => engineRef.current?.deleteTableCol(), []);
+  const handleDuplicateSelection = useCallback(() => engineRef.current?.duplicateSelection(), []);
+  const handleDeleteSelection = useCallback(() => engineRef.current?.deleteSelection(), []);
+  const handleSetSelectionLocked = useCallback((locked: boolean) => engineRef.current?.setSelectionLocked(locked), []);
+  const handleSetSelectionLayer = useCallback((placement: LayerPlacement) => engineRef.current?.setSelectionLayer(placement), []);
+
   const importImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -142,8 +205,8 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
       deleteTimersRef.current.delete(url);
     }
     documentRef.current = next;
-    onDocumentChange(next);
-  }, [onDeleteImages, onDocumentChange]);
+    onDocumentChangeRef.current(next);
+  }, [onDeleteImages]);
 
   useEffect(() => () => {
     deleteTimersRef.current.forEach((timer) => clearTimeout(timer));
@@ -167,24 +230,26 @@ export function BoardCanvas({ onEngineReady, document, onDocumentChange, onUploa
         selectedIds={selectionState.selectedIds}
         hasSelection={selectionState.hasSelection}
         selectionLocked={selectionState.selectionLocked}
+        hasTitle={selectionState.hasTitle}
         onToolChange={setActiveTool}
-        onSetShape={(shape) => engine?.setSelectionShape(shape)}
+        onSetShape={handleSetShape}
         onSetTextStyle={setTextFormatting}
-        onEditTitle={() => engine?.editSelectedTitle()}
-        onImportImage={() => inputRef.current?.click()}
-        onImportPdf={() => pdfInputRef.current?.click()}
-        onAddChildNode={() => engine?.addChildNode()}
-        onLayoutMindMap={(direction) => engine?.layoutMindMap(direction)}
-        onSetColor={(color) => engine?.setSelectionColor(color)}
-        onUpdateConnection={(patch) => { engine?.setConnectionDefaults(patch); engine?.updateSelectedConnection(patch); }}
-        onAddTableRow={() => engine?.addTableRow()}
-        onDeleteTableRow={() => engine?.deleteTableRow()}
-        onAddTableCol={() => engine?.addTableCol()}
-        onDeleteTableCol={() => engine?.deleteTableCol()}
-        onDuplicateSelection={() => engine?.duplicateSelection()}
-        onDeleteSelection={() => engine?.deleteSelection()}
-        onSetSelectionLocked={(locked) => engine?.setSelectionLocked(locked)}
-        onSetSelectionLayer={(placement) => engine?.setSelectionLayer(placement)}
+        onEditTitle={handleEditTitle}
+        onToggleTitle={handleToggleTitle}
+        onImportImage={handleImportImage}
+        onImportPdf={handleImportPdf}
+        onAddChildNode={handleAddChildNode}
+        onLayoutMindMap={handleLayoutMindMap}
+        onSetColor={handleSetColor}
+        onUpdateConnection={handleUpdateConnection}
+        onAddTableRow={handleAddTableRow}
+        onDeleteTableRow={handleDeleteTableRow}
+        onAddTableCol={handleAddTableCol}
+        onDeleteTableCol={handleDeleteTableCol}
+        onDuplicateSelection={handleDuplicateSelection}
+        onDeleteSelection={handleDeleteSelection}
+        onSetSelectionLocked={handleSetSelectionLocked}
+        onSetSelectionLayer={handleSetSelectionLayer}
       />
       <ZoomControls engine={engine} />
       {uploadingImage || importingPdf || notice ? <div className="pointer-events-none absolute bottom-[calc(var(--safe-bottom)+5rem)] end-[calc(var(--safe-right)+0.75rem)] sm:bottom-[calc(var(--safe-bottom)+1rem)] sm:end-[calc(var(--safe-right)+1rem)] z-30 max-w-64 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur" role="status">{t(importingPdf ? "pdfImporting" : uploadingImage ? "imageUploading" : notice ?? "imageUploading")}</div> : null}

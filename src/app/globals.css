@@ -170,14 +170,14 @@ body {
     opacity: 0;
   }
   to {
-    max-width: 185px;
+    max-width: 320px;
     opacity: 1;
   }
 }
 
 @keyframes toolbar-subtools-out {
   from {
-    max-width: 185px;
+    max-width: 320px;
     opacity: 1;
   }
   to {

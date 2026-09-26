@@ -10,9 +10,15 @@ function stripInlineMarkdown(value: string) {
   return value.replace(/\*\*(.+?)\*\*/g, "$1").replace(/`(.+?)`/g, "$1");
 }
 
+const markdownCache = new Map<string, MarkdownLine[]>();
+const MAX_MARKDOWN_CACHE = 500;
+
 export function parseMarkdown(text: string): MarkdownLine[] {
+  const cached = markdownCache.get(text);
+  if (cached) return cached;
+
   let inCodeBlock = false;
-  return text.split("\n").map((raw) => {
+  const result = text.split("\n").map((raw) => {
     if (raw.trim().startsWith("```")) {
       inCodeBlock = !inCodeBlock;
       return { kind: "code" as const, text: "" };
@@ -31,4 +37,11 @@ export function parseMarkdown(text: string): MarkdownLine[] {
     if (quote) return { kind: "quote" as const, text: stripInlineMarkdown(quote[1] ?? "") };
     return { kind: "paragraph" as const, text: stripInlineMarkdown(raw), bold: /\*\*.+?\*\*/.test(raw) };
   }).filter((line) => line.text !== "" || line.kind === "paragraph");
+
+  if (markdownCache.size >= MAX_MARKDOWN_CACHE) {
+    const firstKey = markdownCache.keys().next().value;
+    if (firstKey !== undefined) markdownCache.delete(firstKey);
+  }
+  markdownCache.set(text, result);
+  return result;
 }

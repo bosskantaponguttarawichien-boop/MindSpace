@@ -53,6 +53,28 @@ const COLORS: Record<BoardColor, { fill: string; stroke: string; text: string }>
   grey: { fill: "#f3f4f6", stroke: "#94a3b8", text: "#334155" },
 };
 
+const NOTE_GRADIENTS: Record<BoardColor, { from: string; to: string }> = {
+  yellow: { from: "#fefce8", to: "#fef3c7" },
+  amber: { from: "#fffbeb", to: "#fde68a" },
+  orange: { from: "#fff7ed", to: "#ffedd5" },
+  red: { from: "#fff1f2", to: "#fee2e2" },
+  rose: { from: "#fff1f2", to: "#ffe4e6" },
+  pink: { from: "#fdf2f8", to: "#fce7f3" },
+  fuchsia: { from: "#fdf4ff", to: "#fae8ff" },
+  purple: { from: "#faf5ff", to: "#f3e8ff" },
+  violet: { from: "#f5f3ff", to: "#ede9fe" },
+  indigo: { from: "#eef2ff", to: "#e0e7ff" },
+  blue: { from: "#eff6ff", to: "#dbeafe" },
+  sky: { from: "#f0f9ff", to: "#e0f2fe" },
+  cyan: { from: "#ecfeff", to: "#cffafe" },
+  teal: { from: "#f0fdfa", to: "#ccfbf1" },
+  emerald: { from: "#ecfdf5", to: "#d1fae5" },
+  green: { from: "#f0fdf4", to: "#dcfce7" },
+  lime: { from: "#f7fee7", to: "#ecfccb" },
+  slate: { from: "#f8fafc", to: "#f1f5f9" },
+  grey: { from: "#fafafa", to: "#f4f4f5" },
+};
+
 const INITIAL_VIEWPORT: Viewport = { x: 40, y: 25, scale: 0.9 };
 const PDF_PAGE = { width: 1123, height: 794, padding: 48 };
 const TOOL_SHORTCUTS: Partial<Record<string, BoardTool>> = {
@@ -643,42 +665,128 @@ const BoardElementNode = memo(function BoardElementNode({
         />
       ) : element.kind === "note" ? (
         (() => {
-          const fold = Math.min(24, Math.min(element.width, element.height) * 0.2);
+          const gradient = NOTE_GRADIENTS[element.color ?? "yellow"];
+          const fold = Math.min(24, Math.min(element.width, element.height) * 0.18);
+          const tapeWidth = Math.min(84, Math.max(68, element.width * 0.4));
+          const tapeHeight = 24;
           return (
             <Group>
+              {/* Main square paper sheet with subtle gradient and ambient shadow */}
               <Line
-                points={[0, 0, element.width, 0, element.width, element.height - fold, element.width - fold, element.height, 0, element.height]}
+                points={[
+                  0,
+                  0,
+                  element.width,
+                  0,
+                  element.width,
+                  element.height - fold,
+                  element.width - fold,
+                  element.height,
+                  0,
+                  element.height,
+                ]}
                 closed
-                fill={colors.fill}
-                lineJoin="round"
+                fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+                fillLinearGradientEndPoint={{ x: element.width, y: element.height }}
+                fillLinearGradientColorStops={[
+                  0,
+                  gradient.from,
+                  1,
+                  gradient.to,
+                ]}
                 shadowColor="#0f172a"
-                shadowOpacity={isCoarsePointer ? 0 : 0.08}
-                shadowBlur={isCoarsePointer ? 0 : 8}
-                shadowOffsetY={4}
+                shadowOpacity={isCoarsePointer ? 0 : 0.12}
+                shadowBlur={isCoarsePointer ? 0 : 14}
+                shadowOffsetY={6}
                 shadowOffsetX={1}
                 perfectDrawEnabled={false}
                 shadowForStrokeEnabled={false}
               />
+              {/* Under-crease shadow behind the folded corner */}
               <Line
-                points={[element.width - fold, element.height - fold, element.width, element.height - fold, element.width - fold, element.height]}
+                points={[
+                  element.width - fold,
+                  element.height,
+                  element.width - fold - 2,
+                  element.height - fold - 2,
+                  element.width,
+                  element.height - fold,
+                ]}
                 closed
-                fill={colors.stroke}
-                opacity={0.35}
-                lineJoin="round"
+                fill="rgba(15, 23, 42, 0.12)"
                 perfectDrawEnabled={false}
               />
-              <Rect
-                x={element.width / 2 - 26}
-                y={-8}
-                width={52}
-                height={16}
-                fill="rgba(254, 240, 138, 0.55)"
-                stroke="rgba(234, 179, 8, 0.3)"
-                strokeWidth={1}
-                cornerRadius={3}
+              {/* Folded corner flap with gentle 3D elevation shadow */}
+              <Line
+                points={[
+                  element.width - fold,
+                  element.height - fold,
+                  element.width,
+                  element.height - fold,
+                  element.width - fold,
+                  element.height,
+                ]}
+                closed
+                fill={gradient.to}
+                shadowColor="#0f172a"
+                shadowOpacity={isCoarsePointer ? 0 : 0.18}
+                shadowBlur={isCoarsePointer ? 0 : 4}
+                shadowOffsetX={-2}
+                shadowOffsetY={-2}
+                perfectDrawEnabled={false}
+                shadowForStrokeEnabled={false}
+              />
+              {/* Fold crease highlight */}
+              <Line
+                points={[
+                  element.width - fold,
+                  element.height,
+                  element.width,
+                  element.height - fold,
+                ]}
+                stroke="rgba(255, 255, 255, 0.55)"
+                strokeWidth={0.8}
+                perfectDrawEnabled={false}
+              />
+              {/* Clear tape (เทปใส) attached at the top center */}
+              <Group
+                x={element.width / 2}
+                y={0}
+                offsetX={tapeWidth / 2}
+                offsetY={tapeHeight / 2}
                 rotation={-1.5}
-                perfectDrawEnabled={false}
-              />
+                listening={false}
+              >
+                {/* Tape soft shadow */}
+                <Rect
+                  width={tapeWidth}
+                  height={tapeHeight}
+                  cornerRadius={2}
+                  fill="rgba(15, 23, 42, 0.08)"
+                  shadowColor="#0f172a"
+                  shadowOpacity={isCoarsePointer ? 0 : 0.18}
+                  shadowBlur={isCoarsePointer ? 0 : 4}
+                  shadowOffsetY={2}
+                  perfectDrawEnabled={false}
+                />
+                {/* Clear translucent tape body */}
+                <Rect
+                  width={tapeWidth}
+                  height={tapeHeight}
+                  cornerRadius={2}
+                  fill="rgba(255, 255, 255, 0.72)"
+                  stroke="rgba(203, 213, 225, 0.6)"
+                  strokeWidth={1}
+                  perfectDrawEnabled={false}
+                />
+                {/* Tape glossy highlight sheen */}
+                <Line
+                  points={[6, 4, tapeWidth - 6, 4]}
+                  stroke="rgba(255, 255, 255, 0.85)"
+                  strokeWidth={1.5}
+                  perfectDrawEnabled={false}
+                />
+              </Group>
             </Group>
           );
         })()

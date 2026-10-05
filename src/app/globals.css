@@ -196,3 +196,35 @@ body {
   overflow: hidden;
 }
 
+
+/* Reveal the mobile AI sheet from the floating button's 48px box. Keeping the
+   content at full size avoids squashing text; visibility waits for the reverse
+   reveal to finish. The button uses the same safe-area offsets. */
+.mobile-ai-reveal {
+  --ai-button-edge: calc(var(--safe-right) + 0.75rem);
+  clip-path: inset(
+    calc(100% - var(--safe-bottom) - 4rem)
+    var(--ai-button-edge)
+    calc(var(--safe-bottom) + 1rem)
+    calc(100% - var(--ai-button-edge) - 3rem)
+    round 1rem
+  );
+  transition: clip-path 360ms cubic-bezier(0.32, 0.72, 0, 1), visibility 0s 360ms;
+}
+
+.mobile-ai-reveal-open {
+  clip-path: inset(0 round 0);
+  transition-delay: 0s;
+}
+
+@media (min-width: 640px) {
+  .mobile-ai-reveal {
+    --ai-button-edge: calc(var(--safe-right) + 1rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-ai-reveal {
+    transition: none;
+  }
+}

@@ -1,4 +1,11 @@
 /**
+ * The colour the platform paints its system bars with (`theme-color`). Android
+ * fills its status bar with it, so it must match the white top bar the bar sits
+ * against (the shell's `bg-background`), or it reads as a separate band.
+ */
+export const SYSTEM_BAR_COLOR = "#ffffff";
+
+/**
  * The height of the viewport the page is laid out in, in CSS pixels.
  *
  * This is the whole picture on every platform the app runs on: an installed app

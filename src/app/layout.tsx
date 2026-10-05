@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Noto_Sans_Thai } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { PwaRegistration } from "@/components/pwa/pwa-registration";
+import { SYSTEM_BAR_COLOR } from "@/shared/lib/app-viewport";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -34,6 +35,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: SYSTEM_BAR_COLOR,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

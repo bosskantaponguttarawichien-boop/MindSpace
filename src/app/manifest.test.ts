@@ -9,6 +9,7 @@ describe("PWA manifest", () => {
       display: "standalone",
       start_url: "/",
       background_color: "#4939ed",
+      theme_color: "#ffffff",
       icons: [
         { src: "/icons/mindspace-192.png", sizes: "192x192" },
         { src: "/icons/mindspace-512.png", sizes: "512x512" },

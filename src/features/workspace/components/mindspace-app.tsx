@@ -208,14 +208,15 @@ export function MindSpaceApp() {
           part of it. A tablet keeps the floating card over a dimmed board. */}
       <div
         className={cn(
-          "fixed inset-0 z-50 flex flex-col justify-end sm:p-4 sm:pt-[max(calc(var(--safe-top)+1rem),2rem)] sm:pb-[calc(var(--safe-bottom)+1rem)] sm:ps-[calc(var(--safe-left)+1rem)] sm:pe-[calc(var(--safe-right)+1rem)] lg:hidden transition-[visibility] duration-300",
-          mobileAiOpen ? "visible pointer-events-auto" : "invisible pointer-events-none delay-300"
+          "fixed inset-0 z-50 flex flex-col justify-end sm:p-4 sm:pt-[max(calc(var(--safe-top)+1rem),2rem)] sm:pb-[calc(var(--safe-bottom)+1rem)] sm:ps-[calc(var(--safe-left)+1rem)] sm:pe-[calc(var(--safe-right)+1rem)] lg:hidden mobile-ai-reveal",
+          mobileAiOpen ? "mobile-ai-reveal-open visible pointer-events-auto" : "invisible pointer-events-none"
         )}
         style={mobileViewport ? {
           height: `${mobileViewport.height}px`,
           transform: `translateY(${mobileViewport.offsetTop}px)`,
         } : { height: "var(--app-height)" }}
         aria-hidden={!mobileAiOpen}
+        inert={!mobileAiOpen}
       >
         {/* Backdrop: Smooth fade in/out */}
         <div
@@ -225,17 +226,14 @@ export function MindSpaceApp() {
           )}
           onClick={handleCloseMobileAi}
         />
-        {/* Popup Card: Smooth slide-up with subtle scale & spring-like curve */}
+        {/* Panel content stays at its final size while the container reveals from the AI button */}
         <div
           className={cn(
-            "relative z-10 mx-auto flex h-full w-full flex-col overflow-hidden bg-background shadow-2xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            "relative z-10 mx-auto flex h-full w-full flex-col overflow-hidden bg-background shadow-2xl",
             // The sheet carries the insets itself, so its background runs under
             // the home indicator while the panel stays clear of it.
             "pt-[var(--safe-top)] pb-[var(--safe-bottom)] ps-[var(--safe-left)] pe-[var(--safe-right)]",
             "sm:max-h-[850px] sm:max-w-xl sm:rounded-2xl sm:border sm:border-border sm:p-0",
-            mobileAiOpen
-              ? "translate-y-0 scale-100 opacity-100"
-              : "translate-y-8 opacity-0 sm:scale-[0.97]"
           )}
         >
           <AiPanel

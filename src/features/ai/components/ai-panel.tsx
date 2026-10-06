@@ -9,6 +9,7 @@ import { useLocale } from "@/lib/i18n/locale-provider";
 import type { BoardDocument, BoardElementId } from "@/domain/board/board-document";
 import type { AiActionType, AiProposal, AiProposedElement, AiProposedElementUpdate } from "@/domain/ai/proposal-schema";
 
+import { ChatMarkdown } from "@/features/ai/components/chat-markdown";
 import { useAiChat, type ChatMessage, type UseAiChatResult } from "@/features/ai/hooks/use-ai-chat";
 
 export type { ChatMessage };
@@ -206,7 +207,11 @@ export function AiPanel({
                   : "bg-muted/70 text-foreground border border-border/60"
               }`}
             >
-              <p className="whitespace-pre-wrap">{msg.content}</p>
+              {msg.role === "assistant" ? (
+                <ChatMarkdown content={msg.content} />
+              ) : (
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+              )}
             </div>
 
             {/* Structured Proposal Card */}

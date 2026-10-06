@@ -93,18 +93,6 @@ export type BoardDocument = {
   connections: BoardConnection[];
 };
 
-export function isBoardDocument(value: unknown): value is BoardDocument {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<BoardDocument>;
-  return (
-    candidate.version === 1 &&
-    typeof candidate.id === "string" &&
-    typeof candidate.name === "string" &&
-    Array.isArray(candidate.elements) &&
-    Array.isArray(candidate.connections)
-  );
-}
-
 /** Compares two documents by content, ignoring key order and fields left undefined. */
 export function sameBoardDocument(left: BoardDocument, right: BoardDocument): boolean {
   if (left === right) return true;

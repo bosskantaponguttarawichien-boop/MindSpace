@@ -2,7 +2,6 @@ import {
   BOARD_COLORS,
   TEXT_FONT_SIZES,
   type BoardColor,
-  type BoardElement,
   type BoardTextAlignment,
   type BoardTextFontSize,
   type BoardTextFontWeight,
@@ -441,9 +440,4 @@ export function parseAiResponse(raw: string): AiResponsePayload {
   }
 
   return { text: raw };
-}
-
-/** Element kinds the board can render but the AI may not author directly. */
-export function isAiElementKind(kind: BoardElement["kind"]): kind is AiElementKind {
-  return VALID_KINDS.has(kind as AiElementKind);
 }

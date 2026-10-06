@@ -226,7 +226,7 @@ export function MindSpaceApp() {
           )}
           onClick={handleCloseMobileAi}
         />
-        {/* Panel content stays at its final size while the container reveals from the AI button */}
+        {/* The persistent sheet scales from the AI button without changing its layout */}
         <div
           className={cn(
             "relative z-10 mx-auto flex h-full w-full flex-col overflow-hidden bg-background shadow-2xl",

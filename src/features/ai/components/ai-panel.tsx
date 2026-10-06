@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useEffect } from "react";
-import { Bot, Check, CheckCircle2, CircleHelp, GitFork, ListPlus, Loader2, ScanSearch, Send, Sparkles, Trash2, X } from "lucide-react";
+import { useRef, useEffect, useState } from "react";
+import { Bot, Check, CheckCircle2, CircleHelp, Copy, GitFork, ListPlus, Loader2, ScanSearch, Send, Sparkles, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -13,6 +13,40 @@ import { ChatMarkdown } from "@/features/ai/components/chat-markdown";
 import { useAiChat, type ChatMessage, type UseAiChatResult } from "@/features/ai/hooks/use-ai-chat";
 
 export type { ChatMessage };
+
+function CopyMessageButton({ text }: { text: string }) {
+  const { t } = useLocale();
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="mt-1 h-7 gap-1 px-2 text-[11px] text-muted-foreground"
+      onClick={handleCopy}
+      aria-label={copied ? t("aiCopied") : t("aiCopy")}
+    >
+      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      <span>{copied ? t("aiCopied") : t("aiCopy")}</span>
+    </Button>
+  );
+}
 
 const actions: Array<{ label: AiActionType; icon: typeof Sparkles }> = [
   { label: "summarize", icon: Sparkles },
@@ -213,6 +247,7 @@ export function AiPanel({
                 <p className="whitespace-pre-wrap">{msg.content}</p>
               )}
             </div>
+            {msg.role === "assistant" && msg.content.trim() ? <CopyMessageButton text={msg.content} /> : null}
 
             {/* Structured Proposal Card */}
             {msg.proposal ? (

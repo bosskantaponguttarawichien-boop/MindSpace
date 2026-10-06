@@ -197,24 +197,23 @@ body {
 }
 
 
-/* Reveal the mobile AI sheet from the floating button's 48px box. Keeping the
-   content at full size avoids squashing text; visibility waits for the reverse
-   reveal to finish. The button uses the same safe-area offsets. */
+/* Composite the persistent mobile sheet from the floating button's center.
+   Transform/opacity avoid repainting a changing clip across the entire chat. */
 .mobile-ai-reveal {
   --ai-button-edge: calc(var(--safe-right) + 0.75rem);
-  clip-path: inset(
-    calc(100% - var(--safe-bottom) - 4rem)
-    var(--ai-button-edge)
-    calc(var(--safe-bottom) + 1rem)
-    calc(100% - var(--ai-button-edge) - 3rem)
-    round 1rem
-  );
-  transition: clip-path 360ms cubic-bezier(0.32, 0.72, 0, 1), visibility 0s 360ms;
+  transform-origin: calc(100% - var(--ai-button-edge) - 1.5rem)
+    calc(100% - var(--safe-bottom) - 2.5rem);
+  scale: 0.08;
+  opacity: 0;
+  transition: scale 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 180ms ease-out, visibility 0s 320ms;
 }
 
 .mobile-ai-reveal-open {
-  clip-path: inset(0 round 0);
-  transition-delay: 0s;
+  scale: 1;
+  opacity: 1;
+  transition: scale 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease-out, visibility 0s;
 }
 
 @media (min-width: 640px) {
@@ -226,5 +225,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .mobile-ai-reveal {
     transition: none;
+    scale: 1;
   }
 }

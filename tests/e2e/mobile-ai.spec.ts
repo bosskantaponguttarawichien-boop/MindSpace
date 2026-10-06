@@ -12,19 +12,21 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     await expect(sheet).toHaveAttribute("inert", "");
     const box = await button.boundingBox();
     expect(box).not.toBeNull();
-    const closedClip = await sheet.evaluate((node) => getComputedStyle(node).clipPath);
-    // The reveal starts at the real floating button, not an arbitrary corner.
-    const topInset = Number(closedClip.match(/inset\(([\d.]+)px/)?.[1]);
-    expect(topInset).toBeCloseTo(box!.y, 0);
+    const origin = await sheet.evaluate((node) =>
+      getComputedStyle(node).transformOrigin.split(" ").map(Number.parseFloat));
+    // Both directions pivot around the floating button's center.
+    expect(origin[0]).toBeCloseTo(box!.x + box!.width / 2, 0);
+    expect(origin[1]).toBeCloseTo(box!.y + box!.height / 2, 0);
     await button.click();
     await expect(sheet).toHaveAttribute("aria-hidden", "false");
     await expect(sheet).not.toHaveAttribute("inert");
-    await expect(sheet).toHaveCSS("clip-path", "inset(0px round 0px)");
+    await expect(sheet).toHaveCSS("scale", "1");
+    await expect(sheet).toHaveCSS("opacity", "1");
     const input = sheet.getByRole("textbox");
     await input.fill("Keep this draft");
     await sheet.getByRole("button", { name: "Collapse AI panel" }).click();
     await expect(sheet).toHaveAttribute("inert", "");
-    await expect(sheet).toHaveCSS("clip-path", closedClip);
+    await expect(sheet).toHaveCSS("opacity", "0");
     await expect(sheet).toBeHidden();
     await button.click();
     await expect(input).toHaveValue("Keep this draft");

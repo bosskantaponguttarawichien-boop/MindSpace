@@ -66,6 +66,28 @@ describe("AiPanel", () => {
     });
   });
 
+  it("copies an assistant reply to the clipboard", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ text: "**Noun** summary", provider: "mock-ai", isMock: true }),
+    });
+
+    render(
+      <LocaleProvider>
+        <AiPanel document={mockDocument} />
+      </LocaleProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Summarize" }));
+    const copyButton = await screen.findByRole("button", { name: "Copy" });
+    await user.click(copyButton);
+
+    expect(writeText).toHaveBeenCalledWith("**Noun** summary");
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
+  });
+
   it("offers proofread as a quick action", async () => {
     const user = userEvent.setup();
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({

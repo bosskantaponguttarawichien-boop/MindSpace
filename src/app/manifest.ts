@@ -7,7 +7,9 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "MindSpace",
     description: "An infinite board for connecting ideas and building knowledge.",
     start_url: "/",
-    display: "standalone",
+    // Fullscreen lets Chrome's Web App Short Edges Cutout Mode render this
+    // installed PWA beneath Android system bars.
+    display: "fullscreen",
     background_color: "#4939ed",
     // Matches the top bar so an installed app's status bar blends into it.
     theme_color: SYSTEM_BAR_COLOR,

@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import manifest from "./manifest";
 
 describe("PWA manifest", () => {
-  it("declares a standalone MindSpace app with install icons", () => {
+  it("declares a fullscreen MindSpace app with install icons", () => {
     expect(manifest()).toMatchObject({
       name: "MindSpace",
       short_name: "MindSpace",
-      display: "standalone",
+      display: "fullscreen",
       start_url: "/",
       background_color: "#4939ed",
       theme_color: "#ffffff",

@@ -13,6 +13,8 @@ const MINIMUM_HEIGHT: Record<BoardElement["kind"], number> = {
 };
 
 export function heightForEditedElement(element: BoardElement, textareaScrollHeight: number, viewportScale: number): number {
+  // Editing changes content; note/shape dimensions remain an explicit resize action.
+  if (element.kind === "note" || element.kind === "rectangle" || element.kind === "ellipse" || element.kind === "diamond" || element.kind === "triangle") return element.height;
   const contentHeight = Math.ceil(textareaScrollHeight / viewportScale);
   return Math.max(MINIMUM_HEIGHT[element.kind], contentHeight);
 }

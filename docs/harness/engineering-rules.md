@@ -22,6 +22,7 @@
 - Group continuous gestures into one logical history entry.
 - Deleting a node handles attached connectors deterministically.
 - Copy/duplicate creates new stable IDs and remaps internal connector references.
+- In-place note/shape editing shares the display text layout and viewport transform; entering, cancelling, or saving an edit must not implicitly resize the element or change the board zoom.
 - Geometry/serialization does not depend on rendered DOM measurements unless isolated behind an adapter.
 
 ## Styling and POC usage

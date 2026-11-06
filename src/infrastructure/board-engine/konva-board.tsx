@@ -17,7 +17,8 @@ import type { AiProposal } from "@/domain/ai/proposal-schema";
 import { applyProposalToDocument } from "@/domain/ai/apply-proposal";
 import { heightForEditedElement } from "@/infrastructure/board-engine/element-sizing";
 import { boardBounds, cloneDocument, createElementId, effectiveTextStyleFor, isShapeKind, mindMapNodeKinds, nextElement, supportsTextStyle, type MindMapNodeKind } from "@/infrastructure/board-engine/board-elements";
-import { COLORS } from "@/infrastructure/board-engine/board-theme";
+import { InlineElementEditor } from "./inline-element-editor";
+import { elementColors } from "./element-appearance";
 import { BoardConnectionNode } from "@/infrastructure/board-engine/board-connection-node";
 import { BoardElementNode } from "@/infrastructure/board-engine/board-element-node";
 import { useLocale } from "@/lib/i18n/locale-provider";
@@ -1353,10 +1354,10 @@ export function KonvaBoard({
       } else if (element.text !== editing.value) {
         const textarea = textareaRef.current;
         let height = element.height;
-        if (textarea) {
+        if (textarea && element.kind !== "note" && !isShapeKind(element.kind)) {
           const previousHeight = textarea.style.height;
           textarea.style.height = "0px";
-          height = heightForEditedElement(element, textarea.scrollHeight, viewportRef.current.scale);
+          height = heightForEditedElement(element, textarea.scrollHeight, 1);
           textarea.style.height = previousHeight;
         }
         let updateProps: Partial<BoardElement> = { text: editing.value, height };
@@ -1557,7 +1558,7 @@ export function KonvaBoard({
             <BoardElementNode
               key={element.id}
               element={element}
-              colors={COLORS[element.color ?? "grey"]}
+              colors={elementColors(element)}
               effectiveTool={effectiveTool}
               isLocked={isElementLocked(element)}
               isCoarsePointer={isCoarsePointer}
@@ -1674,9 +1675,27 @@ export function KonvaBoard({
         const cellX = isCellEdit ? editingElement.x + (editing.col! * cellWidth) : editingElement.x;
         const cellY = isCellEdit ? editingElement.y + titleHeight + (editing.row! * cellHeight) : editingElement.y;
         const isShape = isShapeKind(editingElement.kind);
-        const editWidth = isCellEdit ? cellWidth : editingElement.width;
-        const editHeight = editing.title ? (editingElement.kind === "table" ? 38 : 50) : isCellEdit ? cellHeight : editingElement.height;
+        const isCardTitle = Boolean(editing.title) && editingElement.kind !== "table";
+        const editWidth = isCardTitle ? editingElement.width - 36 : isCellEdit ? cellWidth : editingElement.width;
+        const editHeight = editing.title ? (editingElement.kind === "table" ? 38 : 24) : isCellEdit ? cellHeight : editingElement.height;
 
+        if (!editing.title && (editingElement.kind === "note" || isShape)) {
+          return <InlineElementEditor key={editing.id} element={editingElement} viewport={viewport}
+            label={t("editElement")} onChange={(value) => setEditing({ ...editing, value })}
+            onBlur={finishEditing} onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return;
+              if (event.key === "Escape") { event.preventDefault(); setEditing(null); }
+              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                event.preventDefault(); event.currentTarget.blur();
+              } else if (event.key === "Tab") {
+                event.preventDefault(); continueMindMap("child");
+              } else if (event.key === "Enter" && !event.shiftKey && isShape) {
+                event.preventDefault();
+                if (documentRef.current.connections.some((c) => c.toId === editingElement.id)) continueMindMap("sibling");
+                else event.currentTarget.blur();
+              }
+            }} />;
+        }
         return (
           <textarea
             ref={textareaRef}
@@ -1684,24 +1703,27 @@ export function KonvaBoard({
             aria-label={t(editing.title ? "editTitle" : "editElement")}
             className={isCellEdit ? "absolute z-20 resize-none rounded-md border-2 border-primary bg-background/95 p-2 text-sm shadow-xl outline-none" : "absolute z-20 resize-none border-0 bg-transparent outline-none"}
             style={{
-              left: viewport.x + cellX * viewport.scale,
-              top: viewport.y + cellY * viewport.scale,
-              width: Math.max(isCellEdit ? 48 : 140, editWidth * viewport.scale),
-              height: Math.max(isCellEdit ? 32 : editing.title ? 35 : 60, editHeight * viewport.scale),
+              left: viewport.x + (cellX + (isCardTitle ? 18 : 0)) * viewport.scale,
+              top: viewport.y + (cellY + (isCardTitle ? 18 : 0)) * viewport.scale,
+              width: editWidth,
+              height: editHeight,
+              transform: `scale(${viewport.scale})`,
+              transformOrigin: "top left",
               boxSizing: "border-box",
-              padding: isCellEdit ? "8px" : editing.title ? (editingElement.kind === "table" ? "8px 17px 8px 44px" : "18px 18px 18px 43px") : editingElement.kind === "text" ? 0 : (editingElement.kind === "note" || isShape) && editingElement.title ? "58px 18px 18px" : "18px",
+              padding: isCardTitle ? 0 : isCellEdit ? "8px" : editing.title ? (editingElement.kind === "table" ? "8px 17px 8px 44px" : "18px") : editingElement.kind === "text" ? 0 : (editingElement.kind === "note" || isShape) && editingElement.title ? "58px 18px 18px" : "18px",
               borderRadius: isCellEdit ? undefined : editingElement.kind === "ellipse" ? "50%" : undefined,
-              color: COLORS[editingElement.color ?? "grey"].text,
+              color: elementColors(editingElement).text,
               fontFamily: "Geist, Noto Sans Thai, sans-serif",
-              fontSize: supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).fontSize : 16,
+              fontSize: editing.title ? 17 : supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).fontSize : 16,
               fontWeight: editing.title ? "bold" : supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).fontWeight : "bold",
-              lineHeight: 1.35,
-              textAlign: supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).textAlign : editingElement.kind === "note" ? "left" : "center",
+              lineHeight: isCardTitle ? 1 : 1.35,
+              textAlign: isCardTitle ? "left" : supportsTextStyle(editingElement) ? effectiveTextStyleFor(editingElement).textAlign : editingElement.kind === "note" ? "left" : "center",
             }}
             value={editing.value}
             onChange={(event) => setEditing({ ...editing, value: event.target.value })}
             onBlur={finishEditing}
             onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return;
               if (event.key === "Escape") setEditing(null);
               if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
                 event.currentTarget.blur();

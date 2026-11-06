@@ -14,11 +14,14 @@ const rectangle: BoardElement = {
 };
 
 describe("heightForEditedElement", () => {
-  it("shrinks a shape to the measured text height while preserving its usable minimum", () => {
-    expect(heightForEditedElement(rectangle, 58, 1)).toBe(72);
+  it.each(["note", "rectangle", "ellipse", "diamond", "triangle"] as const)("keeps %s dimensions when content changes at any zoom", (kind) => {
+    for (const scale of [0.25, 0.9, 1, 2.5]) {
+      expect(heightForEditedElement({ ...rectangle, kind }, 58, scale)).toBe(180);
+      expect(heightForEditedElement({ ...rectangle, kind }, 600, scale)).toBe(180);
+    }
   });
 
   it("converts a screen measurement back to board coordinates", () => {
-    expect(heightForEditedElement(rectangle, 216, 1.5)).toBe(144);
+    expect(heightForEditedElement({ ...rectangle, kind: "text" }, 216, 1.5)).toBe(144);
   });
 });

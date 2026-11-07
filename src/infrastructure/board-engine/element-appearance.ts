@@ -3,15 +3,22 @@ import { isShapeKind } from "./board-elements";
 import { COLORS, type ElementColors } from "./board-theme";
 
 export const ELEMENT_APPEARANCE = {
-  paper: "#fffdf9",
-  paperBorder: "#d6d3ce",
+  paper: "#fff9ed",
+  paperBorder: "#ded6c8",
+  paperHighlight: "#ffffff",
+  fold: "#f2e7d2",
+  tape: "#d9cbb4",
+  tapeBorder: "#c5b69d",
+  grain: "#86765e",
   text: "#20252c",
   noteRadius: 10,
   noteRail: 5,
-  noteFold: 10,
+  noteFold: 16,
+  tapeWidth: 64,
+  tapeHeight: 16,
   shapeRadius: 24,
   shapeBorder: 0.8,
-  shapeAccent: 3,
+  shapeInset: 2.5,
 } as const;
 
 function mix(from: string, to: string, amount: number): string {

@@ -56,9 +56,10 @@ describe("in-place note and shape editing", () => {
     expect(sourceFromEditor(editor, source)).toBe("```\nconst n = 1;\nconst m = 2;\n```");
   });
 
-  it("keeps a centered shape body in the same position while editing", () => {
-    const { editor } = mount({ ...note, kind: "ellipse", title: undefined, text: "Practice",
+  it.each(["rectangle", "ellipse", "diamond", "triangle"] as const)("keeps a centered %s body in the same position while editing", (kind) => {
+    const { editor } = mount({ ...note, kind, title: undefined, text: "Practice",
       textStyle: { verticalAlign: "middle", textAlign: "center" } });
     expect(editor).toHaveStyle({ textAlign: "center", top: "76.95px" });
   });
 });
+
